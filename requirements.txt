@@ -1,0 +1,7 @@
+PyQt6
+PyQt6-WebEngine
+mss
+pywin32
+uiautomation
+opencv-python
+numpy
