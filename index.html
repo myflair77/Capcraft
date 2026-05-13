@@ -82,7 +82,12 @@
         #selection_box { position: absolute; border: 1px dashed white; background: rgba(59, 130, 246, 0.2); display: none; pointer-events: none; z-index: 1502; }
 
         /* 작업 영역 */
-        #workspace { position: absolute; top: 60px; left: 0; width: calc(100vw - var(--sidebar-width)); height: calc(100vh - 60px); overflow: hidden; cursor: grab; background-color: #d1d5db; }
+        /* QWebEngine compositor를 상시 활성 상태로 유지하는 미세 애니메이션 */
+        @keyframes _keepCompositorAlive {
+            from { outline-offset: 0px; }
+            to   { outline-offset: 1px; }
+        }
+        #workspace { position: absolute; top: 60px; left: 0; width: calc(100vw - var(--sidebar-width)); height: calc(100vh - 60px); overflow: hidden; cursor: grab; background-color: #d1d5db; animation: _keepCompositorAlive 1s infinite alternate; outline: 1px solid transparent; }
         #workspace:active { cursor: grabbing; }
         
         #canvas_container_wrapper { 
@@ -1048,10 +1053,18 @@
             const thumb = canvas.toDataURL({format:'png', multiplier: thumbMult});
             const json  = JSON.stringify(canvas);
             
+            // 배경 이미지 URL 및 배경색 추출
+            const bgImg = canvas.backgroundImage;
+            let bgSrc = null;
+            if (bgImg && bgImg.getSrc) bgSrc = bgImg.getSrc();
+            const bgColor = canvas.backgroundColor;
+            
             // ★ activeRecentIdx 항목 갱신 (복제 방지)
             if (activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
                 recentList[activeRecentIdx].thumb = thumb;
                 recentList[activeRecentIdx].json  = json;
+                recentList[activeRecentIdx].bgSrc = bgSrc;
+                recentList[activeRecentIdx].bgColor = bgColor;
                 recentList[activeRecentIdx].width  = canvas.width;
                 recentList[activeRecentIdx].height = canvas.height;
                 renderRecentList();
@@ -1061,7 +1074,7 @@
             // 중복 방지: 앞 항목과 동일하면 무시
             if (recentList.length > 0 && recentList[0].json === json) return;
 
-            recentList.unshift({ thumb, json, width: canvas.width, height: canvas.height, time: Date.now() });
+            recentList.unshift({ thumb, json, bgSrc, bgColor, width: canvas.width, height: canvas.height, time: Date.now() });
             activeRecentIdx = 0;
 
             const maxRecent = parseInt(document.getElementById('set_recent_max').value) || 100;
@@ -1105,8 +1118,29 @@
                 delBtn.innerText = 'X';
                 delBtn.onclick = (e) => {
                     e.stopPropagation(); 
+                    const isDeletingActive = (realIdx === activeRecentIdx);
                     recentList.splice(realIdx, 1);
-                    if (activeRecentIdx >= recentList.length) activeRecentIdx = Math.max(0, recentList.length - 1);
+                    
+                    if (recentList.length === 0) {
+                        activeRecentIdx = -1;
+                        hasActiveCanvas = false;
+                        canvas.clear();
+                        canvas.backgroundColor = 'transparent';
+                        canvas.backgroundImage = null;
+                        canvas.renderAll();
+                        document.querySelectorAll('.btn-tool').forEach(btn => btn.classList.add('disabled'));
+                        document.getElementById('sub_toolbar').style.display = 'none';
+                        document.getElementById('edit_popup').style.display = 'none';
+                    } else {
+                        if (isDeletingActive) {
+                            let nextIdx = Math.max(0, Math.min(activeRecentIdx, recentList.length - 1));
+                            hasActiveCanvas = false; 
+                            activeRecentIdx = -1; 
+                            loadRecentItem(nextIdx);
+                        } else if (realIdx < activeRecentIdx) {
+                            activeRecentIdx--;
+                        }
+                    }
                     renderRecentList();
                 };
                 div.appendChild(delBtn);
@@ -1135,22 +1169,23 @@
             if (!item || idx === activeRecentIdx) return;
             flushThumbDebounce();
 
+            // ★ 떠나기 전에 현재 캔버스 상태를 무조건 저장
+            // (flushThumbDebounce는 디바운스 타이머가 있을 때만 동작하므로,
+            //  object:added만 발생하거나 타이머가 이미 실행된 경우 편집 내용이 유실됨)
+            if (activeRecentIdx >= 0 && hasActiveCanvas) {
+                pushCurrentToRecent();
+            }
+
             activeRecentIdx = idx;
             renderRecentList();
 
             const seq = ++_recentLoadSeq;
             isHistoryAction = true;
 
-            // 즉시 썸네일로 미리보기 (사용자에게 즉각 피드백)
-            if (hasActiveCanvas && canvas.wrapperEl) {
-                canvas.wrapperEl.style.visibility = 'hidden';
-            }
-
             canvas.renderOnAddRemove = false;
 
             // 배경 이미지를 별도 저장한 경우 빠르게 복원
             const bgSrc = item.bgSrc || null;
-            const loadObj = JSON.parse(item.json);
 
             canvas.loadFromJSON(item.json, () => {
                 if (seq !== _recentLoadSeq) return; // 더 최신 요청이 있으면 무시
@@ -1164,11 +1199,15 @@
                 enableTools();
                 applyFitZoom();
                 applyCanvasClipping();
-                canvas.renderAll();
 
-                if (canvas.wrapperEl) canvas.wrapperEl.style.visibility = 'visible';
-                initHistory();
-                isHistoryAction = false;
+                // ★ 핵심: setTimeout으로 새 macrotask에서 렌더링하여
+                //    Chromium compositor가 프레임을 스케줄링할 기회를 확보
+                setTimeout(() => {
+                    if (seq !== _recentLoadSeq) return;
+                    canvas.renderAll();
+                    initHistory();
+                    isHistoryAction = false;
+                }, 0);
             });
         }
         // 현재 활성 항목 인덱스
@@ -1318,11 +1357,6 @@
         function loadHistoryState(idx) {
             isHistoryAction = true;
             canvas.renderOnAddRemove = false;
-            
-            if(hasActiveCanvas) {
-                canvasContainer.style.backgroundImage = `url(${canvas.toDataURL()})`;
-                canvasContainer.style.backgroundSize = 'contain';
-            }
 
             const state = stateHistory[idx];
             canvas.setWidth(state.width);
@@ -1336,11 +1370,15 @@
                 canvas.backgroundColor = bgColor;
                 canvas.renderOnAddRemove = true; 
                 applyCanvasClipping(); 
-                canvas.renderAll(); 
-                canvasContainer.style.backgroundImage = 'none';
-                isHistoryAction = false; 
-                updateUndoRedoUI(); 
-                updateGlobalCursor(); 
+
+                // ★ 핵심: setTimeout으로 새 macrotask에서 렌더링하여
+                //    Chromium compositor가 프레임을 스케줄링할 기회를 확보
+                setTimeout(() => {
+                    canvas.renderAll(); 
+                    isHistoryAction = false; 
+                    updateUndoRedoUI(); 
+                    updateGlobalCursor(); 
+                }, 0);
             });
         }
 
@@ -1686,8 +1724,13 @@
                     activeRecentIdx = -1;
                     
                     canvas.loadFromJSON(f.target.result, () => {
-                        let baseW = canvas.backgroundImage ? canvas.backgroundImage.width * canvas.backgroundImage.scaleX : canvas.width;
-                        let baseH = canvas.backgroundImage ? canvas.backgroundImage.height * canvas.backgroundImage.scaleY : canvas.height;
+                        let parsed = {};
+                        try { parsed = JSON.parse(f.target.result); } catch(e) {}
+                        
+                        let baseW = parsed.width || (canvas.backgroundImage ? canvas.backgroundImage.width * canvas.backgroundImage.scaleX : canvas.width);
+                        let baseH = parsed.height || (canvas.backgroundImage ? canvas.backgroundImage.height * canvas.backgroundImage.scaleY : canvas.height);
+                        if (parsed.backgroundColor) canvas.backgroundColor = parsed.backgroundColor;
+
                         canvas.setWidth(baseW); canvas.setHeight(baseH); 
                         canvas.calcOffset();
                         
@@ -1733,7 +1776,7 @@
             let blob, suggestedName, mime;
             
             if (format === 'json') {
-                const jsonStr = JSON.stringify(canvas);
+                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor']));
                 blob = new Blob([jsonStr], {type: "application/json"});
                 suggestedName = `${baseName}.json`;
                 mime = 'application/json';

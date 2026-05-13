@@ -533,48 +533,16 @@ class CaptureEngine:
             stop_flag[0] = True
 
         scroll_overlay = ScrollCaptureOverlay((monitor['left'], monitor['top'], monitor['width'], monitor['height']))
-        scroll_btn_overlay = ScrollButtonOverlay((monitor['left'], monitor['top'], monitor['width'], monitor['height']), do_stop)
         scroll_overlay.show()
+        QApplication.processEvents()
+
+        scroll_btn_overlay = ScrollButtonOverlay((monitor['left'], monitor['top'], monitor['width'], monitor['height']), do_stop)
         scroll_btn_overlay.show()
         QApplication.processEvents()
 
         br = scroll_btn_overlay.geometry()
-        btn_rx = max(0, br.x() - monitor['left'])
         btn_ry = max(0, br.y() - monitor['top'])
-        btn_rw = br.width()
-        btn_rh = br.height()
 
-        def mask_button(img, ref):
-            result = img.copy()
-            y1 = btn_ry; y2 = min(btn_ry + btn_rh, img.shape[0])
-            x1 = btn_rx; x2 = min(btn_rx + btn_rw, img.shape[1])
-            if y2 > y1 and x2 > x1 and ref is not None:
-                result[y1:y2, x1:x2] = ref[y1:y2, x1:x2]
-            return result
-
-        def robust_offset(prev, cur, img_h):
-            w = prev.shape[1]
-            lc = int(w * 0.05)
-            rc = int(w * 0.80)
-            strip_offsets = []
-            for frac in (0.25, 0.45, 0.60):
-                sy   = int(img_h * frac)
-                sh   = int(img_h * 0.15)
-                if sy + sh > img_h: continue
-                t_strip = prev[sy:sy+sh, lc:lc+rc]
-                gt = cv2.cvtColor(t_strip, cv2.COLOR_BGRA2GRAY)
-                gn = cv2.cvtColor(cur[:, lc:lc+rc], cv2.COLOR_BGRA2GRAY)
-                if gn.shape[0] < gt.shape[0]: continue
-                res = cv2.matchTemplate(gn, gt, cv2.TM_CCOEFF_NORMED)
-                _, mv, _, ml = cv2.minMaxLoc(res)
-                if mv > 0.80:
-                    off = sy - ml[1]
-                    if 5 <= off <= int(img_h * 0.80): strip_offsets.append(off)
-            if not strip_offsets: return None
-            strip_offsets.sort()
-            return strip_offsets[len(strip_offsets) // 2]
-
-        images = []
         with mss.mss() as sct:
             def grab():
                 try: return np.array(sct.grab(monitor))
@@ -591,17 +559,77 @@ class CaptureEngine:
                     if np.abs(cur.astype(np.int16) - prev.astype(np.int16)).mean() < 1.5:
                         return cur
                     prev = cur
-                return prev
+                return cur
 
             raw = wait_stable(0.8)
-            first_img = raw.copy()
-            cur_clean = mask_button(raw, first_img)
-            images.append(cur_clean)
-            last_clean = cur_clean
-            img_h = raw.shape[0]
-            max_scrolls, no_change_cnt = 40, 0
+            first_frame = raw.copy()
+            last_clean = raw.copy()
+            img_h, img_w = raw.shape[:2]
+            
+            # 버튼 영역을 고정 footer로 간주하여 캡처 및 매칭에서 완전히 제외
+            button_fixed_bot = max(0, img_h - btn_ry + 10) if btn_ry > 0 else 0
+            
+            def get_fixed_bounds(prev, cur, h, w):
+                lc, rc = int(w*0.1), int(w*0.9)
+                fixed_top = 0
+                for y in range(min(h//3, 300)):
+                    if np.array_equal(prev[y, lc:rc], cur[y, lc:rc]): fixed_top = y + 1
+                    else: break
+                fixed_bot = 0
+                for y in range(h-1, max(h - h//3, h - 300), -1):
+                    if np.array_equal(prev[y, lc:rc], cur[y, lc:rc]): fixed_bot = h - y
+                    else: break
+                return fixed_top, max(fixed_bot, button_fixed_bot)
 
-            for _ in range(max_scrolls):
+            def get_exact_offset(prev, cur, h, w, f_top, f_bot):
+                lc, rc = int(w * 0.15), int(w * 0.85)
+                u_top = f_top + 5
+                u_bot = h - f_bot - 5
+                if u_bot - u_top < 100: return 0
+
+                offsets = []
+                for frac in (0.3, 0.5, 0.7):
+                    sy = u_top + int((u_bot - u_top) * frac)
+                    sh = min(50, u_bot - sy - 5)
+                    if sh < 20: continue
+                    t_strip = prev[sy:sy+sh, lc:rc]
+                    gt = cv2.cvtColor(t_strip, cv2.COLOR_BGRA2GRAY)
+                    gn = cv2.cvtColor(cur[u_top:u_bot, lc:rc], cv2.COLOR_BGRA2GRAY)
+                    if gn.shape[0] < gt.shape[0]: continue
+                    res = cv2.matchTemplate(gn, gt, cv2.TM_CCOEFF_NORMED)
+                    _, mv, _, ml = cv2.minMaxLoc(res)
+                    if mv > 0.85:
+                        match_y = u_top + ml[1]
+                        off = sy - match_y
+                        if 5 <= off <= h * 0.9: offsets.append(off)
+                
+                if not offsets: return 0
+                offsets.sort()
+                median = offsets[len(offsets)//2]
+                filtered = [o for o in offsets if abs(o - median) < 10]
+                approx = int(np.median(filtered)) if filtered else median
+
+                ref_y = u_bot - 30
+                if ref_y < u_top + 10: return approx
+                ref_strip = prev[ref_y:ref_y+10, lc:rc].astype(np.float32)
+                
+                expected_y = ref_y - approx
+                s_start = max(u_top, expected_y - 15)
+                s_end = min(u_bot - 10, expected_y + 15)
+                
+                best_y, best_diff = expected_y, float('inf')
+                for y in range(s_start, s_end):
+                    diff = np.mean(np.abs(ref_strip - cur[y:y+10, lc:rc].astype(np.float32)))
+                    if diff < best_diff:
+                        best_diff = diff
+                        best_y = y
+                return ref_y - best_y
+
+            max_scrolls, no_change_cnt = 40, 0
+            full_image = None
+            fixed_top, fixed_bot = 0, 0
+
+            for i in range(max_scrolls):
                 if stop_flag[0] or win32api.GetAsyncKeyState(win32con.VK_ESCAPE): break
                 QApplication.processEvents()
                 px, py = win32api.GetCursorPos()
@@ -609,28 +637,36 @@ class CaptureEngine:
                 if is_over_btn: win32api.SetCursorPos((monitor['left'] + 20, monitor['top'] + 20))
                 win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, -300, 0)
                 if is_over_btn: win32api.SetCursorPos((px, py))
-                raw_new = wait_stable(1.0)
+                
+                new_clean = wait_stable(1.0)
                 if stop_flag[0] or win32api.GetAsyncKeyState(win32con.VK_ESCAPE): break
-                new_clean = mask_button(raw_new, last_clean)
+                
                 if np.array_equal(last_clean, new_clean):
                     no_change_cnt += 1
                     if no_change_cnt >= 2: break
                     continue
                 no_change_cnt = 0
 
-                # ── 로버스트 offset 계산 ──────────────────────────────
-                offset = robust_offset(last_clean, new_clean, img_h)
-                if offset is not None and offset > 0:
-                    images.append(new_clean[-offset:, :])
-                # offset 계산 실패 시 해당 프레임 건너뜀 (중복/반복 방지)
+                if i == 0:
+                    fixed_top, fixed_bot = get_fixed_bounds(last_clean, new_clean, img_h, img_w)
+                    full_image = last_clean[:img_h - fixed_bot, :]
+
+                offset = get_exact_offset(last_clean, new_clean, img_h, img_w, fixed_top, fixed_bot)
+                if offset > 0:
+                    content_bottom = img_h - fixed_bot
+                    content_start = content_bottom - offset
+                    if content_start < content_bottom:
+                        full_image = np.vstack([full_image, new_clean[content_start:content_bottom, :]])
 
                 last_clean = new_clean
 
         scroll_overlay.close()
         scroll_btn_overlay.close()
 
-        if not images:
-            return None
-        final_img = np.vstack(images)
-        _, buffer = cv2.imencode('.png', final_img)
+        if full_image is None:
+            full_image = first_frame
+        elif fixed_bot > 0:
+            full_image = np.vstack([full_image, last_clean[img_h - fixed_bot:, :]])
+
+        _, buffer = cv2.imencode('.png', full_image)
         return base64.b64encode(buffer).decode('utf-8')
