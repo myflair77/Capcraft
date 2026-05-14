@@ -206,12 +206,12 @@
         <div class="tool-group">
             <button class="btn-tool group-edit disabled" id="btn_tool_text"><span class="icon">Abc</span>텍스트</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_pen"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12c3-8 9-8 12 0s9 8 9 0"/></svg></span>펜</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="2" style="vertical-align: middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>도형</button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="3" style="vertical-align: middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>도형</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_emoji"><span class="icon">😀</span>이모티콘</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_image"><span class="icon">🖼️</span>이미지</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_mosaic"><span class="icon">💧</span>모자이크</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_eraser">
-                <span class="icon"><img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>" width="18" height="18"></span>지우개
+                <span class="icon"><img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>" width="22" height="22"></span>지우개
             </button>
             <button class="btn-tool group-edit disabled" id="btn_tool_crop"><span class="icon">✂️</span>자르기</button>
         </div>
@@ -454,7 +454,8 @@
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span>형광펜 굵기:</span> <input type="number" id="set_pen_highlighter_weight" value="20" min="1" max="100" style="width:50px;">
-                <span>형광펜 색상:</span> <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.6);"></div>
+                <span>형광펜 색상:</span> <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.3);"></div>
+                <span style="margin-left:3px;">형광펜 색상 농도:</span> <input type="number" id="set_pen_highlighter_opacity" value="30" min="0" max="100" style="width:45px;">
             </div>
         </div>
 
@@ -880,6 +881,12 @@
         document.getElementById('set_mosaic_px').addEventListener('input', (e) => { 
             sysMosaicPx = parseInt(e.target.value) || 5; 
             document.getElementById('mosaic_intensity').value = sysMosaicPx; 
+        });
+
+        document.getElementById('set_pen_highlighter_opacity').addEventListener('input', (e) => {
+            let opacity = parseInt(e.target.value) || 30;
+            let hlColor = document.getElementById('set_pen_highlighter_color').style.backgroundColor;
+            document.getElementById('set_pen_highlighter_color').style.backgroundColor = new fabric.Color(hlColor).setAlpha(opacity / 100).toRgba();
         });
 
         // ==========================================
@@ -1438,7 +1445,7 @@
         let targetColorBtn = null;
         let strokeColor = '#E03C31'; let fillColor = 'transparent'; let textColor = '#E03C31'; let textBg = 'transparent';
         let sysPenBallpointWeight = 5; let sysPenBallpointColor = '#E03C31';
-        let sysPenHighlighterWeight = 20; let sysPenHighlighterColor = 'rgba(255, 255, 0, 0.6)';
+        let sysPenHighlighterWeight = 20; let sysPenHighlighterColor = 'rgba(255, 255, 0, 0.3)';
         let penCurrentColor = sysPenBallpointColor;
 
         munsell35.forEach(c => { 
@@ -1466,11 +1473,16 @@
                     document.getElementById('new_bg_color').style.backgroundColor = c.h; 
                 } else if (targetColorBtn === 'pen' || targetColorBtn === 'set_pen_ballpoint' || targetColorBtn === 'set_pen_highlighter') {
                     const elId = targetColorBtn === 'pen' ? 'btn_pen_color' : targetColorBtn === 'set_pen_ballpoint' ? 'set_pen_ballpoint_color' : 'set_pen_highlighter_color';
-                    document.getElementById(elId).style.backgroundColor = c.h;
+                    let finalColor = c.h;
+                    if (targetColorBtn === 'set_pen_highlighter' || (targetColorBtn === 'pen' && document.getElementById('pen_type').value === 'highlighter')) {
+                        let opacity = parseInt(document.getElementById('set_pen_highlighter_opacity').value) || 30;
+                        finalColor = new fabric.Color(c.h).setAlpha(opacity / 100).toRgba();
+                    }
+                    document.getElementById(elId).style.backgroundColor = finalColor;
                     if(targetColorBtn === 'pen') {
-                        penCurrentColor = c.h;
-                        if(document.getElementById('pen_type').value === 'ballpoint') sysPenBallpointColor = c.h;
-                        else sysPenHighlighterColor = c.h;
+                        penCurrentColor = finalColor;
+                        if(document.getElementById('pen_type').value === 'ballpoint') sysPenBallpointColor = finalColor;
+                        else sysPenHighlighterColor = finalColor;
                         updatePenBrush();
                     }
                 }

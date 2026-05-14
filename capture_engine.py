@@ -524,9 +524,6 @@ class CaptureEngine:
             return None
 
         win32api.SetCursorPos((pos.x(), pos.y()))
-        for _ in range(30):
-            win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, 0, 0, 1200, 0)
-        time.sleep(0.8)
 
         stop_flag = [False]
         def do_stop():
