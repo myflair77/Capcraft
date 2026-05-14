@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>BH-Capture v1.0</title>
+    <title>Capcraft v1.0</title>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
     <style>
@@ -205,7 +205,8 @@
         </div>
         <div class="tool-group">
             <button class="btn-tool group-edit disabled" id="btn_tool_text"><span class="icon">Abc</span>텍스트</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon">⬜</span>도형</button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_pen"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12c3-8 9-8 12 0s9 8 9 0"/></svg></span>펜</button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="2" style="vertical-align: middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>도형</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_emoji"><span class="icon">😀</span>이모티콘</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_image"><span class="icon">🖼️</span>이미지</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_mosaic"><span class="icon">💧</span>모자이크</button>
@@ -255,6 +256,23 @@
             <button id="btn_txt_u" class="btn-text-style" style="text-decoration: underline;">U</button>
             <span style="margin-left:8px;">색상:</span><div id="btn_text_color" class="color-btn" style="background-color: #E03C31;"></div>
             <span>배경:</span><div id="btn_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+        </div>
+        <div id="panel_pen" class="sub-panel">
+            <div class="custom-select-group" id="pen_type_group">
+                <button class="active" data-val="ballpoint">볼펜</button>
+                <button data-val="highlighter">형광펜</button>
+            </div>
+            <input type="hidden" id="pen_type" value="ballpoint">
+            
+            <label style="margin-left:8px;"><input type="checkbox" id="pen_dashed"> 점선</label>
+            
+            <div style="display: flex; gap: 8px; margin-left: 8px; padding-left: 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding-right: 8px;">
+                <label><input type="radio" name="pen_mode" value="normal" checked> 일반</label>
+                <label><input type="radio" name="pen_mode" value="straight"> 줄긋기</label>
+            </div>
+            
+            <span style="margin-left:8px;">선굵기:</span><input type="number" id="pen_weight" value="5" min="1" style="width: 40px; padding: 4px;">
+            <span>선색상:</span><div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
         </div>
         <div id="panel_emoji" class="sub-panel">
             <span style="color: var(--accent-blue); font-weight: bold;">팝업에서 선택 후, 캔버스를 드래그하세요.</span>
@@ -428,6 +446,18 @@
             </div>
         </div>
 
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">펜 설정</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span>볼펜 굵기:</span> <input type="number" id="set_pen_ballpoint_weight" value="5" min="1" max="50" style="width:50px;">
+                <span>볼펜 색상:</span> <div id="set_pen_ballpoint_color" class="color-btn" style="background-color: #E03C31;"></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>형광펜 굵기:</span> <input type="number" id="set_pen_highlighter_weight" value="20" min="1" max="100" style="width:50px;">
+                <span>형광펜 색상:</span> <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.6);"></div>
+            </div>
+        </div>
+
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">도형 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
@@ -506,7 +536,7 @@
     </div>
 
     <!-- 안내 모달 -->
-    <div class="modal" id="modal_guide" style="width: 400px;">
+    <div class="modal" id="modal_guide" style="width: 500px;">
         <div class="modal-header"><span>📖 프로그램 안내</span><button class="modal-close" onclick="closeModals()">❌</button></div>
         <div class="guide-content">
             <!-- guide.html 파일에서 내용을 불러옵니다 -->
@@ -541,7 +571,7 @@
         <div class="logo-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </div>
-        <div class="program-name">BH-Capture v1.0</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
+        <div class="program-name">Capcraft v1.0</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
         
         <button class="btn-nav" onclick="openGuide()">안내</button>
         <button class="btn-nav" onclick="openModal('modal_settings')">환경설정</button>
@@ -1407,6 +1437,9 @@
         const paletteEl = document.getElementById('color_palette');
         let targetColorBtn = null;
         let strokeColor = '#E03C31'; let fillColor = 'transparent'; let textColor = '#E03C31'; let textBg = 'transparent';
+        let sysPenBallpointWeight = 5; let sysPenBallpointColor = '#E03C31';
+        let sysPenHighlighterWeight = 20; let sysPenHighlighterColor = 'rgba(255, 255, 0, 0.6)';
+        let penCurrentColor = sysPenBallpointColor;
 
         munsell35.forEach(c => { 
             const cell = document.createElement('div');
@@ -1431,8 +1464,20 @@
                     if(targetColorBtn === 'text' || targetColorBtn === 'set_text') textColor = c.h; else if(targetColorBtn === 'text_bg' || targetColorBtn === 'set_text_bg') textBg = c.h; 
                 } else if (targetColorBtn === 'new_bg') {
                     document.getElementById('new_bg_color').style.backgroundColor = c.h; 
+                } else if (targetColorBtn === 'pen' || targetColorBtn === 'set_pen_ballpoint' || targetColorBtn === 'set_pen_highlighter') {
+                    const elId = targetColorBtn === 'pen' ? 'btn_pen_color' : targetColorBtn === 'set_pen_ballpoint' ? 'set_pen_ballpoint_color' : 'set_pen_highlighter_color';
+                    document.getElementById(elId).style.backgroundColor = c.h;
+                    if(targetColorBtn === 'pen') {
+                        penCurrentColor = c.h;
+                        if(document.getElementById('pen_type').value === 'ballpoint') sysPenBallpointColor = c.h;
+                        else sysPenHighlighterColor = c.h;
+                        updatePenBrush();
+                    }
                 }
                 paletteEl.style.display = 'none'; if(activeTool==='text') updateActiveText();
+                if(targetColorBtn === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                    // Update stroke color for straight line mode
+                }
             }); 
             paletteEl.appendChild(cell); 
         });
@@ -1455,6 +1500,8 @@
         bindCP('btn_stroke_color', 'stroke'); bindCP('btn_fill_color', 'fill');
         bindCP('btn_text_color', 'text'); bindCP('btn_text_bg', 'text_bg');
         bindCP('new_bg_color', 'new_bg');
+        bindCP('btn_pen_color', 'pen');
+        bindCP('set_pen_ballpoint_color', 'set_pen_ballpoint'); bindCP('set_pen_highlighter_color', 'set_pen_highlighter');
         bindCP('edit_shape_stroke', 'edit_shape_stroke'); bindCP('edit_shape_fill', 'edit_shape_fill'); 
         bindCP('edit_line_stroke', 'edit_line_stroke'); bindCP('edit_line_fill', 'edit_line_fill'); 
         bindCP('edit_text_color', 'edit_text_c'); bindCP('edit_text_bg', 'edit_text_b'); 
@@ -1497,6 +1544,22 @@
             if(txtB) document.getElementById('btn_txt_b').classList.add('active'); else document.getElementById('btn_txt_b').classList.remove('active');
             if(txtI) document.getElementById('btn_txt_i').classList.add('active'); else document.getElementById('btn_txt_i').classList.remove('active');
             if(txtU) document.getElementById('btn_txt_u').classList.add('active'); else document.getElementById('btn_txt_u').classList.remove('active');
+
+            sysPenBallpointWeight = parseInt(document.getElementById('set_pen_ballpoint_weight').value);
+            sysPenBallpointColor = document.getElementById('set_pen_ballpoint_color').style.backgroundColor;
+            sysPenHighlighterWeight = parseInt(document.getElementById('set_pen_highlighter_weight').value);
+            sysPenHighlighterColor = document.getElementById('set_pen_highlighter_color').style.backgroundColor;
+            
+            if (document.getElementById('pen_type').value === 'ballpoint') {
+                document.getElementById('pen_weight').value = sysPenBallpointWeight;
+                document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
+                penCurrentColor = sysPenBallpointColor;
+            } else {
+                document.getElementById('pen_weight').value = sysPenHighlighterWeight;
+                document.getElementById('btn_pen_color').style.backgroundColor = sysPenHighlighterColor;
+                penCurrentColor = sysPenHighlighterColor;
+            }
+            updatePenBrush();
 
             document.getElementById('shape_weight').value = document.getElementById('set_shape_weight').value;
             sysShapeOpacity = (parseFloat(document.getElementById('set_shape_opacity_val').value) || 20) / 100;
@@ -1771,7 +1834,7 @@
             let oldClip = canvas.clipPath; canvas.clipPath = null; canvas.renderAll();
             
             const dateStr = new Date().toISOString().replace(/T/, '_').replace(/:/g, '').split('.')[0];
-            const baseName = `BH_Capture_${dateStr}`;
+            const baseName = `Capcraft_${dateStr}`;
             
             let blob, suggestedName, mime;
             
@@ -1875,7 +1938,7 @@
             } else {
                 const printWindow = window.open('', '_blank');
                 printWindow.document.write(`
-                    <html><head><title>BH-Capture 인쇄</title>
+                    <html><head><title>Capcraft 인쇄</title>
                     <style>
                         @page { size: ${canvas.width}px ${canvas.height}px; margin: 0; }
                         body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background: white; min-height: 100vh; }
@@ -1892,7 +1955,59 @@
         // ==========================================
         // 6. 버튼 활성/비활성 제어 및 도구 로직
         // ==========================================
-        const panels = { 'shape': 'panel_shape', 'text': 'panel_text', 'eraser': 'panel_eraser', 'emoji': 'panel_emoji', 'image': 'panel_image', 'mosaic': 'panel_mosaic', 'crop': 'panel_crop' };
+        const panels = { 'shape': 'panel_shape', 'pen': 'panel_pen', 'text': 'panel_text', 'eraser': 'panel_eraser', 'emoji': 'panel_emoji', 'image': 'panel_image', 'mosaic': 'panel_mosaic', 'crop': 'panel_crop' };
+
+        function updatePenBrush() {
+            if (activeTool !== 'pen') {
+                canvas.isDrawingMode = false;
+                return;
+            }
+            const mode = document.querySelector('input[name="pen_mode"]:checked').value;
+            if (mode === 'normal') {
+                canvas.isDrawingMode = true;
+                if(!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
+                    canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                }
+                canvas.freeDrawingBrush.color = penCurrentColor;
+                canvas.freeDrawingBrush.width = parseInt(document.getElementById('pen_weight').value) || 5;
+                if (document.getElementById('pen_dashed').checked) {
+                    canvas.freeDrawingBrush.strokeDashArray = [canvas.freeDrawingBrush.width * 3, canvas.freeDrawingBrush.width * 3];
+                } else {
+                    canvas.freeDrawingBrush.strokeDashArray = null;
+                }
+            } else {
+                canvas.isDrawingMode = false;
+            }
+        }
+
+        document.getElementById('pen_type').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'ballpoint') {
+                document.getElementById('pen_weight').value = sysPenBallpointWeight;
+                document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
+                penCurrentColor = sysPenBallpointColor;
+            } else {
+                document.getElementById('pen_weight').value = sysPenHighlighterWeight;
+                document.getElementById('btn_pen_color').style.backgroundColor = sysPenHighlighterColor;
+                penCurrentColor = sysPenHighlighterColor;
+            }
+            updatePenBrush();
+        });
+
+        document.getElementById('pen_weight').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value) || 1;
+            if (document.getElementById('pen_type').value === 'ballpoint') {
+                sysPenBallpointWeight = val;
+                document.getElementById('set_pen_ballpoint_weight').value = val;
+            } else {
+                sysPenHighlighterWeight = val;
+                document.getElementById('set_pen_highlighter_weight').value = val;
+            }
+            updatePenBrush();
+        });
+
+        document.getElementById('pen_dashed').addEventListener('change', updatePenBrush);
+        document.querySelectorAll('input[name="pen_mode"]').forEach(r => r.addEventListener('change', updatePenBrush));
 
         document.querySelectorAll('.btn-tool.group-edit').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -1922,6 +2037,7 @@
                 updateSubToolbarPosition(btn);
 
                 if (toolName.includes('도형')) { activeTool = 'shape'; document.getElementById('panel_shape').classList.add('active'); }
+                else if (toolName.includes('펜')) { activeTool = 'pen'; document.getElementById('panel_pen').classList.add('active'); updatePenBrush(); }
                 else if (toolName.includes('텍스트')) { activeTool = 'text'; document.getElementById('panel_text').classList.add('active'); }
                 else if (toolName.includes('이모티콘')) { activeTool = 'emoji'; document.getElementById('panel_emoji').classList.add('active'); document.getElementById('emoji_popup').style.display = 'block'; }
                 else if (toolName.includes('이미지')) { activeTool = 'image'; document.getElementById('panel_image').classList.add('active'); }
@@ -2498,6 +2614,14 @@
         let lastTextEditExitTime = 0;
         canvas.on('text:editing:exited', () => { lastTextEditExitTime = Date.now(); canvas.discardActiveObject(); canvas.requestRenderAll(); });
         
+        canvas.on('path:created', (e) => {
+            if (activeTool === 'pen') {
+                e.path.set({ selectable: true, isTemp: false });
+                updateObjectSelectability();
+                saveHistory();
+            }
+        });
+
         let multiClickDrawing = false;
         let clickPoints = [];
         const floatingTooltip = document.getElementById('floating_tooltip');
@@ -2604,6 +2728,21 @@
                 const target = canvas.findTarget(o.e, false);
                 if (target && target.evented) { canvas.remove(target); canvas.requestRenderAll(); saveHistory(); }
                 return; 
+            }
+
+            if (activeTool === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                isDrawing = true; origX = pointer.x; origY = pointer.y;
+                const weight = parseInt(document.getElementById('pen_weight').value) || 5;
+                const isDashed = document.getElementById('pen_dashed').checked;
+                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                currentShape = new fabric.Path(`M ${origX} ${origY} L ${origX} ${origY}`, {
+                    fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
+                    strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
+                    selectable: false, isTemp: true, objectCaching: false
+                });
+                canvas.add(currentShape);
+                return;
             }
 
             // 도구가 활성화되어 있지 않고 대상이 있다면 (선택 이동 & 맨 앞으로 가져오기)
@@ -2721,6 +2860,23 @@
 
             const pointer = canvas.getPointer(o.e);
 
+            if (activeTool === 'pen' && isDrawing && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                let endX = pointer.x; let endY = pointer.y;
+                
+                let angleDeg = Math.atan2(endY - origY, endX - origX) * 180 / Math.PI;
+                let normAngle = (angleDeg + 360) % 360;
+                
+                const snapTolerance = 2;
+                if (Math.abs(normAngle - 0) <= snapTolerance || Math.abs(normAngle - 360) <= snapTolerance) { endY = origY; } 
+                else if (Math.abs(normAngle - 90) <= snapTolerance) { endX = origX; } 
+                else if (Math.abs(normAngle - 180) <= snapTolerance) { endY = origY; } 
+                else if (Math.abs(normAngle - 270) <= snapTolerance) { endX = origX; }
+                
+                currentShape.set({ path: new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`).path });
+                canvas.requestRenderAll();
+                return;
+            }
+
             if(multiClickDrawing) {
                 floatingTooltip.style.left = o.e.clientX + 'px';
                 floatingTooltip.style.top = o.e.clientY + 'px';
@@ -2772,6 +2928,16 @@
             }
 
             if (!isDrawing) return;
+            
+            if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                currentShape.setCoords();
+                currentShape.set({ selectable: true, isTemp: false });
+                currentShape = null;
+                updateObjectSelectability();
+                canvas.requestRenderAll(); saveHistory();
+                isDrawing = false;
+                return;
+            }
 
             if (activeTool === 'crop') {
                 const box = document.getElementById('selection_box'); box.style.display = 'block';

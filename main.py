@@ -88,7 +88,7 @@ class Backend(QObject):
             
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
             date_str = time.strftime("%Y%m%d_%H%M%S")
-            printer.setOutputFileName(f"BH-Capture_{date_str}.pdf")
+            printer.setOutputFileName(f"Capcraft_{date_str}.pdf")
             
             dialog = QPrintPreviewDialog(printer, self.view.window())
             dialog.paintRequested.connect(self._handle_print_preview)
@@ -135,7 +135,7 @@ def main():
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
-    main_window.setWindowTitle("BH-Capture v1.0")
+    main_window.setWindowTitle("Capcraft v1.0")
     main_window.setWindowIcon(create_camera_icon())
     main_window.resize(1800, 1100)
     
