@@ -82,12 +82,12 @@
         #selection_box { position: absolute; border: 1px dashed white; background: rgba(59, 130, 246, 0.2); display: none; pointer-events: none; z-index: 1502; }
 
         /* 작업 영역 */
-        /* QWebEngine compositor를 상시 활성 상태로 유지하는 미세 애니메이션 */
+        /* QWebEngine compositor를 상시 활성 상태로 유지하는 미세 애니메이션 (레이아웃 비침범) */
         @keyframes _keepCompositorAlive {
-            from { outline-offset: 0px; }
-            to   { outline-offset: 1px; }
+            from { transform: translateZ(0); }
+            to   { transform: translateZ(0.1px); }
         }
-        #workspace { position: absolute; top: 60px; left: 0; width: calc(100vw - var(--sidebar-width)); height: calc(100vh - 60px); overflow: hidden; cursor: grab; background-color: #d1d5db; animation: _keepCompositorAlive 1s infinite alternate; outline: 1px solid transparent; }
+        #workspace { position: absolute; top: 60px; left: 0; width: calc(100vw - var(--sidebar-width)); height: calc(100vh - 60px); overflow: hidden; cursor: grab; background-color: #d1d5db; animation: _keepCompositorAlive 2s infinite alternate; will-change: transform; }
         #workspace:active { cursor: grabbing; }
         
         #canvas_container_wrapper { 
@@ -96,7 +96,9 @@
             transform: translate(calc(-50% + var(--pan-x)), calc(-50% + var(--pan-y))) scale(var(--zoom));
             transform-origin: center center; 
         }
-        #canvas_container { background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: none; position: relative; overflow: hidden; will-change: transform; }
+        #canvas_container { background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: none; position: relative; overflow: hidden; will-change: transform; contain: layout style; }
+        /* Fabric.js가 생성하는 내부 래퍼의 높이 불일치로 인한 하단 깜빡임 방지 */
+        #canvas_container .canvas-container { display: block !important; line-height: 0; font-size: 0; }
         
         /* 우측 사이드바 */
         #sidebar { 
@@ -943,16 +945,30 @@
             wrapper.style.setProperty('--pan-x', panX + 'px');
             wrapper.style.setProperty('--pan-y', panY + 'px');
             wrapper.style.setProperty('--zoom', currentZoom);
-            // calcOffset은 변환 완료 후 1회만 실행 (핫패스 제거로 깜빡임 방지)
+            // calcOffset은 변환 완료 후 1회만 실행, 이중 rAF로 레이아웃 안정 후 호출
             if (window._calcOffsetRaf) cancelAnimationFrame(window._calcOffsetRaf);
-            window._calcOffsetRaf = requestAnimationFrame(() => { canvas.calcOffset(); });
+            window._calcOffsetRaf = requestAnimationFrame(() => {
+                requestAnimationFrame(() => { canvas.calcOffset(); });
+            });
         }
 
         function prepareCanvasDisplay() {
             if (canvasContainer.style.display !== 'block') {
                 canvasContainer.style.display = 'block';
-                void canvasContainer.offsetWidth; // DOM 요소 강제 Reflow 수행
+                // Reflow는 rAF 내에서 수행하여 현재 프레임의 레이아웃 스래싱 방지
+                requestAnimationFrame(() => { void canvasContainer.offsetWidth; });
             }
+        }
+
+        // ★ Fabric.js 내부 canvas-container 높이를 동기화하여 하단 깜빡임 원천 차단
+        function syncFabricContainerSize() {
+            const fabricWrapper = canvasContainer.querySelector('.canvas-container');
+            if (fabricWrapper) {
+                fabricWrapper.style.width  = canvas.width  + 'px';
+                fabricWrapper.style.height = canvas.height + 'px';
+            }
+            canvasContainer.style.width  = canvas.width  + 'px';
+            canvasContainer.style.height = canvas.height + 'px';
         }
 
 
@@ -1043,9 +1059,11 @@
             prepareCanvasDisplay();
             canvas.setWidth(w);
             canvas.setHeight(h);
+            syncFabricContainerSize();
             
             function finalizeLoad() {
                 hasActiveCanvas = true;
+                syncFabricContainerSize();
                 enableTools();
                 applyFitZoom();
                 applyCanvasClipping();
@@ -1219,6 +1237,10 @@
             const seq = ++_recentLoadSeq;
             isHistoryAction = true;
 
+            // ★ 깜빡임 방지: 로딩 전에 캔버스 컨테이너를 즉시 숨김
+            //    loadFromJSON 내부의 clear()로 인한 빈 프레임 노출 차단
+            canvasContainer.style.visibility = 'hidden';
+
             canvas.renderOnAddRemove = false;
 
             // 배경 이미지를 별도 저장한 경우 빠르게 복원
@@ -1232,19 +1254,23 @@
                 const h = item.height || canvas.height;
                 canvas.setWidth(w);
                 canvas.setHeight(h);
+                syncFabricContainerSize();
                 canvas.calcOffset();
                 enableTools();
                 applyFitZoom();
                 applyCanvasClipping();
 
-                // ★ 핵심: setTimeout으로 새 macrotask에서 렌더링하여
-                //    Chromium compositor가 프레임을 스케줄링할 기회를 확보
-                setTimeout(() => {
+                // ★ 즉시 렌더링 후 컨테이너 복원 (setTimeout 제거로 빈 프레임 방지)
+                canvas.renderAll();
+                initHistory();
+                isHistoryAction = false;
+
+                // ★ 렌더링 완료 후 다음 페인트 사이클에서 컨테이너 표시
+                //    requestAnimationFrame으로 Chromium compositor가 완성된 프레임을 표시
+                requestAnimationFrame(() => {
                     if (seq !== _recentLoadSeq) return;
-                    canvas.renderAll();
-                    initHistory();
-                    isHistoryAction = false;
-                }, 0);
+                    canvasContainer.style.visibility = 'visible';
+                });
             });
         }
         // 현재 활성 항목 인덱스
@@ -1296,7 +1322,9 @@
                 e.target.set('evented', false);
                 e.target.set('selectable', false);
             }
-            if(!isHistoryAction && !e.target.isTemp) saveHistory(); 
+            if(!isHistoryAction && !e.target.isTemp) saveHistory();
+            // ★ 개체 추가 시 Fabric 내부 래퍼 크기 동기화 (하단 깜빡임 방지)
+            syncFabricContainerSize();
         });
         function normalizeScale(obj) {
             if (!obj || (obj.scaleX === 1 && obj.scaleY === 1)) return;
@@ -1380,6 +1408,7 @@
                     if (activeRecentIdx >= 0) pushCurrentToRecent();
                 }, 800);
             }
+            syncFabricContainerSize();
         });
         canvas.on('object:removed', (e) => { 
             if(!isHistoryAction && !e.target.isTemp) {
@@ -1389,6 +1418,7 @@
                     if (activeRecentIdx >= 0) pushCurrentToRecent();
                 }, 800);
             }
+            syncFabricContainerSize();
         });
 
         function loadHistoryState(idx) {
@@ -1398,6 +1428,7 @@
             const state = stateHistory[idx];
             canvas.setWidth(state.width);
             canvas.setHeight(state.height);
+            syncFabricContainerSize();
             
             const bgImg = canvas.backgroundImage;
             const bgColor = canvas.backgroundColor;
@@ -1406,6 +1437,7 @@
                 canvas.backgroundImage = bgImg;
                 canvas.backgroundColor = bgColor;
                 canvas.renderOnAddRemove = true; 
+                syncFabricContainerSize();
                 applyCanvasClipping(); 
 
                 // ★ 핵심: setTimeout으로 새 macrotask에서 렌더링하여
