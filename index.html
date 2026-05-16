@@ -11,6 +11,20 @@
             --accent-blue: #3b82f6; --accent-red: #ef4444; --border-color: #e2e8f0;
             --sidebar-width: 170px;
         }
+        /* 우클릭 메뉴 스타일 */
+        #canvas_context_menu {
+            display: none; position: absolute; z-index: 10000; background: var(--bg-panel);
+            border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            border-radius: 6px; padding: 5px 0; min-width: 140px; font-size: 13px;
+            color: var(--text-main); user-select: none;
+        }
+        #canvas_context_menu .menu-item {
+            padding: 8px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+        }
+        #canvas_context_menu .menu-item:hover { background: #f1f5f9; color: var(--accent-blue); }
+        #canvas_context_menu .menu-item.disabled { color: #cbd5e1; pointer-events: none; }
+        #canvas_context_menu .menu-shortcut { color: #94a3b8; font-size: 11px; }
+        #canvas_context_menu .menu-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
         /* 다크모드 변수 */
         body.dark-mode {
             --bg-main: #0f172a; --bg-panel: #1e293b; --text-main: #e2e8f0;
@@ -497,17 +511,7 @@
             </div>
         </div>
 
-        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">단축키 설정</div>
-        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <span>복사:</span> <input type="text" id="shortcut_copy" value="Ctrl+C" style="width: 80px;">
-                <span>저장:</span> <input type="text" id="shortcut_save" value="Ctrl+S" style="width: 80px;">
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span>인쇄:</span> <input type="text" id="shortcut_print" value="Ctrl+P" style="width: 80px;">
-                <span>닫기:</span> <input type="text" id="shortcut_close" value="Alt+F4" style="width: 80px;">
-            </div>
-        </div>
+
 
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">시스템 및 저장 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: none; padding-bottom: 0; font-size: 12px;">
@@ -591,6 +595,8 @@
             <div class="recent-list" id="recent_list_container"></div>
         </div>
     </div>
+
+    <div id="canvas_context_menu"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1537,6 +1543,76 @@
         // 바탕 클릭 시 팔레트 닫기
         document.addEventListener('mousedown', e => { 
             if (!e.target.closest('#color_palette') && !e.target.closest('.color-btn')) paletteEl.style.display = 'none'; 
+            if (!e.target.closest('#canvas_context_menu')) {
+                const ctxMenu = document.getElementById('canvas_context_menu');
+                if(ctxMenu) ctxMenu.style.display = 'none';
+            }
+        });
+
+        // 우클릭 방지 및 캔버스 컨텍스트 메뉴
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.closest('#toolbar') || e.target.closest('#sidebar') || e.target.closest('#sub_toolbar')) {
+                e.preventDefault();
+                return;
+            }
+            if (e.target.closest('.canvas-container')) {
+                e.preventDefault();
+                if(!hasActiveCanvas) return;
+                
+                const ctxMenu = document.getElementById('canvas_context_menu');
+                let pointer = canvas.getPointer(e);
+                let target = canvas.findTarget(e, false);
+                
+                lastCanvasClick = { x: pointer.x, y: pointer.y };
+                ctxMenu.innerHTML = '';
+                
+                if (target) {
+                    canvas.setActiveObject(target);
+                    canvas.requestRenderAll();
+                    
+                    ctxMenu.innerHTML = `
+                        <div class="menu-item" id="ctx_edit"><span>수정하기</span></div>
+                        <div class="menu-divider"></div>
+                        <div class="menu-item" id="ctx_cut"><span>잘라내기</span><span class="menu-shortcut">Ctrl+X</span></div>
+                        <div class="menu-item" id="ctx_copy"><span>복사하기</span><span class="menu-shortcut">Ctrl+C</span></div>
+                        <div class="menu-item" id="ctx_del"><span>삭제하기</span><span class="menu-shortcut">Del</span></div>
+                    `;
+                    
+                    document.getElementById('ctx_edit').onclick = () => { ctxMenu.style.display = 'none'; canvas.fire('mouse:dblclick', { target: target, e: e }); };
+                    document.getElementById('ctx_cut').onclick = () => { ctxMenu.style.display = 'none'; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', ctrlKey: true })); };
+                    document.getElementById('ctx_copy').onclick = () => { ctxMenu.style.display = 'none'; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', ctrlKey: true })); };
+                    document.getElementById('ctx_del').onclick = () => { ctxMenu.style.display = 'none'; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' })); };
+                } else {
+                    canvas.discardActiveObject();
+                    canvas.requestRenderAll();
+                    
+                    const canUndo = !document.getElementById('btn_undo').classList.contains('disabled');
+                    const canRedo = !document.getElementById('btn_redo').classList.contains('disabled');
+                    const canCopy = !document.getElementById('btn_action_copy').classList.contains('disabled');
+                    const canPaste = !!myClipboard;
+                    
+                    ctxMenu.innerHTML = `
+                        <div class="menu-item ${canUndo ? '' : 'disabled'}" id="ctx_undo"><span>뒤로</span></div>
+                        <div class="menu-item ${canRedo ? '' : 'disabled'}" id="ctx_redo"><span>앞으로</span></div>
+                        <div class="menu-divider"></div>
+                        <div class="menu-item ${canCopy ? '' : 'disabled'}" id="ctx_copy_img"><span>복사하기</span></div>
+                        <div class="menu-item ${canPaste ? '' : 'disabled'}" id="ctx_paste"><span>붙여넣기</span><span class="menu-shortcut">Ctrl+V</span></div>
+                    `;
+                    
+                    document.getElementById('ctx_undo').onclick = () => { ctxMenu.style.display = 'none'; document.getElementById('btn_undo').click(); };
+                    document.getElementById('ctx_redo').onclick = () => { ctxMenu.style.display = 'none'; document.getElementById('btn_redo').click(); };
+                    document.getElementById('ctx_copy_img').onclick = () => { ctxMenu.style.display = 'none'; document.getElementById('btn_action_copy').click(); };
+                    document.getElementById('ctx_paste').onclick = () => { ctxMenu.style.display = 'none'; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true })); };
+                }
+                
+                ctxMenu.style.display = 'block';
+                let x = e.clientX;
+                let y = e.clientY;
+                if (x + ctxMenu.offsetWidth > window.innerWidth) x -= ctxMenu.offsetWidth;
+                if (y + ctxMenu.offsetHeight > window.innerHeight) y -= ctxMenu.offsetHeight;
+                ctxMenu.style.left = x + 'px';
+                ctxMenu.style.top = y + 'px';
+            }
         });
 
         function bindCP(id, t) {
@@ -1809,7 +1885,7 @@
         window.receiveCapturedImage = function(base64Data) {
             if (base64Data) {
                 isHistoryAction = true;
-                fabric.Image.fromURL("data:image/png;base64," + base64Data, (img) => {
+                fabric.Image.fromURL("data:image/webp;base64," + base64Data, (img) => {
                     pushCurrentToRecent(); // 이전 작업 보존
                     activeRecentIdx = -1; // 새 항목 추가를 위해 인덱스 리셋
                     canvas.clear(); 
@@ -2119,6 +2195,8 @@
             const b = Math.round(255 - (255 - fColor[2]) * intensity);
             const bgColor = `rgb(${r}, ${g}, ${b})`;
 
+            if (hasActiveCanvas) pushCurrentToRecent();
+            activeRecentIdx = -1;
             isHistoryAction = true; canvas.clear(); 
             commitLoadToCanvas(null, parseInt(sizeArr[0]), parseInt(sizeArr[1]), bgColor);
             closeModals(); 
@@ -2148,7 +2226,7 @@
             const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
             const isArrow = (editingObject.type === 'group'); 
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
-            const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse');
+            const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
 
             document.getElementById('form_edit_text').style.display = 'none';
             document.getElementById('form_edit_shape').style.display = 'none';
@@ -2194,9 +2272,15 @@
                 if(editingObject.type === 'rect') {
                     ew = Math.round(editingObject.width * editingObject.scaleX);
                     eh = Math.round(editingObject.height * editingObject.scaleY);
-                } else {
+                } else if(editingObject.type === 'ellipse') {
                     ew = Math.round(editingObject.rx * 2 * editingObject.scaleX);
                     eh = Math.round(editingObject.ry * 2 * editingObject.scaleY);
+                } else if(editingObject.type === 'circle') {
+                    ew = Math.round(editingObject.radius * 2 * editingObject.scaleX);
+                    eh = Math.round(editingObject.radius * 2 * editingObject.scaleY);
+                } else if(editingObject.type === 'polygon') {
+                    ew = Math.round(editingObject.width * editingObject.scaleX);
+                    eh = Math.round(editingObject.height * editingObject.scaleY);
                 }
                 document.getElementById('edit_shape_w').value = ew;
                 document.getElementById('edit_shape_h').value = eh;
@@ -2260,7 +2344,7 @@
             const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/));
             const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
             const isArrow = (editingObject.type === 'group'); 
-            const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse');
+            const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
 
             if (isEmoji) {
@@ -2304,8 +2388,20 @@
 
                 if (editingObject.type === 'rect') {
                     editingObject.set({ width: newW, height: newH, scaleX: 1, scaleY: 1, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill }); 
-                } else {
+                } else if (editingObject.type === 'ellipse') {
                     editingObject.set({ rx: newW/2, ry: newH/2, scaleX: 1, scaleY: 1, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill }); 
+                } else if (editingObject.type === 'circle') {
+                    editingObject.set({ radius: newW/2, scaleX: 1, scaleY: 1, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill }); 
+                } else if (editingObject.type === 'polygon') {
+                    // Polygon scaling
+                    const scaleX = (editingObject.width > 0) ? newW / editingObject.width : 1;
+                    const scaleY = (editingObject.height > 0) ? newH / editingObject.height : 1;
+                    let m = editingObject.calcTransformMatrix();
+                    let minX = Math.min(...editingObject.points.map(p=>p.x)), minY = Math.min(...editingObject.points.map(p=>p.y));
+                    let newPts = editingObject.points.map(pt => {
+                        return { x: minX + (pt.x - minX) * scaleX, y: minY + (pt.y - minY) * scaleY };
+                    });
+                    editingObject.set({ points: newPts, scaleX: 1, scaleY: 1, width: newW, height: newH, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill });
                 }
                 editingObject.setCoords();
             } else if (isLinePath) {
@@ -2675,9 +2771,552 @@
         let lastTextEditExitTime = 0;
         canvas.on('text:editing:exited', () => { lastTextEditExitTime = Date.now(); canvas.discardActiveObject(); canvas.requestRenderAll(); });
         
+        // ==========================================
+        // ★ 펜 '일반' 모드 — 도형 자동 인식 엔진 (Shape Recognition)
+        // ==========================================
+        let _shapeRecogTimer = null;
+        let _lastPenMoveTime = 0;
+        let _isAutoShapeTriggered = false;
+
+        // 마우스 정지 0.5초 감지: 드로잉 중 마우스가 멈추면 자동으로 mouseup 시뮬레이션
+        canvas.on('mouse:move', function _penPauseDetector(o) {
+            if (activeTool !== 'pen' || !canvas.isDrawingMode || !canvas._isCurrentlyDrawing) return;
+            _lastPenMoveTime = Date.now();
+            if (_shapeRecogTimer) clearTimeout(_shapeRecogTimer);
+            _shapeRecogTimer = setTimeout(() => {
+                if (!canvas._isCurrentlyDrawing || activeTool !== 'pen') return;
+                _isAutoShapeTriggered = true; // 0.5초 일시정지에 의한 자동 인식 플래그 설정
+                // 0.5초 동안 마우스가 움직이지 않았으므로 드로잉 자동 종료
+                const upperCanvas = canvas.upperCanvasEl;
+                if (upperCanvas) {
+                    const lastEvt = new MouseEvent('mouseup', { bubbles: true, clientX: o.e.clientX, clientY: o.e.clientY });
+                    upperCanvas.dispatchEvent(lastEvt);
+                }
+            }, 500);
+        });
+
+        // 마우스 뗄 때 타이머 정리
+        canvas.on('mouse:up', function() {
+            if (_shapeRecogTimer) { clearTimeout(_shapeRecogTimer); _shapeRecogTimer = null; }
+        });
+
+        // ── 도형 인식 핵심 알고리즘 ──
+        function _extractPathPoints(pathObj) {
+            const points = [];
+            const path = pathObj.path;
+            if (!path) return points;
+            const po = pathObj.pathOffset || { x: 0, y: 0 };
+            const m = pathObj.calcTransformMatrix();
+            for (let i = 0; i < path.length; i++) {
+                const cmd = path[i];
+                if (cmd[0] === 'M' || cmd[0] === 'L') {
+                    points.push(fabric.util.transformPoint({ x: cmd[1] - po.x, y: cmd[2] - po.y }, m));
+                } else if (cmd[0] === 'Q') {
+                    points.push(fabric.util.transformPoint({ x: cmd[3] - po.x, y: cmd[4] - po.y }, m));
+                } else if (cmd[0] === 'C') {
+                    points.push(fabric.util.transformPoint({ x: cmd[5] - po.x, y: cmd[6] - po.y }, m));
+                }
+            }
+            return points;
+        }
+
+        function _getBoundingBox(pts) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            pts.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+            return { minX, minY, maxX, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX, h: maxY - minY };
+        }
+
+        function _isClosedShape(pts) {
+            if (pts.length < 5) return false;
+            const d = Math.hypot(pts[0].x - pts[pts.length - 1].x, pts[0].y - pts[pts.length - 1].y);
+            const bb = _getBoundingBox(pts);
+            const diag = Math.hypot(bb.w, bb.h);
+            return d < diag * 0.15;
+        }
+
+        function _getAngles(pts) {
+            const angles = [];
+            for (let i = 1; i < pts.length - 1; i++) {
+                const a = Math.atan2(pts[i].y - pts[i - 1].y, pts[i].x - pts[i - 1].x);
+                const b = Math.atan2(pts[i + 1].y - pts[i].y, pts[i + 1].x - pts[i].x);
+                let diff = b - a;
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                angles.push(diff);
+            }
+            return angles;
+        }
+
+        function _detectCorners(pts) {
+            // 점을 균등 간격으로 리샘플링한 후 급격한 방향 변화 감지
+            const resampled = _resample(pts, 64);
+            const corners = [0];
+            const threshold = Math.PI / 4; // 45도 이상 꺾이면 코너
+            for (let i = 2; i < resampled.length - 2; i++) {
+                const v1x = resampled[i].x - resampled[i - 2].x;
+                const v1y = resampled[i].y - resampled[i - 2].y;
+                const v2x = resampled[i + 2].x - resampled[i].x;
+                const v2y = resampled[i + 2].y - resampled[i].y;
+                const dot = v1x * v2x + v1y * v2y;
+                const mag1 = Math.hypot(v1x, v1y);
+                const mag2 = Math.hypot(v2x, v2y);
+                if (mag1 < 1 || mag2 < 1) continue;
+                const angle = Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2))));
+                if (angle > threshold) corners.push(i);
+            }
+            corners.push(resampled.length - 1);
+            // 너무 가까운 코너 합침
+            const merged = [corners[0]];
+            for (let i = 1; i < corners.length; i++) {
+                if (corners[i] - merged[merged.length - 1] > 3) merged.push(corners[i]);
+            }
+            return merged.map(i => resampled[i]);
+        }
+
+        function _resample(pts, n) {
+            if (pts.length < 2) return pts.slice();
+            let totalLen = 0;
+            for (let i = 1; i < pts.length; i++) totalLen += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+            const interval = totalLen / (n - 1);
+            const result = [{ x: pts[0].x, y: pts[0].y }];
+            let dist = 0;
+            for (let i = 1; i < pts.length; i++) {
+                const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+                while (dist + d >= interval && result.length < n) {
+                    const t = (interval - dist) / d;
+                    result.push({ x: pts[i - 1].x + t * (pts[i].x - pts[i - 1].x), y: pts[i - 1].y + t * (pts[i].y - pts[i - 1].y) });
+                    pts = [result[result.length - 1], ...pts.slice(i)];
+                    i = 1;
+                    dist = 0;
+                    break;
+                }
+                if (result.length >= n) break;
+                dist += d;
+            }
+            while (result.length < n) result.push({ x: pts[pts.length - 1].x, y: pts[pts.length - 1].y });
+            return result;
+        }
+
+        function _circularityScore(pts, cx, cy) {
+            const dists = pts.map(p => Math.hypot(p.x - cx, p.y - cy));
+            const avgR = dists.reduce((s, d) => s + d, 0) / dists.length;
+            if (avgR < 5) return 0;
+            const variance = dists.reduce((s, d) => s + (d - avgR) ** 2, 0) / dists.length;
+            return 1 - Math.sqrt(variance) / avgR;
+        }
+
+        function _simplifyDP(pts, epsilon) {
+            if (pts.length <= 2) return pts;
+            let maxDist = 0; let index = 0;
+            const end = pts.length - 1;
+            for (let i = 1; i < end; i++) {
+                const a = pts[0], b = pts[end], p = pts[i];
+                const num = Math.abs((b.y - a.y) * p.x - (b.x - a.x) * p.y + b.x * a.y - b.y * a.x);
+                const den = Math.hypot(b.y - a.y, b.x - a.x);
+                const d = den === 0 ? Math.hypot(p.x - a.x, p.y - a.y) : num / den;
+                if (d > maxDist) { maxDist = d; index = i; }
+            }
+            if (maxDist > epsilon) {
+                const left = _simplifyDP(pts.slice(0, index + 1), epsilon);
+                const right = _simplifyDP(pts.slice(index), epsilon);
+                return left.slice(0, left.length - 1).concat(right);
+            } else {
+                return [pts[0], pts[end]];
+            }
+        }
+
+        function _recognizeShape(pts) {
+            if (pts.length < 8) return null;
+            const bb = _getBoundingBox(pts);
+            const closed = _isClosedShape(pts);
+            const diag = Math.hypot(bb.w, bb.h);
+            if (diag < 15) return null;
+
+            // === 0. 한붓그리기 별(펜타그램) 인식 ===
+            const pentaResult = _pentagramScore(pts, bb);
+            if (pentaResult && pentaResult.score > 0.55) {
+                return { type: 'star', cx: bb.cx, cy: bb.cy, outerR: pentaResult.outerR, innerR: pentaResult.outerR * 0.38, points: 5 };
+            }
+
+            // === 1. 닫힌 도형 인식 ===
+            if (closed) {
+                const cx = bb.cx, cy = bb.cy;
+                const circ = _circularityScore(pts, cx, cy);
+                if (circ > 0.85) {
+                    const ratio = bb.w / bb.h;
+                    if (ratio > 0.75 && ratio < 1.33) return { type: 'circle', cx, cy, r: Math.max(bb.w, bb.h) / 2 };
+                    else return { type: 'ellipse', cx, cy, rx: bb.w / 2, ry: bb.h / 2 };
+                }
+
+                // DP 단순화로 사용자가 그린 형태 정확히 유지 (에러허용: 대각선의 4.5%)
+                let closedPts = pts.slice();
+                closedPts.push(pts[0]);
+                const dp = _simplifyDP(closedPts, diag * 0.045);
+                const n = dp.length - 1;
+
+                if (n === 3) return { type: 'triangle', corners: dp.slice(0, -1) };
+                if (n === 4) return { type: 'rect', corners: dp.slice(0, -1) };
+                if (n === 5) return { type: 'pentagon', cx, cy, r: Math.max(bb.w, bb.h) / 2 };
+                if (n === 6) return { type: 'hexagon', cx, cy, r: Math.max(bb.w, bb.h) / 2 };
+
+                // 반원/부채꼴 감지 (DP 결과 선분 길이 분석)
+                let segs = [];
+                let perimeter = 0;
+                for (let i = 0; i < n; i++) {
+                    const len = Math.hypot(dp[i+1].x - dp[i].x, dp[i+1].y - dp[i].y);
+                    segs.push({ len, i });
+                    perimeter += len;
+                }
+                segs.sort((a, b) => b.len - a.len);
+
+                if (n >= 3) {
+                    // 부채꼴: 2개의 가장 긴 선분이 인접하고 전체 둘레의 40% 이상 차지
+                    if (segs.length >= 2 && (segs[0].len + segs[1].len) / perimeter > 0.40) {
+                        const i1 = segs[0].i, i2 = segs[1].i;
+                        if (Math.abs(i1 - i2) === 1 || Math.abs(i1 - i2) === n - 1) {
+                            let center, p1, p2;
+                            if ((i1 + 1) % n === i2) { center = dp[i2]; p1 = dp[i1]; p2 = dp[i2+1]; }
+                            else if ((i2 + 1) % n === i1) { center = dp[i1]; p1 = dp[i2]; p2 = dp[i1+1]; }
+                            else if (i1 === 0 && i2 === n - 1) { center = dp[0]; p1 = dp[1]; p2 = dp[n-1]; }
+                            else if (i2 === 0 && i1 === n - 1) { center = dp[0]; p1 = dp[n-1]; p2 = dp[1]; }
+                            
+                            const r = (segs[0].len + segs[1].len) / 2;
+                            let startAngle = Math.atan2(p1.y - center.y, p1.x - center.x);
+                            let endAngle = Math.atan2(p2.y - center.y, p2.x - center.x);
+                            let dAngle = endAngle - startAngle;
+                            if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+                            if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+                            endAngle = startAngle + dAngle;
+                            return { type: 'sector', cx: center.x, cy: center.y, r, startAngle, endAngle };
+                        }
+                    }
+                    
+                    // 반원: 1개의 가장 긴 선분(지름)이 전체 둘레의 28% 이상 차지
+                    if (segs[0].len / perimeter > 0.28) {
+                        const idx = segs[0].i;
+                        const p1 = dp[idx], p2 = dp[idx+1];
+                        const cx = (p1.x + p2.x) / 2, cy = (p1.y + p2.y) / 2;
+                        const r = segs[0].len / 2;
+                        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                        let crossSum = 0;
+                        for(let p of pts) {
+                            crossSum += (p2.x - p1.x) * (p.y - p1.y) - (p2.y - p1.y) * (p.x - p1.x);
+                        }
+                        const isClockwise = crossSum > 0;
+                        let startAngle = angle + (isClockwise ? 0 : Math.PI);
+                        let endAngle = startAngle + Math.PI;
+                        return { type: 'semicircle', cx, cy, r, startAngle, endAngle };
+                    }
+                }
+
+                // 하트는 코너 감지로 유지
+                const corners = _detectCorners(pts);
+                if (corners.length >= 3 && corners.length <= 6) {
+                    if (_heartScore(pts, bb) > 0.7) return { type: 'heart', cx, cy, w: bb.w, h: bb.h };
+                }
+                
+                if (circ > 0.7) return { type: 'ellipse', cx, cy, rx: bb.w / 2, ry: bb.h / 2 };
+
+                // 매칭 안되면 초월/다항함수처럼 매끈한 곡선 생성 (DP 극단적 단순화 후 곡선화)
+                const dpCurve = _simplifyDP(pts, diag * 0.08);
+                return { type: 'curve', points: dpCurve };
+            }
+
+            // === 2. 열린 도형 ===
+            if (!closed) {
+                // 열린 도형은 초월/다항함수처럼 매끈한 곡선(curve)으로 변환
+                const dpCurve = _simplifyDP(pts, diag * 0.08);
+                return { type: 'curve', points: dpCurve };
+            }
+
+            return null;
+        }
+
+        // ── 한붓그리기 별(펜타그램 ☆) 전용 인식 ──
+        function _pentagramScore(pts, bb) {
+            // 코너를 감지하고 정확히 5개의 뾰족한 꼭짓점이 있는지 확인
+            const corners = _detectCorners(pts);
+            if (corners.length < 5 || corners.length > 12) return { score: 0 };
+
+            const cx = bb.cx, cy = bb.cy;
+            // 중심에서 가장 먼 5개 점을 별의 꼭짓점 후보로 선택
+            const sorted = corners.slice().sort((a, b) => Math.hypot(b.x - cx, b.y - cy) - Math.hypot(a.x - cx, a.y - cy));
+            const tips = sorted.slice(0, 5);
+            if (tips.length < 5) return { score: 0 };
+
+            // 5개 꼭짓점의 각도를 계산하고 균등 분포(72°간격) 여부 확인
+            const angles = tips.map(p => Math.atan2(p.y - cy, p.x - cx)).sort((a, b) => a - b);
+            let gapScore = 0;
+            const idealGap = (2 * Math.PI) / 5; // 72°
+            for (let i = 0; i < 5; i++) {
+                let gap = angles[(i + 1) % 5] - angles[i];
+                if (gap < 0) gap += 2 * Math.PI;
+                gapScore += 1 - Math.min(1, Math.abs(gap - idealGap) / idealGap);
+            }
+            gapScore /= 5;
+
+            // 5개 꼭짓점의 중심 거리 균등성
+            const tipDists = tips.map(p => Math.hypot(p.x - cx, p.y - cy));
+            const avgR = tipDists.reduce((s, d) => s + d, 0) / tipDists.length;
+            const distVariance = tipDists.reduce((s, d) => s + (d - avgR) ** 2, 0) / tipDists.length;
+            const distScore = Math.max(0, 1 - Math.sqrt(distVariance) / avgR);
+
+            // 경로에 교차(self-intersection)가 있는지 확인 — 별 모양의 핵심 특징
+            const crossings = _countSelfIntersections(pts);
+            if (crossings < 1) return { score: 0 }; // 펜타그램(한붓그리기 별)은 반드시 교차점이 있어야 함
+            const crossScore = crossings >= 3 ? 1 : crossings >= 1 ? 0.5 : 0;
+
+            const score = gapScore * 0.4 + distScore * 0.3 + crossScore * 0.3;
+            return { score, outerR: avgR };
+        }
+
+        function _countSelfIntersections(pts) {
+            // 선분 교차 횟수를 세기 위해 간격을 두고 샘플링
+            const step = Math.max(1, Math.floor(pts.length / 30));
+            const segs = [];
+            for (let i = 0; i < pts.length - step; i += step) {
+                segs.push([pts[i], pts[Math.min(i + step, pts.length - 1)]]);
+            }
+            let count = 0;
+            for (let i = 0; i < segs.length; i++) {
+                for (let j = i + 2; j < segs.length; j++) {
+                    if (_segmentsIntersect(segs[i][0], segs[i][1], segs[j][0], segs[j][1])) count++;
+                }
+            }
+            return count;
+        }
+
+        function _segmentsIntersect(a, b, c, d) {
+            const cross = (o, p, q) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+            const d1 = cross(c, d, a), d2 = cross(c, d, b);
+            const d3 = cross(a, b, c), d4 = cross(a, b, d);
+            if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+            return false;
+        }
+
+        function _heartScore(pts, bb) {
+            const cx = bb.cx, cy = bb.cy;
+            // 하트는 위쪽 절반에 좌우 대칭적인 2개의 볼록한 영역, 아래쪽에 뾰족한 꼭짓점
+            let bottomPt = pts[0], topLeftPt = null, topRightPt = null;
+            pts.forEach(p => { if (p.y > bottomPt.y) bottomPt = p; });
+
+            const topHalf = pts.filter(p => p.y < cy);
+            const leftTop = topHalf.filter(p => p.x < cx);
+            const rightTop = topHalf.filter(p => p.x >= cx);
+
+            if (leftTop.length < 3 || rightTop.length < 3) return 0;
+
+            topLeftPt = leftTop.reduce((best, p) => p.y < best.y ? p : best, leftTop[0]);
+            topRightPt = rightTop.reduce((best, p) => p.y < best.y ? p : best, rightTop[0]);
+
+            // 아래 꼭짓점이 중앙 하단에 있어야 함
+            const bottomCentered = Math.abs(bottomPt.x - cx) < bb.w * 0.25;
+            const bottomIsLowest = bottomPt.y > cy + bb.h * 0.2;
+            // 위쪽에 2개의 봉우리가 있어야 함
+            const hasTwoBumps = topLeftPt.y < cy - bb.h * 0.1 && topRightPt.y < cy - bb.h * 0.1;
+            // 상단 중앙에 오목한 부분이 있어야 함
+            const midTopPts = topHalf.filter(p => Math.abs(p.x - cx) < bb.w * 0.15);
+            const midTopY = midTopPts.length > 0 ? Math.min(...midTopPts.map(p => p.y)) : bb.minY;
+            const hasIndent = midTopY > Math.min(topLeftPt.y, topRightPt.y) + bb.h * 0.05;
+
+            let score = 0;
+            if (bottomCentered) score += 0.25;
+            if (bottomIsLowest) score += 0.25;
+            if (hasTwoBumps) score += 0.25;
+            if (hasIndent) score += 0.25;
+            return score;
+        }
+
+
+
+
+        function _simplifyToN(corners, n) {
+            if (corners.length <= n) return corners;
+            // 가장 먼 n개 코너 선택
+            while (corners.length > n) {
+                let minDist = Infinity, minIdx = 1;
+                for (let i = 1; i < corners.length - 1; i++) {
+                    const d = Math.hypot(corners[i].x - corners[i - 1].x, corners[i].y - corners[i - 1].y);
+                    if (d < minDist) { minDist = d; minIdx = i; }
+                }
+                corners.splice(minIdx, 1);
+            }
+            return corners;
+        }
+
+        function _rectangularityScore(corners4, bb) {
+            if (corners4.length !== 4) return 0;
+            // 4개 코너가 bb의 꼭짓점에 가까운 정도 측정
+            const bbCorners = [
+                { x: bb.minX, y: bb.minY }, { x: bb.maxX, y: bb.minY },
+                { x: bb.maxX, y: bb.maxY }, { x: bb.minX, y: bb.maxY }
+            ];
+            let totalDist = 0;
+            const diag = Math.hypot(bb.w, bb.h);
+            corners4.forEach(c => {
+                const minD = Math.min(...bbCorners.map(bc => Math.hypot(c.x - bc.x, c.y - bc.y)));
+                totalDist += minD;
+            });
+            return Math.max(0, 1 - totalDist / (diag * 2));
+        }
+
+        function _arcScore(pts) {
+            // 3점 원 피팅으로 호 인식
+            const p1 = pts[0], p2 = pts[Math.floor(pts.length / 2)], p3 = pts[pts.length - 1];
+            const ax = p1.x, ay = p1.y, bx = p2.x, by = p2.y, ex = p3.x, ey = p3.y;
+            const D = 2 * (ax * (by - ey) + bx * (ey - ay) + ex * (ay - by));
+            if (Math.abs(D) < 1) return null;
+            const cx = ((ax * ax + ay * ay) * (by - ey) + (bx * bx + by * by) * (ey - ay) + (ex * ex + ey * ey) * (ay - by)) / D;
+            const cy = ((ax * ax + ay * ay) * (ex - bx) + (bx * bx + by * by) * (ax - ex) + (ex * ex + ey * ey) * (bx - ax)) / D;
+            const r = Math.hypot(p1.x - cx, p1.y - cy);
+            if (r < 10 || r > 5000) return null;
+            const dists = pts.map(p => Math.abs(Math.hypot(p.x - cx, p.y - cy) - r));
+            const avgError = dists.reduce((s, d) => s + d, 0) / dists.length;
+            const score = Math.max(0, 1 - avgError / r);
+            const startAngle = Math.atan2(p1.y - cy, p1.x - cx);
+            const endAngle = Math.atan2(p3.y - cy, p3.x - cx);
+            return { score, cx, cy, r, startAngle, endAngle };
+        }
+
+        // ── 인식된 도형을 Fabric 개체로 변환 ──
+        function _createRecognizedShape(shape, strokeColor, strokeWidth, strokeDashArray) {
+            const opts = { stroke: strokeColor, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray, fill: 'transparent', selectable: true, isTemp: false, strokeLineJoin: 'round', strokeLineCap: 'round' };
+
+            switch (shape.type) {
+                case 'circle':
+                    return new fabric.Circle({ ...opts, left: shape.cx - shape.r, top: shape.cy - shape.r, radius: shape.r });
+                case 'ellipse':
+                    return new fabric.Ellipse({ ...opts, left: shape.cx, top: shape.cy, rx: shape.rx, ry: shape.ry, originX: 'center', originY: 'center' });
+                case 'triangle':
+                case 'rect':
+                case 'polygon': {
+                    const polyPts = shape.corners.map(c => ({ x: c.x, y: c.y }));
+                    return new fabric.Polygon(polyPts, { ...opts });
+                }
+                case 'pentagon': {
+                    const penPts = [];
+                    for (let i = 0; i < 5; i++) {
+                        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+                        penPts.push({ x: shape.cx + shape.r * Math.cos(angle), y: shape.cy + shape.r * Math.sin(angle) });
+                    }
+                    return new fabric.Polygon(penPts, { ...opts });
+                }
+                case 'hexagon': {
+                    const hexPts = [];
+                    for (let i = 0; i < 6; i++) {
+                        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 6;
+                        hexPts.push({ x: shape.cx + shape.r * Math.cos(angle), y: shape.cy + shape.r * Math.sin(angle) });
+                    }
+                    return new fabric.Polygon(hexPts, { ...opts });
+                }
+                case 'star': {
+                    const starPts = [];
+                    const n = shape.points || 5;
+                    const startA = -Math.PI / 2;
+                    for (let i = 0; i < n * 2; i++) {
+                        const angle = startA + (i * Math.PI) / n;
+                        const r = i % 2 === 0 ? shape.outerR : shape.innerR;
+                        starPts.push({ x: shape.cx + r * Math.cos(angle), y: shape.cy + r * Math.sin(angle) });
+                    }
+                    return new fabric.Polygon(starPts, { ...opts });
+                }
+                case 'heart': {
+                    const hw = shape.w / 2, hh = shape.h / 2;
+                    const hcx = shape.cx, hcy = shape.cy;
+                    const heartPath = `M ${hcx} ${hcy + hh} ` +
+                        `C ${hcx - hw * 1.2} ${hcy + hh * 0.1}, ${hcx - hw * 0.8} ${hcy - hh * 0.8}, ${hcx} ${hcy - hh * 0.3} ` +
+                        `C ${hcx + hw * 0.8} ${hcy - hh * 0.8}, ${hcx + hw * 1.2} ${hcy + hh * 0.1}, ${hcx} ${hcy + hh} Z`;
+                    return new fabric.Path(heartPath, { ...opts });
+                }
+                case 'semicircle': {
+                    const segments = 50;
+                    let sa = shape.startAngle, ea = shape.endAngle;
+                    let diff = ea - sa;
+                    if (diff > Math.PI) diff -= 2 * Math.PI;
+                    if (diff < -Math.PI) diff += 2 * Math.PI;
+                    let pathStr = '';
+                    for (let i = 0; i <= segments; i++) {
+                        const t = sa + diff * (i / segments);
+                        const x = shape.cx + shape.r * Math.cos(t);
+                        const y = shape.cy + shape.r * Math.sin(t);
+                        pathStr += (i === 0 ? 'M' : 'L') + ` ${x} ${y} `;
+                    }
+                    pathStr += 'Z';
+                    return new fabric.Path(pathStr, { ...opts });
+                }
+                case 'sector': {
+                    const segs = 50;
+                    let sa2 = shape.startAngle, ea2 = shape.endAngle;
+                    let diff2 = ea2 - sa2;
+                    if (diff2 > Math.PI) diff2 -= 2 * Math.PI;
+                    if (diff2 < -Math.PI) diff2 += 2 * Math.PI;
+                    let pStr = `M ${shape.cx} ${shape.cy} `;
+                    for (let i = 0; i <= segs; i++) {
+                        const t = sa2 + diff2 * (i / segs);
+                        const x = shape.cx + shape.r * Math.cos(t);
+                        const y = shape.cy + shape.r * Math.sin(t);
+                        pStr += `L ${x} ${y} `;
+                    }
+                    pStr += 'Z';
+                    return new fabric.Path(pStr, { ...opts });
+                }
+                case 'curve': {
+                    return new fabric.Path(getSmoothCurvePath(shape.points), { ...opts });
+                }
+                default:
+                    return null;
+            }
+        }
+
+        // ── 인식 성공 시 화면에 간단한 알림 표시 ──
+        function _showShapeRecogNotice(typeName) {
+            let notice = document.getElementById('shape_recog_notice');
+            if (!notice) {
+                notice = document.createElement('div');
+                notice.id = 'shape_recog_notice';
+                notice.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.85);color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.3s;font-family:Pretendard,sans-serif;';
+                document.body.appendChild(notice);
+            }
+            const names = { circle: '원', ellipse: '타원', rect: '사각형', polygon: '다각형', star: '별', heart: '하트', pentagon: '오각형', hexagon: '육각형', semicircle: '반원', sector: '부채꼴', triangle: '삼각형', curve: '부드러운 곡선' };
+            notice.textContent = `✨ ${names[typeName] || typeName} 도형으로 변환됨`;
+            notice.style.opacity = '1';
+            clearTimeout(notice._timer);
+            notice._timer = setTimeout(() => { notice.style.opacity = '0'; }, 1500);
+        }
+
         canvas.on('path:created', (e) => {
             if (activeTool === 'pen') {
-                e.path.set({ selectable: true, isTemp: false });
+                const isAuto = _isAutoShapeTriggered;
+                _isAutoShapeTriggered = false; // 플래그 초기화
+                
+                if (!isAuto) return; // 0.5초 정지에 의해 발동된 경우가 아니면 도형 인식 안 함
+
+                const pathObj = e.path;
+                const pts = _extractPathPoints(pathObj);
+                const recognized = _recognizeShape(pts);
+
+                if (recognized) {
+                    // 원래 path의 스타일 정보 추출
+                    const sColor = pathObj.stroke;
+                    const sWidth = pathObj.strokeWidth;
+                    const sDash = pathObj.strokeDashArray;
+
+                    // 인식된 도형 생성
+                    const newObj = _createRecognizedShape(recognized, sColor, sWidth, sDash);
+                    if (newObj) {
+                        canvas.remove(pathObj);
+                        canvas.add(newObj);
+                        canvas.setActiveObject(newObj);
+                        _showShapeRecogNotice(recognized.type);
+                        updateObjectSelectability();
+                        saveHistory();
+                        canvas.requestRenderAll();
+                        return;
+                    }
+                }
+
+                // 인식 실패 시 기존 동작 유지
+                pathObj.set({ selectable: true, isTemp: false });
                 updateObjectSelectability();
                 saveHistory();
             }

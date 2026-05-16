@@ -404,7 +404,7 @@ class CaptureOverlay(QWidget):
         
         cropped[:, :, 3] = np.where(mask == 255, cropped[:, :, 3], 0)
         
-        _, buffer = cv2.imencode('.png', cropped)
+        _, buffer = cv2.imencode('.webp', cropped, [cv2.IMWRITE_WEBP_QUALITY, 95])
         self.result_img = base64.b64encode(buffer).decode('utf-8')
         self.close()
 
@@ -430,7 +430,7 @@ class CaptureOverlay(QWidget):
             self.close()
             return
         cropped = self.get_physical_crop(x, y, w, h)
-        _, buffer = cv2.imencode('.png', cropped)
+        _, buffer = cv2.imencode('.webp', cropped, [cv2.IMWRITE_WEBP_QUALITY, 95])
         self.result_img = base64.b64encode(buffer).decode('utf-8')
         self.close()
 
@@ -587,7 +587,7 @@ class CaptureEngine:
                 offsets = []
                 for frac in (0.3, 0.5, 0.7):
                     sy = u_top + int((u_bot - u_top) * frac)
-                    sh = min(50, u_bot - sy - 5)
+                    sh = min(150, u_bot - sy - 5)
                     if sh < 20: continue
                     t_strip = prev[sy:sy+sh, lc:rc]
                     gt = cv2.cvtColor(t_strip, cv2.COLOR_BGRA2GRAY)
@@ -595,7 +595,7 @@ class CaptureEngine:
                     if gn.shape[0] < gt.shape[0]: continue
                     res = cv2.matchTemplate(gn, gt, cv2.TM_CCOEFF_NORMED)
                     _, mv, _, ml = cv2.minMaxLoc(res)
-                    if mv > 0.85:
+                    if mv > 0.90:
                         match_y = u_top + ml[1]
                         off = sy - match_y
                         if 5 <= off <= h * 0.9: offsets.append(off)
@@ -605,22 +605,7 @@ class CaptureEngine:
                 median = offsets[len(offsets)//2]
                 filtered = [o for o in offsets if abs(o - median) < 10]
                 approx = int(np.median(filtered)) if filtered else median
-
-                ref_y = u_bot - 30
-                if ref_y < u_top + 10: return approx
-                ref_strip = prev[ref_y:ref_y+10, lc:rc].astype(np.float32)
-                
-                expected_y = ref_y - approx
-                s_start = max(u_top, expected_y - 15)
-                s_end = min(u_bot - 10, expected_y + 15)
-                
-                best_y, best_diff = expected_y, float('inf')
-                for y in range(s_start, s_end):
-                    diff = np.mean(np.abs(ref_strip - cur[y:y+10, lc:rc].astype(np.float32)))
-                    if diff < best_diff:
-                        best_diff = diff
-                        best_y = y
-                return ref_y - best_y
+                return approx
 
             max_scrolls, no_change_cnt = 40, 0
             full_image = None
@@ -665,5 +650,5 @@ class CaptureEngine:
         elif fixed_bot > 0:
             full_image = np.vstack([full_image, last_clean[img_h - fixed_bot:, :]])
 
-        _, buffer = cv2.imencode('.png', full_image)
+        _, buffer = cv2.imencode('.webp', full_image, [cv2.IMWRITE_WEBP_QUALITY, 95])
         return base64.b64encode(buffer).decode('utf-8')
