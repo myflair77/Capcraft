@@ -1322,7 +1322,9 @@
                 e.target.set('evented', false);
                 e.target.set('selectable', false);
             }
-            if(!isHistoryAction && !e.target.isTemp) saveHistory();
+            // 펜 브러시로 그린 선은 path:created에서 히스토리를 저장하므로 여기서 중복 저장 방지
+            const isPenBrushPath = (activeTool === 'pen' && e.target.type === 'path' && !e.target.isTemp && canvas.isDrawingMode);
+            if(!isHistoryAction && !e.target.isTemp && !isPenBrushPath) saveHistory();
             // ★ 개체 추가 시 Fabric 내부 래퍼 크기 동기화 (하단 깜빡임 방지)
             syncFabricContainerSize();
         });
@@ -1340,6 +1342,7 @@
                 oldBody.path.forEach(cmd => {
                     if(cmd[0] === 'M' || cmd[0] === 'L') absPoints.push(fabric.util.transformPoint({x: cmd[1] - po.x, y: cmd[2] - po.y}, m));
                     else if(cmd[0] === 'C') absPoints.push(fabric.util.transformPoint({x: cmd[5] - po.x, y: cmd[6] - po.y}, m));
+                    else if(cmd[0] === 'Q') absPoints.push(fabric.util.transformPoint({x: cmd[3] - po.x, y: cmd[4] - po.y}, m));
                 });
                 
                 let minX = Math.min(...absPoints.map(p=>p.x)), minY = Math.min(...absPoints.map(p=>p.y));
@@ -1356,6 +1359,11 @@
                         let cp2 = fabric.util.transformPoint({x: cmd[3] - po.x, y: cmd[4] - po.y}, m);
                         let p = fabric.util.transformPoint({x: cmd[5] - po.x, y: cmd[6] - po.y}, m);
                         newPathStr += `${cmd[0]} ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p.x} ${p.y} `;
+                        prevP = finalP; finalP = {x: p.x, y: p.y};
+                    } else if(cmd[0] === 'Q') {
+                        let cp1 = fabric.util.transformPoint({x: cmd[1] - po.x, y: cmd[2] - po.y}, m);
+                        let p = fabric.util.transformPoint({x: cmd[3] - po.x, y: cmd[4] - po.y}, m);
+                        newPathStr += `${cmd[0]} ${cp1.x} ${cp1.y}, ${p.x} ${p.y} `;
                         prevP = finalP; finalP = {x: p.x, y: p.y};
                     }
                 });
@@ -1839,6 +1847,7 @@
                         if (parsed.backgroundColor) canvas.backgroundColor = parsed.backgroundColor;
 
                         canvas.setWidth(baseW); canvas.setHeight(baseH); 
+                        syncFabricContainerSize();
                         canvas.calcOffset();
                         
                         enableTools(); applyFitZoom(); applyCanvasClipping(); 
@@ -2325,6 +2334,7 @@
                     oldBody.path.forEach(cmd => {
                         if(cmd[0] === 'M' || cmd[0] === 'L') absPoints.push(fabric.util.transformPoint({x: cmd[1] - po.x, y: cmd[2] - po.y}, m));
                         else if(cmd[0] === 'C') absPoints.push(fabric.util.transformPoint({x: cmd[5] - po.x, y: cmd[6] - po.y}, m));
+                        else if(cmd[0] === 'Q') absPoints.push(fabric.util.transformPoint({x: cmd[3] - po.x, y: cmd[4] - po.y}, m));
                     });
                     
                     let minX = Math.min(...absPoints.map(p=>p.x)), minY = Math.min(...absPoints.map(p=>p.y));
@@ -2345,6 +2355,13 @@
                             let sx2 = minX + (cp2.x - minX) * scaleX; let sy2 = minY + (cp2.y - minY) * scaleY;
                             let sx = minX + (p.x - minX) * scaleX; let sy = minY + (p.y - minY) * scaleY;
                             newPathStr += `${cmd[0]} ${sx1} ${sy1}, ${sx2} ${sy2}, ${sx} ${sy} `;
+                            prevP = finalP; finalP = {x: sx, y: sy};
+                        } else if(cmd[0] === 'Q') {
+                            let cp1 = fabric.util.transformPoint({x: cmd[1] - po.x, y: cmd[2] - po.y}, m);
+                            let p = fabric.util.transformPoint({x: cmd[3] - po.x, y: cmd[4] - po.y}, m);
+                            let sx1 = minX + (cp1.x - minX) * scaleX; let sy1 = minY + (cp1.y - minY) * scaleY;
+                            let sx = minX + (p.x - minX) * scaleX; let sy = minY + (p.y - minY) * scaleY;
+                            newPathStr += `${cmd[0]} ${sx1} ${sy1}, ${sx} ${sy} `;
                             prevP = finalP; finalP = {x: sx, y: sy};
                         }
                     });
@@ -2916,7 +2933,17 @@
                 else if (Math.abs(normAngle - 180) <= snapTolerance) { endY = origY; } 
                 else if (Math.abs(normAngle - 270) <= snapTolerance) { endX = origX; }
                 
-                currentShape.set({ path: new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`).path });
+                const weight = parseInt(document.getElementById('pen_weight').value) || 5;
+                const isDashed = document.getElementById('pen_dashed').checked;
+                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                canvas.remove(currentShape);
+                currentShape = new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`, {
+                    fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
+                    strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
+                    selectable: false, isTemp: true, objectCaching: false
+                });
+                canvas.add(currentShape);
                 canvas.requestRenderAll();
                 return;
             }
@@ -2973,16 +3000,6 @@
 
             if (!isDrawing) return;
             
-            if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
-                currentShape.setCoords();
-                currentShape.set({ selectable: true, isTemp: false });
-                currentShape = null;
-                updateObjectSelectability();
-                canvas.requestRenderAll(); saveHistory();
-                isDrawing = false;
-                return;
-            }
-
             if (activeTool === 'crop') {
                 const box = document.getElementById('selection_box'); box.style.display = 'block';
                 box.style.width = Math.abs(capStartX - o.e.clientX) + 'px'; box.style.height = Math.abs(capStartY - o.e.clientY) + 'px';
@@ -3058,6 +3075,15 @@
             
             // 자르기 도구는 엣지 드래그 오버레이로 처리됨 (mouse:up에서 제외)
             if (activeTool === 'crop') { isDrawing = false; return; }
+
+            if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                currentShape.setCoords();
+                currentShape.set({ selectable: true, isTemp: false });
+                currentShape = null;
+                updateObjectSelectability();
+                canvas.requestRenderAll(); saveHistory();
+                return;
+            }
 
             if (activeTool === 'mosaic' && currentShape) {
                 let mLeft = Math.floor(currentShape.left); 
