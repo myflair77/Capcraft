@@ -59,7 +59,7 @@
         .btn-tool:hover:not(.disabled) { background-color: #f1f5f9; color: var(--accent-blue); }
         .btn-tool.red:hover:not(.disabled) { color: var(--accent-red); }
         .btn-tool.active { background-color: #e0f2fe; color: var(--accent-blue); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
-        .btn-tool.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(100%); }
+        .btn-tool.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(100%); pointer-events: none; }
 
         /* 드롭다운 메뉴 */
         .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-radius: 10px; border: 1px solid var(--border-color); padding: 8px 0; z-index: 2001; min-width: 110px; }
@@ -150,8 +150,8 @@
 
         .setting-group { margin-bottom: 15px; font-size: 12px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
         .setting-group label { display: block; font-weight: bold; margin-bottom: 8px; color: var(--accent-blue); }
-        .setting-group .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
-        .setting-group select, .setting-group input[type="number"], .setting-group input[type="text"] { flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
+        .setting-group select, .setting-group input[type="text"] { flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
+        .setting-group input[type="number"] { padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; box-sizing: border-box; }
         
         
         /* 안내 모달 스타일 */
@@ -544,7 +544,7 @@
 
     <!-- 안내 모달 -->
     <div class="modal" id="modal_guide" style="width: 500px;">
-        <div class="modal-header"><span>📖 프로그램 안내</span><button class="modal-close" onclick="closeModals()">❌</button></div>
+        <div class="modal-header"><span>📖 프로그램 사용법</span><button class="modal-close" onclick="closeModals()">❌</button></div>
         <div class="guide-content">
             <!-- guide.html 파일에서 내용을 불러옵니다 -->
         </div>
@@ -580,7 +580,7 @@
         </div>
         <div class="program-name">Capcraft v1.0</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
         
-        <button class="btn-nav" onclick="openGuide()">안내</button>
+        <button class="btn-nav" onclick="openGuide()">사용법</button>
         <button class="btn-nav" onclick="openModal('modal_settings')">환경설정</button>
         
         <button id="btn_open_new_bg" style="width:100%; margin-top: 15px; font-size:12px; font-weight: bold; padding:8px 0; background:#fff; color:var(--accent-blue); border:1px solid var(--accent-blue); border-radius:6px; cursor:pointer; transition: 0.2s;">+ 새 배경 이미지</button>
@@ -721,6 +721,126 @@
             controls.mr.actionHandler = cropX;
             controls.mt.actionHandler = cropY;
             controls.mb.actionHandler = cropY;
+
+            // 크기 조절과 회전을 동시에 처리하는 핸들러
+            function scaleAndRotate(eventData, transform, x, y) {
+                const target = transform.target;
+                
+                // 크기 조절
+                fabric.controlsUtils.scalingEqually(eventData, transform, x, y);
+                
+                // 회전 (마우스와 객체 중심점의 각도 계산)
+                const center = target.translateToOriginPoint(target.getCenterPoint(), 'center', 'center');
+                const mouseAngle = Math.atan2(y - center.y, x - center.x);
+                
+                if (transform.lastMouseAngle === undefined) {
+                    transform.lastMouseAngle = Math.atan2(transform.ey - center.y, transform.ex - center.x);
+                    transform.initialAngle = target.angle || 0;
+                }
+                
+                let angleDiff = (mouseAngle - transform.lastMouseAngle) * 180 / Math.PI;
+                let newAngle = transform.initialAngle + angleDiff;
+                target.set('angle', newAngle);
+                
+                // 툴팁 표시
+                let floating = document.getElementById('floating_angle_tooltip');
+                if (!floating) {
+                    floating = document.createElement('div');
+                    floating.id = 'floating_angle_tooltip';
+                    floating.style.position = 'fixed';
+                    floating.style.background = 'rgba(15,23,42,0.85)';
+                    floating.style.color = '#fff';
+                    floating.style.padding = '4px 8px';
+                    floating.style.borderRadius = '4px';
+                    floating.style.fontSize = '12px';
+                    floating.style.fontWeight = 'bold';
+                    floating.style.pointerEvents = 'none';
+                    floating.style.zIndex = '10000';
+                    document.body.appendChild(floating);
+                }
+                floating.style.display = 'block';
+                floating.style.left = (eventData.clientX + 15) + 'px';
+                floating.style.top = (eventData.clientY + 15) + 'px';
+                
+                let displayAngle = Math.round(newAngle) % 360;
+                if (displayAngle < 0) displayAngle += 360;
+                floating.innerText = displayAngle + '°';
+                
+                return true;
+            }
+
+            // 모서리 컨트롤에 새로운 핸들러 적용
+            controls.tl.actionHandler = scaleAndRotate;
+            controls.tr.actionHandler = scaleAndRotate;
+            controls.bl.actionHandler = scaleAndRotate;
+            controls.br.actionHandler = scaleAndRotate;
+
+            // 좌우 반전 / 상하 반전 버튼 (플립) 추가
+            const flipXIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><line x1='12' y1='5' x2='12' y2='19' stroke='%233b82f6' stroke-width='1.5'/><polygon points='10,12 5,8 5,16' fill='%233b82f6'/><polygon points='14,12 19,8 19,16' fill='%233b82f6'/></svg>";
+            const flipYIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><line x1='5' y1='12' x2='19' y2='12' stroke='%233b82f6' stroke-width='1.5'/><polygon points='12,10 8,5 16,5' fill='%233b82f6'/><polygon points='12,14 8,19 16,19' fill='%233b82f6'/></svg>";
+
+            const flipXImg = new Image(); flipXImg.src = flipXIcon;
+            const flipYImg = new Image(); flipYImg.src = flipYIcon;
+
+            function renderFlipX(ctx, left, top, styleOverride, fabricObject) {
+                const size = 20;
+                ctx.save();
+                ctx.translate(left, top);
+                ctx.drawImage(flipXImg, -size/2, -size/2, size, size);
+                ctx.restore();
+            }
+            function renderFlipY(ctx, left, top, styleOverride, fabricObject) {
+                const size = 20;
+                ctx.save();
+                ctx.translate(left, top);
+                ctx.drawImage(flipYImg, -size/2, -size/2, size, size);
+                ctx.restore();
+            }
+
+            controls.flipX = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -30, offsetX: -15, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    const center = target.getCenterPoint();
+                    target.set('flipX', !target.flipX);
+                    target.setPositionByOrigin(center, 'center', 'center');
+                    target.setCoords();
+                    target.set('dirty', true);
+                    if (target.canvas) {
+                        target.canvas.fire('object:modified', { target: target });
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'flipX',
+                render: renderFlipX,
+                cornerSize: 20
+            });
+
+            controls.flipY = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -30, offsetX: 15, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    const center = target.getCenterPoint();
+                    target.set('flipY', !target.flipY);
+                    target.setPositionByOrigin(center, 'center', 'center');
+                    target.setCoords();
+                    target.set('dirty', true);
+                    if (target.canvas) {
+                        target.canvas.fire('object:modified', { target: target });
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'flipY',
+                render: renderFlipY,
+                cornerSize: 20
+            });
+
+            window.addEventListener('mouseup', () => {
+                let floating = document.getElementById('floating_angle_tooltip');
+                if (floating) floating.style.display = 'none';
+            });
         }
         initCustomControls();
 
@@ -730,7 +850,9 @@
             width: 800, height: 600, selection: true, 
             imageSmoothingEnabled: false,
             perPixelTargetFind: false,
-            targetFindTolerance: 10
+            targetFindTolerance: 10,
+            preserveObjectStacking: true,
+            enableRetinaScaling: false
         });
 
         // 엣지 글로우 토글 핸들러 (선택 시 파란 테두리 및 컨트롤 표시)
@@ -749,13 +871,13 @@
                     obj.setControlsVisibility({
                         tl: true, tr: true, br: true, bl: true,
                         ml: true, mt: true, mr: true, mb: true,
-                        mtr: false
+                        mtr: false, flipX: true, flipY: true
                     });
                 } else {
                     obj.setControlsVisibility({
                         tl: true, tr: true, br: true, bl: true,
                         ml: true, mt: true, mr: true, mb: true,
-                        mtr: false
+                        mtr: false, flipX: true, flipY: true
                     });
                 }
                 obj.set('dirty', true);
@@ -1291,11 +1413,33 @@
             const redoBtn = document.getElementById('btn_redo');
             if (undoBtn) undoBtn.classList.toggle('disabled', historyIndex <= 0);
             if (redoBtn) redoBtn.classList.toggle('disabled', historyIndex >= stateHistory.length - 1);
+            if (activeRecentIdx >= 0 && recentList[activeRecentIdx]) {
+                recentList[activeRecentIdx].stateHistory = stateHistory;
+                recentList[activeRecentIdx].historyIndex = historyIndex;
+            }
             updateCurrentThumbnail();
         }
 
         function initHistory() {
-            stateHistory = [{ objects: JSON.stringify(canvas), width: canvas.width, height: canvas.height }];
+            if (activeRecentIdx >= 0 && recentList[activeRecentIdx]) {
+                const item = recentList[activeRecentIdx];
+                if (item.stateHistory && item.stateHistory.length > 0) {
+                    stateHistory = item.stateHistory;
+                    historyIndex = item.historyIndex !== undefined ? item.historyIndex : item.stateHistory.length - 1;
+                    updateUndoRedoUI();
+                    return;
+                }
+            }
+
+            const bgImg = canvas.backgroundImage;
+            const bgColor = canvas.backgroundColor;
+            canvas.backgroundImage = null;
+            canvas.backgroundColor = null;
+            const json = JSON.stringify(canvas);
+            canvas.backgroundImage = bgImg;
+            canvas.backgroundColor = bgColor;
+
+            stateHistory = [{ objects: json, width: canvas.width, height: canvas.height }];
             historyIndex = 0;
             updateUndoRedoUI();
         }
@@ -1888,6 +2032,7 @@
                 fabric.Image.fromURL("data:image/webp;base64," + base64Data, (img) => {
                     pushCurrentToRecent(); // 이전 작업 보존
                     activeRecentIdx = -1; // 새 항목 추가를 위해 인덱스 리셋
+                    stateHistory = []; historyIndex = -1;
                     canvas.clear(); 
                     img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
                     commitLoadToCanvas(img, img.width, img.height, null);
@@ -1913,6 +2058,7 @@
                     prepareCanvasDisplay();
                     isHistoryAction = true; pushCurrentToRecent();
                     activeRecentIdx = -1;
+                    stateHistory = []; historyIndex = -1;
                     
                     canvas.loadFromJSON(f.target.result, () => {
                         let parsed = {};
@@ -1937,7 +2083,7 @@
                     isHistoryAction = true;
                     pushCurrentToRecent();  // 이전 항목 보존 (새 항목으로 전환 전)
                     activeRecentIdx = -1;   // 새 캔버스 로드 → 인덱스 초기화
-
+                    stateHistory = []; historyIndex = -1;
                     const naturalW = img.naturalWidth  || img.width;
                     const naturalH = img.naturalHeight || img.height;
 
@@ -2197,6 +2343,7 @@
 
             if (hasActiveCanvas) pushCurrentToRecent();
             activeRecentIdx = -1;
+            stateHistory = []; historyIndex = -1;
             isHistoryAction = true; canvas.clear(); 
             commitLoadToCanvas(null, parseInt(sizeArr[0]), parseInt(sizeArr[1]), bgColor);
             closeModals(); 
@@ -3289,7 +3436,13 @@
                 const isAuto = _isAutoShapeTriggered;
                 _isAutoShapeTriggered = false; // 플래그 초기화
                 
-                if (!isAuto) return; // 0.5초 정지에 의해 발동된 경우가 아니면 도형 인식 안 함
+                if (!isAuto) {
+                    // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
+                    e.path.set({ selectable: true, isTemp: false, objectCaching: false });
+                    updateObjectSelectability();
+                    saveHistory();
+                    return; 
+                }
 
                 const pathObj = e.path;
                 const pts = _extractPathPoints(pathObj);
