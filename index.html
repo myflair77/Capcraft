@@ -261,12 +261,12 @@
             <input type="hidden" id="shape_type" value="rect">
             <div id="shape_options_container" style="display: flex; gap: 8px; align-items: center; margin: 0 5px; padding: 0 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc;"></div>
             
-            <span>선굵기:</span><input type="number" id="shape_weight" value="5" min="1" style="width: 40px; padding: 4px;">
+            <span>선굵기:</span><input type="number" id="shape_weight" value="3" min="1" style="width: 40px; padding: 4px;">
             <span>선:</span><div id="btn_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
             <span id="label_fill_color">배경:</span><div id="btn_fill_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
         </div>
         <div id="panel_text" class="sub-panel">
-            <span>크기:</span><input type="number" id="text_size_input" value="36" min="10" style="width: 40px; padding: 4px;">
+            <span>크기:</span><input type="number" id="text_size_input" value="50" min="10" style="width: 40px; padding: 4px;">
             <button id="btn_txt_b" class="btn-text-style" style="font-weight: bold; margin-left:8px;">B</button>
             <button id="btn_txt_i" class="btn-text-style" style="font-style: italic;">I</button>
             <button id="btn_txt_u" class="btn-text-style" style="text-decoration: underline;">U</button>
@@ -287,7 +287,7 @@
                 <label><input type="radio" name="pen_mode" value="straight"> 줄긋기</label>
             </div>
             
-            <span style="margin-left:8px;">선굵기:</span><input type="number" id="pen_weight" value="5" min="1" style="width: 40px; padding: 4px;">
+            <span style="margin-left:8px;">선굵기:</span><input type="number" id="pen_weight" value="3" min="1" style="width: 40px; padding: 4px;">
             <span>선색상:</span><div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
         </div>
         <div id="panel_emoji" class="sub-panel">
@@ -414,12 +414,13 @@
         <div class="modal-header"><span>새 배경 이미지</span><button class="modal-close" onclick="closeModals()">❌</button></div>
         <div class="setting-group">
             <label>배경 크기</label>
-            <select id="new_bg_size">
-                <option value="1123x794">A4 가로 (1123x794)</option>
-                <option value="794x1123">A4 세로 (794x1123)</option>
-                <option value="1587x1123">A3 가로 (1587x1123)</option>
-                <option value="1123x1587">A3 세로 (1123x1587)</option>
-            </select>
+            <div class="custom-select-group" id="new_bg_size_group">
+                <button class="active" data-val="1123x794">A4 가로</button>
+                <button data-val="794x1123">A4 세로</button>
+                <button data-val="1587x1123">A3 가로</button>
+                <button data-val="1123x1587">A3 세로</button>
+            </div>
+            <input type="hidden" id="new_bg_size" value="1123x794">
         </div>
         <div class="setting-group">
             <label>배경 색상 및 농도</label>
@@ -440,9 +441,9 @@
         <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">보기 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div class="custom-select-group" id="set_theme_group">
-                <button data-val="light">라이트 모드</button>
-                <button data-val="dark">다크 모드</button>
-                <button class="active" data-val="system">시스템 설정 따르기</button>
+                <button data-val="light">라이트</button>
+                <button data-val="dark">다크</button>
+                <button class="active" data-val="system">시스템</button>
             </div>
             <input type="hidden" id="set_theme" value="system">
         </div>
@@ -450,7 +451,7 @@
         <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">텍스트 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
-                <span>크기:</span> <input type="number" id="set_txt_size" value="36" min="8" max="100" style="width:55px;">
+                <span>텍스트 크기:</span> <input type="number" id="set_txt_size" value="50" min="8" max="100" style="width:55px;">
                 <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_b_chk"> B(굵게)</label>
                 <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_i_chk"> I(기울임)</label>
                 <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_u_chk"> U(밑줄)</label>
@@ -465,11 +466,11 @@
         <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">펜 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <span>볼펜 굵기:</span> <input type="number" id="set_pen_ballpoint_weight" value="5" min="1" max="50" style="width:50px;">
+                <span>볼펜 선 굵기:</span> <input type="number" id="set_pen_ballpoint_weight" value="3" min="1" max="50" style="width:50px;">
                 <span>볼펜 색상:</span> <div id="set_pen_ballpoint_color" class="color-btn" style="background-color: #E03C31;"></div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <span>형광펜 굵기:</span> <input type="number" id="set_pen_highlighter_weight" value="20" min="1" max="100" style="width:50px;">
+                <span>형광펜 선 굵기:</span> <input type="number" id="set_pen_highlighter_weight" value="20" min="1" max="100" style="width:50px;">
                 <span>형광펜 색상:</span> <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.3);"></div>
                 <span style="margin-left:3px;">형광펜 색상 농도:</span> <input type="number" id="set_pen_highlighter_opacity" value="30" min="0" max="100" style="width:45px;">
             </div>
@@ -478,7 +479,7 @@
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">도형 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <span>선 굵기:</span> <input type="number" id="set_shape_weight" value="5" min="1" max="50" style="width:50px;">
+                <span>선 굵기:</span> <input type="number" id="set_shape_weight" value="3" min="1" max="50" style="width:50px;">
                 <span>선 색상:</span> <div id="set_shape_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
@@ -602,7 +603,21 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <script>
-        // ★ 핵심 전역 변수 최우선 선언 (참조 오류 방지)
+        // Chromium/Fabric.js textBaseline 버그 패치 ('alphabetical' -> 'alphabetic')
+        const originalTextBaseline = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'textBaseline');
+        if (originalTextBaseline) {
+            Object.defineProperty(CanvasRenderingContext2D.prototype, 'textBaseline', {
+                get: function() { return originalTextBaseline.get.call(this); },
+                set: function(val) {
+                    if (val === 'alphabetical') val = 'alphabetic';
+                    originalTextBaseline.set.call(this, val);
+                }
+            });
+        }
+        
+        // (이모티콘 패치는 개체 생성 시 fabric.Image로 변환하는 방식으로 대체됨)
+        
+        // 상태 관리 및 Undo/Redo 관련 변수 최우선 선언 (참조 오류 방지)
         let stateHistory = [];
         let historyIndex = -1;
         let isHistoryAction = false;
@@ -646,6 +661,7 @@
             
             // 기본 컨트롤 숨기기
             fabric.Object.prototype.set({
+                centeredRotation: false,
                 transparentCorners: false,
                 cornerColor: '#3b82f6',
                 cornerStrokeColor: '#ffffff',
@@ -726,21 +742,39 @@
             function scaleAndRotate(eventData, transform, x, y) {
                 const target = transform.target;
                 
-                // 크기 조절
-                fabric.controlsUtils.scalingEqually(eventData, transform, x, y);
-                
-                // 회전 (마우스와 객체 중심점의 각도 계산)
-                const center = target.translateToOriginPoint(target.getCenterPoint(), 'center', 'center');
-                const mouseAngle = Math.atan2(y - center.y, x - center.x);
-                
-                if (transform.lastMouseAngle === undefined) {
-                    transform.lastMouseAngle = Math.atan2(transform.ey - center.y, transform.ex - center.x);
+                if (transform.fixedPivot === undefined) {
+                    transform.fixedPivot = target.translateToOriginPoint(target.getCenterPoint(), 'left', 'top');
                     transform.initialAngle = target.angle || 0;
+                    transform.initialScaleX = target.scaleX || 1;
+                    transform.initialScaleY = target.scaleY || 1;
+                    
+                    const dx = transform.ex - transform.fixedPivot.x;
+                    const dy = transform.ey - transform.fixedPivot.y;
+                    transform.initialDistance = Math.sqrt(dx * dx + dy * dy);
+                    transform.initialMouseAngle = Math.atan2(dy, dx);
                 }
                 
-                let angleDiff = (mouseAngle - transform.lastMouseAngle) * 180 / Math.PI;
+                const pivot = transform.fixedPivot;
+                const dx = x - pivot.x;
+                const dy = y - pivot.y;
+                const currentDistance = Math.sqrt(dx * dx + dy * dy);
+                const currentMouseAngle = Math.atan2(dy, dx);
+                
+                let ratio = 1;
+                if (transform.initialDistance > 0) {
+                    ratio = currentDistance / transform.initialDistance;
+                }
+                
+                let angleDiff = (currentMouseAngle - transform.initialMouseAngle) * 180 / Math.PI;
                 let newAngle = transform.initialAngle + angleDiff;
-                target.set('angle', newAngle);
+                
+                target.set({
+                    scaleX: transform.initialScaleX * ratio,
+                    scaleY: transform.initialScaleY * ratio,
+                    angle: newAngle
+                });
+                
+                target.setPositionByOrigin(pivot, 'left', 'top');
                 
                 // 툴팁 표시
                 let floating = document.getElementById('floating_angle_tooltip');
@@ -769,11 +803,23 @@
                 return true;
             }
 
-            // 모서리 컨트롤에 새로운 핸들러 적용
-            controls.tl.actionHandler = scaleAndRotate;
+            // 모서리 컨트롤 핸들러 변경 (우측 상단만 크기+회전)
+            controls.tl.actionHandler = fabric.controlsUtils.scalingEqually;
+            controls.bl.actionHandler = fabric.controlsUtils.scalingEqually;
+            controls.br.actionHandler = fabric.controlsUtils.scalingEqually;
             controls.tr.actionHandler = scaleAndRotate;
-            controls.bl.actionHandler = scaleAndRotate;
-            controls.br.actionHandler = scaleAndRotate;
+
+            const rotateIconSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='11' fill='white' stroke='%233b82f6' stroke-width='2'/><path d='M15.5 12c0 1.93-1.57 3.5-3.5 3.5s-3.5-1.57-3.5-3.5 1.57-3.5 3.5-3.5v2l3.5-3-3.5-3v2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h-1.5z' fill='%233b82f6'/></svg>";
+            const rotateImg = new Image(); rotateImg.src = rotateIconSvg;
+            
+            controls.tr.render = function(ctx, left, top, styleOverride, fabricObject) {
+                const size = 18;
+                ctx.save();
+                ctx.translate(left, top);
+                ctx.drawImage(rotateImg, -size/2, -size/2, size, size);
+                ctx.restore();
+            };
+            controls.tr.cornerSize = 18;
 
             // 좌우 반전 / 상하 반전 버튼 (플립) 추가
             const flipXIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><line x1='12' y1='5' x2='12' y2='19' stroke='%233b82f6' stroke-width='1.5'/><polygon points='10,12 5,8 5,16' fill='%233b82f6'/><polygon points='14,12 19,8 19,16' fill='%233b82f6'/></svg>";
@@ -783,14 +829,14 @@
             const flipYImg = new Image(); flipYImg.src = flipYIcon;
 
             function renderFlipX(ctx, left, top, styleOverride, fabricObject) {
-                const size = 20;
+                const size = 40;
                 ctx.save();
                 ctx.translate(left, top);
                 ctx.drawImage(flipXImg, -size/2, -size/2, size, size);
                 ctx.restore();
             }
             function renderFlipY(ctx, left, top, styleOverride, fabricObject) {
-                const size = 20;
+                const size = 40;
                 ctx.save();
                 ctx.translate(left, top);
                 ctx.drawImage(flipYImg, -size/2, -size/2, size, size);
@@ -798,7 +844,7 @@
             }
 
             controls.flipX = new fabric.Control({
-                x: 0, y: -0.5, offsetY: -30, offsetX: -15, cursorStyle: 'pointer',
+                x: 0, y: -0.5, offsetY: -40, offsetX: -75, cursorStyle: 'pointer',
                 mouseDownHandler: function(eventData, transform, x, y) {
                     const target = transform.target;
                     const center = target.getCenterPoint();
@@ -814,11 +860,11 @@
                 },
                 actionName: 'flipX',
                 render: renderFlipX,
-                cornerSize: 20
+                cornerSize: 40
             });
 
             controls.flipY = new fabric.Control({
-                x: 0, y: -0.5, offsetY: -30, offsetX: 15, cursorStyle: 'pointer',
+                x: 0, y: -0.5, offsetY: -40, offsetX: -25, cursorStyle: 'pointer',
                 mouseDownHandler: function(eventData, transform, x, y) {
                     const target = transform.target;
                     const center = target.getCenterPoint();
@@ -834,7 +880,56 @@
                 },
                 actionName: 'flipY',
                 render: renderFlipY,
-                cornerSize: 20
+                cornerSize: 40
+            });
+
+            const sendBackIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><rect x='10' y='6' width='8' height='8' fill='none' stroke='%2394a3b8' stroke-width='1.5'/><rect x='6' y='10' width='8' height='8' fill='%233b82f6'/></svg>";
+            const bringFrontIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><rect x='6' y='10' width='8' height='8' fill='none' stroke='%2394a3b8' stroke-width='1.5'/><rect x='10' y='6' width='8' height='8' fill='%233b82f6'/></svg>";
+
+            const sendBackImg = new Image(); sendBackImg.src = sendBackIcon;
+            const bringFrontImg = new Image(); bringFrontImg.src = bringFrontIcon;
+
+            controls.sendBack = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 25, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (target.canvas) {
+                        target._skipBringToFront = true;
+                        target.canvas.sendToBack(target);
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'sendBack',
+                render: function(ctx, left, top, styleOverride, fabricObject) {
+                    const size = 40;
+                    ctx.save();
+                    ctx.translate(left, top);
+                    ctx.drawImage(sendBackImg, -size/2, -size/2, size, size);
+                    ctx.restore();
+                },
+                cornerSize: 40
+            });
+
+            controls.bringFront = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 75, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (target.canvas) {
+                        target.canvas.bringToFront(target);
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'bringFront',
+                render: function(ctx, left, top, styleOverride, fabricObject) {
+                    const size = 40;
+                    ctx.save();
+                    ctx.translate(left, top);
+                    ctx.drawImage(bringFrontImg, -size/2, -size/2, size, size);
+                    ctx.restore();
+                },
+                cornerSize: 40
             });
 
             window.addEventListener('mouseup', () => {
@@ -1620,13 +1715,14 @@
         });
 
         // ==========================================
-        // 3. 도형 옵션 동적 전환 & 35색상 팔레트 연동 (형광색 포함)
+        // 3. 도형 옵션 동적 전환 & 42색상 팔레트 연동 (형광색 및 오피스 색상 포함)
         // ==========================================
         const munsell35 = [
             {n:"검정",h:"#000000"},{n:"하양",h:"#FFFFFF"},{n:"투명",h:"transparent"},{n:"진회색",h:"#4A4A4A"},{n:"회색",h:"#7D7D7D"},{n:"갈색",h:"#8F4B28"},{n:"살구",h:"#F8C3CD"},
             {n:"빨강",h:"#E03C31"},{n:"주황빨강",h:"#E95513"},{n:"주황",h:"#F37121"},{n:"노랑주황",h:"#F9961B"},{n:"노랑",h:"#FFC408"},{n:"연두노랑",h:"#D1D22D"},{n:"연두",h:"#98CB4A"},
             {n:"초록연두",h:"#41B34E"},{n:"초록",h:"#009959"},{n:"청록초록",h:"#009E8E"},{n:"청록",h:"#00A1AE"},{n:"파랑청록",h:"#0087BA"},{n:"파랑",h:"#0068B7"},{n:"남색파랑",h:"#2B4B9B"},
             {n:"남색",h:"#3E318B"},{n:"보라남색",h:"#622D88"},{n:"보라",h:"#8E2382"},{n:"자주보라",h:"#B91B74"},{n:"자주",h:"#D61668"},{n:"빨강자주",h:"#E01D53"},{n:"연분홍",h:"#F4A7B9"},
+            {n:"오피스 빨강",h:"#FF0000"},{n:"오피스 주황",h:"#FF6600"},{n:"오피스 노랑",h:"#FFFF00"},{n:"오피스 연두",h:"#00FF00"},{n:"오피스 청록",h:"#00FFFF"},{n:"오피스 파랑",h:"#0055FF"},{n:"오피스 보라",h:"#CC00FF"},
             {n:"형광노랑",h:"rgba(255, 255, 0, 0.6)"}, {n:"형광연두",h:"rgba(57, 255, 20, 0.6)"}, {n:"형광초록",h:"rgba(0, 255, 0, 0.6)"},
             {n:"형광하늘",h:"rgba(0, 255, 255, 0.6)"}, {n:"형광파랑",h:"rgba(0, 100, 255, 0.6)"}, {n:"형광분홍",h:"rgba(255, 20, 147, 0.6)"},
             {n:"형광빨강",h:"rgba(255, 50, 50, 0.6)"}
@@ -1634,7 +1730,7 @@
         const paletteEl = document.getElementById('color_palette');
         let targetColorBtn = null;
         let strokeColor = '#E03C31'; let fillColor = 'transparent'; let textColor = '#E03C31'; let textBg = 'transparent';
-        let sysPenBallpointWeight = 5; let sysPenBallpointColor = '#E03C31';
+        let sysPenBallpointWeight = 3; let sysPenBallpointColor = '#E03C31';
         let sysPenHighlighterWeight = 20; let sysPenHighlighterColor = 'rgba(255, 255, 0, 0.3)';
         let penCurrentColor = sysPenBallpointColor;
 
@@ -2383,7 +2479,8 @@
 
             if (isEmoji) {
                 document.getElementById('form_edit_emoji').style.display = 'block';
-                document.getElementById('edit_emoji_size').value = editingObject.fontSize;
+                const currentSize = editingObject.baseFontSize ? Math.round(editingObject.baseFontSize * editingObject.scaleX) : (editingObject.fontSize || 36);
+                document.getElementById('edit_emoji_size').value = currentSize;
             } 
             else if (isImage) {
                 document.getElementById('form_edit_image').style.display = 'block';
@@ -2496,7 +2593,12 @@
 
             if (isEmoji) {
                 const size = parseInt(document.getElementById('edit_emoji_size').value);
-                editingObject.set({ fontSize: size });
+                if (editingObject.baseFontSize) { // Image로 변환된 새 이모티콘
+                    const scale = size / editingObject.baseFontSize;
+                    editingObject.set({ scaleX: scale, scaleY: scale });
+                } else { // 예전 버전 호환성 (fabric.Text로 저장된 경우)
+                    editingObject.set({ fontSize: size });
+                }
                 editingObject.setCoords();
             } else if (isImage) {
                 const newW = parseInt(document.getElementById('edit_image_w').value);
@@ -3562,6 +3664,7 @@
             // 붙여넣기 좌표 갱신
             lastCanvasClick = { x: pointer.x, y: pointer.y };
 
+
             if (activeTool === 'text') {
                 if (Date.now() - lastTextEditExitTime < 200) return; 
                 const activeObj = canvas.getActiveObject();
@@ -3600,7 +3703,11 @@
 
             // 도구가 활성화되어 있지 않고 대상이 있다면 (선택 이동 & 맨 앞으로 가져오기)
             if (!activeTool && o.target && o.target.selectable) {
-                canvas.bringToFront(o.target);
+                if (o.target._skipBringToFront) {
+                    delete o.target._skipBringToFront;
+                } else {
+                    canvas.bringToFront(o.target);
+                }
                 saveHistory();
                 return;
             }
@@ -3647,7 +3754,64 @@
                 } else if (activeTool === 'emoji') {
                     if (!selectedEmoji) return customAlert("이모티콘을 먼저 선택해주세요.");
                     const scaledSize = parseInt(document.getElementById('text_size_input').value) || 36;
-                    liveEmojiImgObj = new fabric.Text(selectedEmoji, { left: origX, top: origY, fontSize: scaledSize, originX: 'left', originY: 'top', selectable: false, isTemp: true, isEmoji: true }); canvas.add(liveEmojiImgObj);
+                    // 캔버스를 이용해 이모티콘을 이미지로 렌더링 (가장 완벽하고 타이트한 픽셀 단위 외곽선)
+                    const tempCanvas = document.createElement('canvas');
+                    const tCtx = tempCanvas.getContext('2d');
+                    const renderSize = 128; // 고해상도 렌더링 기준 크기
+                    tCtx.font = `${renderSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+                    const metrics = tCtx.measureText(selectedEmoji);
+                    
+                    let w = Math.ceil(metrics.actualBoundingBoxRight + metrics.actualBoundingBoxLeft);
+                    if (isNaN(w) || w <= 0) w = Math.ceil(metrics.width) || renderSize;
+                    
+                    let h = Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+                    if (isNaN(h) || h <= 0) h = renderSize;
+                    
+                    tempCanvas.width = w;
+                    tempCanvas.height = h;
+                    tCtx.font = `${renderSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+                    tCtx.textBaseline = 'alphabetic';
+                    
+                    const drawX = metrics.actualBoundingBoxLeft || 0;
+                    const drawY = metrics.actualBoundingBoxAscent || (renderSize * 0.8);
+                    tCtx.fillText(selectedEmoji, drawX, drawY);
+                    
+                    const emojiDataUrl = tempCanvas.toDataURL('image/png');
+                    const emojiHtmlImg = new Image();
+                    emojiHtmlImg.onload = function() {
+                        liveEmojiImgObj = new fabric.Image(emojiHtmlImg, {
+                            left: origX,
+                            top: origY,
+                            originX: 'left',
+                            originY: 'top',
+                            selectable: false,
+                            evented: false,
+                            isTemp: true,
+                            isEmoji: true,
+                            baseFontSize: renderSize, // 편집 시 기준 크기
+                            scaleX: scaledSize / renderSize,
+                            scaleY: scaledSize / renderSize,
+                            hasBorders: true,
+                            hasControls: true,
+                            borderColor: '#3b82f6',
+                            borderScaleFactor: 2,
+                            objectCaching: false
+                        });
+                        canvas.add(liveEmojiImgObj);
+                        liveEmojiImgObj.setCoords();
+                        canvas.requestRenderAll();
+                        
+                        // 비동기 이미지 로드 중 마우스가 이미 올라간 경우(드래그 없이 클릭만) 즉시 확정
+                        if (!isDrawing) {
+                            liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
+                            liveEmojiImgObj.setCoords();
+                            liveEmojiImgObj = null;
+                            updateObjectSelectability();
+                            canvas.requestRenderAll();
+                            saveHistory();
+                        }
+                    };
+                    emojiHtmlImg.src = emojiDataUrl;
                 } else if (activeTool === 'image') {
                     if (!uploadedImageSrc) return customAlert("이미지 파일을 먼저 선택해주세요.");
                     fabric.Image.fromURL(uploadedImageSrc, img => {
@@ -3803,7 +3967,13 @@
                 const size = Math.max(sizeW, sizeH);
                 liveEmojiImgObj.set({ left: Math.min(origX, pointer.x), top: Math.min(origY, pointer.y) });
                 if (activeTool === 'emoji') {
-                    liveEmojiImgObj.set({ fontSize: Math.max(10, size) });
+                    const newSize = Math.max(10, size);
+                    if (liveEmojiImgObj.baseFontSize) {
+                        const s = newSize / liveEmojiImgObj.baseFontSize;
+                        liveEmojiImgObj.set({ scaleX: s, scaleY: s });
+                    } else {
+                        liveEmojiImgObj.set({ fontSize: newSize });
+                    }
                 } else if (imageInsertData) {
                     const frame = imageInsertData.frame;
                     const sw = imageInsertData.sw || 1;
@@ -3993,7 +4163,8 @@
                 }
             }
             else if (['emoji', 'image'].includes(activeTool) && liveEmojiImgObj) { 
-                liveEmojiImgObj.set({ selectable: true, isTemp: false }); 
+                liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false }); 
+                liveEmojiImgObj.setCoords();
                 liveEmojiImgObj = null; 
                 updateObjectSelectability();
                 canvas.requestRenderAll(); saveHistory(); 

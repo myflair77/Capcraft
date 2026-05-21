@@ -210,6 +210,11 @@ class CaptureOverlay(QWidget):
 
         # 3. 모드별 선택 표시
         if self.mode == 'manual':
+            if self.current_pos:
+                painter.setPen(QPen(QColor(255, 255, 255, 180), 1))
+                painter.drawLine(0, self.current_pos.y(), self.width(), self.current_pos.y())
+                painter.drawLine(self.current_pos.x(), 0, self.current_pos.x(), self.height())
+
             if self.is_dragging and self.start_pos and self.current_pos:
                 rect = QRect(self.start_pos, self.current_pos).normalized()
                 self._draw_bright(painter, rect)
