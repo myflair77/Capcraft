@@ -15,9 +15,10 @@ import ctypes
 
 
 class CaptureOverlay(QWidget):
-    def __init__(self, mode):
+    def __init__(self, mode, quality_mode='normal'):
         super().__init__()
         self.mode = mode
+        self.quality_mode = quality_mode
         self.result_img = None
 
         self.setWindowFlags(
@@ -409,7 +410,10 @@ class CaptureOverlay(QWidget):
         
         cropped[:, :, 3] = np.where(mask == 255, cropped[:, :, 3], 0)
         
-        _, buffer = cv2.imencode('.webp', cropped, [cv2.IMWRITE_WEBP_QUALITY, 95])
+        if self.quality_mode == 'high':
+            _, buffer = cv2.imencode('.png', cropped)
+        else:
+            _, buffer = cv2.imencode('.webp', cropped, [cv2.IMWRITE_WEBP_QUALITY, 95])
         self.result_img = base64.b64encode(buffer).decode('utf-8')
         self.close()
 
@@ -435,7 +439,10 @@ class CaptureOverlay(QWidget):
             self.close()
             return
         cropped = self.get_physical_crop(x, y, w, h)
-        _, buffer = cv2.imencode('.webp', cropped, [cv2.IMWRITE_WEBP_QUALITY, 95])
+        if self.quality_mode == 'high':
+            _, buffer = cv2.imencode('.png', cropped)
+        else:
+            _, buffer = cv2.imencode('.webp', cropped, [cv2.IMWRITE_WEBP_QUALITY, 95])
         self.result_img = base64.b64encode(buffer).decode('utf-8')
         self.close()
 
@@ -502,8 +509,8 @@ class CaptureEngine:
     def __init__(self):
         pass
 
-    def run_capture(self, mode):
-        overlay = CaptureOverlay(mode)
+    def run_capture(self, mode, quality_mode='normal'):
+        overlay = CaptureOverlay(mode, quality_mode)
         overlay.show()
         overlay.raise_()
         overlay.activateWindow()
@@ -514,11 +521,11 @@ class CaptureEngine:
 
         if mode == 'scroll' and isinstance(overlay.result_img, QPoint):
             time.sleep(0.3) # 오버레이가 완전히 닫힐 때까지 대기
-            return self.run_scroll_capture(overlay.result_img)
+            return self.run_scroll_capture(overlay.result_img, quality_mode)
 
         return overlay.result_img
 
-    def run_scroll_capture(self, pos):
+    def run_scroll_capture(self, pos, quality_mode='normal'):
         hwnd = win32gui.WindowFromPoint((pos.x(), pos.y()))
         if not hwnd:
             return None
@@ -655,5 +662,8 @@ class CaptureEngine:
         elif fixed_bot > 0:
             full_image = np.vstack([full_image, last_clean[img_h - fixed_bot:, :]])
 
-        _, buffer = cv2.imencode('.webp', full_image, [cv2.IMWRITE_WEBP_QUALITY, 95])
+        if quality_mode == 'high':
+            _, buffer = cv2.imencode('.png', full_image)
+        else:
+            _, buffer = cv2.imencode('.webp', full_image, [cv2.IMWRITE_WEBP_QUALITY, 95])
         return base64.b64encode(buffer).decode('utf-8')

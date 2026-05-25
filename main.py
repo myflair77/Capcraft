@@ -36,6 +36,21 @@ def create_camera_icon():
         return QIcon(pixmap)
     return QIcon()
 
+HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".capcraft_history.json")
+
+def cleanup_history_if_rebooted():
+    try:
+        if not os.path.exists(HISTORY_FILE):
+            return
+        mtime = os.path.getmtime(HISTORY_FILE)
+        uptime_sec = ctypes.windll.kernel32.GetTickCount64() / 1000.0
+        boot_time = time.time() - uptime_sec
+        # 파일이 시스템 부팅 시간 이전에 수정되었다면 재부팅된 것으로 간주하고 삭제
+        if mtime < boot_time:
+            os.remove(HISTORY_FILE)
+    except Exception:
+        pass
+
 from capture_engine import CaptureEngine
 
 class Backend(QObject):
@@ -44,8 +59,8 @@ class Backend(QObject):
         self.engine = engine
         self.view = view
 
-    @pyqtSlot(str)
-    def start_capture(self, mode):
+    @pyqtSlot(str, str)
+    def start_capture(self, mode, quality_mode):
         # ★ 창을 완전히 숨긴 뒤 이벤트 큐 소진 후 스크린샷 촬영
         self.view.window().hide()
         QApplication.processEvents()   # 숨김 이벤트 즉시 처리
@@ -53,7 +68,7 @@ class Backend(QObject):
         QApplication.processEvents()   # 한 번 더 플러시
 
         try:
-            image_base64 = self.engine.run_capture(mode)
+            image_base64 = self.engine.run_capture(mode, quality_mode)
         except Exception as e:
             print(f"Capture failed: {e}")
             image_base64 = None
@@ -120,6 +135,45 @@ class Backend(QObject):
         except Exception as e:
             return f"<p>안내 파일을 불러오는 중 오류가 발생했습니다: {e}</p>"
 
+    @pyqtSlot(str)
+    def save_settings(self, json_str):
+        path = os.path.join(os.path.expanduser("~"), ".capcraft_settings.json")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json_str)
+        except Exception as e:
+            print("Failed to save settings:", e)
+
+    @pyqtSlot(result=str)
+    def load_settings(self):
+        path = os.path.join(os.path.expanduser("~"), ".capcraft_settings.json")
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                print("Failed to load settings:", e)
+        return ""
+
+    @pyqtSlot(str)
+    def save_history(self, json_str):
+        try:
+            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                f.write(json_str)
+        except Exception as e:
+            print("Failed to save history:", e)
+
+    @pyqtSlot(result=str)
+    def load_history(self):
+        cleanup_history_if_rebooted()
+        if os.path.exists(HISTORY_FILE):
+            try:
+                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                print("Failed to load history:", e)
+        return ""
+
 def main():
     # ★ per-monitor DPI 인식 설정 (캡처 오버레이 확대 현상 방지)
     try:
@@ -135,7 +189,7 @@ def main():
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
-    main_window.setWindowTitle("Capcraft v1.0")
+    main_window.setWindowTitle("Capcraft v1.1")
     main_window.setWindowIcon(create_camera_icon())
     main_window.resize(1800, 1100)
     

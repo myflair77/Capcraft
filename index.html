@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Capcraft v1.0</title>
+    <title>Capcraft v1.1</title>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
     <style>
@@ -448,6 +448,23 @@
             <input type="hidden" id="set_theme" value="system">
         </div>
 
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">캡처 설정</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center;">
+                <span style="width: 120px; font-weight: 600;">크기지정 크기:</span>
+                <input type="number" id="set_cap_w" value="800" min="100" style="width: 60px;"> <span style="margin: 0 5px;">x</span> <input type="number" id="set_cap_h" value="600" min="100" style="width: 60px;">
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">캡처 화질 설정</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div class="custom-select-group" id="set_cap_quality_group">
+                <button class="active" data-val="normal">일반 화질</button>
+                <button data-val="high">고화질</button>
+            </div>
+            <input type="hidden" id="set_cap_quality" value="normal">
+        </div>
+
         <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">텍스트 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
@@ -529,13 +546,6 @@
             </div>
         </div>
 
-        <div style="font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: var(--accent-blue);">캡처 설정</div>
-        <div class="setting-group" style="margin-bottom: 15px; font-size: 13px;">
-            <div style="display: flex; align-items: center;">
-                <span style="width: 120px; font-weight: 600;">크기지정 크기:</span>
-                <input type="number" id="set_cap_w" value="800" min="100" style="width: 60px;"> <span style="margin: 0 5px;">x</span> <input type="number" id="set_cap_h" value="600" min="100" style="width: 60px;">
-            </div>
-        </div>
 
         <div style="font-size:11px; color:#64748b; margin-top:10px; line-height: 1.5; text-align: center;">
             * 환경설정은 '적용' 버튼을 누르는 즉시 반영됩니다.
@@ -579,7 +589,7 @@
         <div class="logo-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </div>
-        <div class="program-name">Capcraft v1.0</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
+        <div class="program-name">Capcraft v1.1</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
         
         <button class="btn-nav" onclick="openGuide()">사용법</button>
         <button class="btn-nav" onclick="openModal('modal_settings')">환경설정</button>
@@ -1368,6 +1378,7 @@
         });
 
         function renderRecentList() {
+            if (typeof triggerHistorySave === 'function') triggerHistorySave();
             const container = document.getElementById('recent_list_container');
             container.innerHTML = '';
             
@@ -1446,6 +1457,8 @@
             const item = recentList[idx];
             if (!item || idx === activeRecentIdx) return;
             flushThumbDebounce();
+            
+            prepareCanvasDisplay();
 
             // ★ 떠나기 전에 현재 캔버스 상태를 무조건 저장
             // (flushThumbDebounce는 디바운스 타이머가 있을 때만 동작하므로,
@@ -1459,10 +1472,6 @@
 
             const seq = ++_recentLoadSeq;
             isHistoryAction = true;
-
-            // ★ 깜빡임 방지: 로딩 전에 캔버스 컨테이너를 즉시 숨김
-            //    loadFromJSON 내부의 clear()로 인한 빈 프레임 노출 차단
-            canvasContainer.style.visibility = 'hidden';
 
             canvas.renderOnAddRemove = false;
 
@@ -1483,17 +1492,9 @@
                 applyFitZoom();
                 applyCanvasClipping();
 
-                // ★ 즉시 렌더링 후 컨테이너 복원 (setTimeout 제거로 빈 프레임 방지)
                 canvas.renderAll();
                 initHistory();
                 isHistoryAction = false;
-
-                // ★ 렌더링 완료 후 다음 페인트 사이클에서 컨테이너 표시
-                //    requestAnimationFrame으로 Chromium compositor가 완성된 프레임을 표시
-                requestAnimationFrame(() => {
-                    if (seq !== _recentLoadSeq) return;
-                    canvasContainer.style.visibility = 'visible';
-                });
             });
         }
         // 현재 활성 항목 인덱스
@@ -1904,6 +1905,62 @@
         
         let sysShapeOpacity = 0.2; let sysEraserFat = 1.5; let sysArrowType = 'triangle'; let sysArrowSize = 'm';
 
+        function collectSettings() {
+            const settingsIds = [
+                'set_theme', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
+                'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk',
+                'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
+                'set_pen_highlighter_weight', 'set_pen_highlighter_opacity',
+                'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size',
+                'set_eraser_fat', 'set_mosaic_px', 'setting_save_format', 'set_recent_max', 'set_recent_max_action'
+            ];
+            const colorIds = [
+                'set_txt_color', 'set_txt_bg_color', 'set_pen_ballpoint_color',
+                'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color'
+            ];
+            let data = {};
+            settingsIds.forEach(id => {
+                let el = document.getElementById(id);
+                if(el) {
+                    if(el.type === 'checkbox') data[id] = el.checked;
+                    else data[id] = el.value;
+                }
+            });
+            colorIds.forEach(id => {
+                let el = document.getElementById(id);
+                if(el) {
+                    data[id] = { bg: el.style.backgroundColor, img: el.style.backgroundImage };
+                }
+            });
+            return data;
+        }
+
+        window.restoreSettings = function(jsonStr) {
+            try {
+                let data = JSON.parse(jsonStr);
+                for(let id in data) {
+                    let el = document.getElementById(id);
+                    if(!el) continue;
+                    if(data[id] && data[id].bg !== undefined) {
+                        el.style.backgroundColor = data[id].bg;
+                        el.style.backgroundImage = data[id].img;
+                    } else if(el.type === 'checkbox') {
+                        el.checked = data[id];
+                    } else {
+                        el.value = data[id];
+                        let group = document.getElementById(id + '_group');
+                        if(group) {
+                            group.querySelectorAll('button').forEach(b => {
+                                if(b.getAttribute('data-val') === String(data[id])) b.classList.add('active');
+                                else b.classList.remove('active');
+                            });
+                        }
+                    }
+                }
+                applySettings();
+            } catch(e) {}
+        };
+
         window.applySettings = function() {
             document.getElementById('text_size_input').value = document.getElementById('set_txt_size').value;
             txtB = document.getElementById('set_txt_b_chk').checked;
@@ -1951,6 +2008,11 @@
 
             // ── 테마 적용 ────────────────────────────────────────────
             applyTheme(document.getElementById('set_theme').value);
+
+            // 백엔드에 설정 저장
+            if (window.pyBackend) {
+                window.pyBackend.save_settings(JSON.stringify(collectSettings()));
+            }
         }
 
         function applyTheme(mode) {
@@ -2075,11 +2137,37 @@
         // 4. 파이썬 백엔드 캡처 연동
         // ==========================================
         let pyBackend = null;
+        let historySaveTimer = null;
+        function triggerHistorySave() {
+            clearTimeout(historySaveTimer);
+            historySaveTimer = setTimeout(() => {
+                if (pyBackend) pyBackend.save_history(JSON.stringify(recentList));
+            }, 1000);
+        }
         
         window.addEventListener('load', () => {
             if (typeof QWebChannel !== 'undefined') {
                 new QWebChannel(qt.webChannelTransport, function(channel) {
                     pyBackend = channel.objects.pyBackend;
+                    
+                    if (pyBackend) {
+                        pyBackend.load_settings((settingsStr) => {
+                            if (settingsStr) restoreSettings(settingsStr);
+                        });
+                        
+                        pyBackend.load_history((historyStr) => {
+                            if (historyStr) {
+                                try {
+                                    const parsed = JSON.parse(historyStr);
+                                    if (Array.isArray(parsed) && parsed.length > 0) {
+                                        recentList = parsed;
+                                        renderRecentList();
+                                        loadRecentItem(0);
+                                    }
+                                } catch(e) {}
+                            }
+                        });
+                    }
                 });
             }
         });
@@ -2100,12 +2188,13 @@
                 
                 if (pyBackend) {
                     // Python으로 캡처 명령 전송
+                    const capQuality = document.getElementById('set_cap_quality')?.value || 'normal';
                     if (currentCapMode === 'size') {
                         const w = document.getElementById('set_cap_w')?.value || 800;
                         const h = document.getElementById('set_cap_h')?.value || 600;
-                        pyBackend.start_capture(`size_${w}_${h}`);
+                        pyBackend.start_capture(`size_${w}_${h}`, capQuality);
                     } else {
-                        pyBackend.start_capture(currentCapMode);
+                        pyBackend.start_capture(currentCapMode, capQuality);
                     }
                 } else {
                     showToast("파이썬 백엔드가 연결되지 않았습니다.");
