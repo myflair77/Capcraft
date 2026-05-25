@@ -3,7 +3,7 @@ import os
 import time
 import base64
 import ctypes
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebChannel import QWebChannel
@@ -173,6 +173,35 @@ class Backend(QObject):
             except Exception as e:
                 print("Failed to load history:", e)
         return ""
+
+    @pyqtSlot(result=str)
+    def select_directory(self):
+        folder = QFileDialog.getExistingDirectory(None, "사용자 정의 이모티콘 폴더 선택")
+        return folder if folder else ""
+
+    @pyqtSlot(str, result=str)
+    def get_images_in_directory(self, dir_path):
+        import json
+        images = []
+        if os.path.isdir(dir_path):
+            valid_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+            try:
+                for f in os.listdir(dir_path):
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext in valid_exts:
+                        full_path = os.path.join(dir_path, f)
+                        url = "file:///" + full_path.replace("\\", "/")
+                        name = os.path.splitext(f)[0]
+                        category = os.path.basename(dir_path)
+                        images.append({
+                            "name": name,
+                            "shortcodes": [name],
+                            "url": url,
+                            "category": category
+                        })
+            except Exception as e:
+                print(f"Error reading directory {dir_path}: {e}")
+        return json.dumps(images)
 
 def main():
     # ★ per-monitor DPI 인식 설정 (캡처 오버레이 확대 현상 방지)

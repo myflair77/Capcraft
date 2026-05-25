@@ -519,6 +519,17 @@
             </div>
         </div>
 
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">이모티콘 설정</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight:600;">사용자 정의 이모티콘 폴더 (최대 5개):</span>
+                <button onclick="addEmojiFolder()" style="padding: 3px 8px; font-size: 11px; cursor: pointer;">+ 폴더 추가</button>
+            </div>
+            <div id="emoji_folder_list" style="display: flex; flex-direction: column; gap: 5px;">
+                <!-- 폴더 항목들이 동적으로 추가됨 -->
+            </div>
+        </div>
+
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">지우개 및 효과 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="margin-bottom:8px;">
@@ -528,8 +539,6 @@
                 <span>모자이크 블록 크기:</span> <input type="number" id="set_mosaic_px" value="5" min="1" max="20" style="width:60px;">
             </div>
         </div>
-
-
 
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">시스템 및 저장 설정</div>
         <div class="setting-group" style="margin-bottom: 12px; border-bottom: none; padding-bottom: 0; font-size: 12px;">
@@ -562,6 +571,9 @@
     </div>
 
     <div id="emoji_popup" style="display: none; position: fixed; top: 120px; left: 50%; transform: translateX(-50%); z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 10px; background: white;"><emoji-picker id="ep_main"></emoji-picker></div>
+    <div id="toast_emoji_notice" style="position:fixed; top:20px; right:20px; background:rgba(0,0,0,0.8); color:white; padding:12px 20px; border-radius:8px; font-size:13px; z-index:9999; display:none; opacity:0; transition:opacity 0.3s; font-weight:bold;">
+        환경설정에서 나만의 이모티콘을 추가로 지정할 수 있습니다.
+    </div>
     <div id="color_palette"></div>
 
     <div id="workspace">
@@ -1347,12 +1359,30 @@
             if (bgImg && bgImg.getSrc) bgSrc = bgImg.getSrc();
             const bgColor = canvas.backgroundColor;
             
+            // ★ 배경 이미지 HTMLImageElement 캐싱 (loadFromJSON 우회용)
+            let bgImgCache = null;
+            if (bgImg && bgImg._element) {
+                bgImgCache = bgImg._element; // 이미 디코딩된 Image 객체 재사용
+            }
+            
+            // ★ 배경 제거된 경량 JSON 생성 (loadFromJSON 고속화)
+            let jsonLight = null;
+            try {
+                const parsed = JSON.parse(json);
+                if (parsed.backgroundImage) {
+                    delete parsed.backgroundImage;
+                    jsonLight = JSON.stringify(parsed);
+                }
+            } catch(e) { /* fallback: jsonLight = null → 기존 json 사용 */ }
+            
             // ★ activeRecentIdx 항목 갱신 (복제 방지)
             if (activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
                 recentList[activeRecentIdx].thumb = thumb;
                 recentList[activeRecentIdx].json  = json;
+                recentList[activeRecentIdx].jsonLight = jsonLight;
                 recentList[activeRecentIdx].bgSrc = bgSrc;
                 recentList[activeRecentIdx].bgColor = bgColor;
+                recentList[activeRecentIdx].bgImgCache = bgImgCache;
                 recentList[activeRecentIdx].width  = canvas.width;
                 recentList[activeRecentIdx].height = canvas.height;
                 renderRecentList();
@@ -1362,7 +1392,7 @@
             // 중복 방지: 앞 항목과 동일하면 무시
             if (recentList.length > 0 && recentList[0].json === json) return;
 
-            recentList.unshift({ thumb, json, bgSrc, bgColor, width: canvas.width, height: canvas.height, time: Date.now() });
+            recentList.unshift({ thumb, json, jsonLight, bgSrc, bgColor, bgImgCache, width: canvas.width, height: canvas.height, time: Date.now() });
             activeRecentIdx = 0;
 
             const maxRecent = parseInt(document.getElementById('set_recent_max').value) || 100;
@@ -1434,7 +1464,7 @@
                 };
                 div.appendChild(delBtn);
                 
-                div.onclick = () => { loadRecentItem(realIdx); };
+                div.onmousedown = (e) => { if(e.button !== 0) return; loadRecentItem(realIdx); };
                 
                 container.appendChild(div);
             });
@@ -1461,8 +1491,6 @@
             prepareCanvasDisplay();
 
             // ★ 떠나기 전에 현재 캔버스 상태를 무조건 저장
-            // (flushThumbDebounce는 디바운스 타이머가 있을 때만 동작하므로,
-            //  object:added만 발생하거나 타이머가 이미 실행된 경우 편집 내용이 유실됨)
             if (activeRecentIdx >= 0 && hasActiveCanvas) {
                 pushCurrentToRecent();
             }
@@ -1472,29 +1500,41 @@
 
             const seq = ++_recentLoadSeq;
             isHistoryAction = true;
-
             canvas.renderOnAddRemove = false;
 
-            // 배경 이미지를 별도 저장한 경우 빠르게 복원
-            const bgSrc = item.bgSrc || null;
+            // ★ 고속 경로: 캐시된 배경 Image 객체가 있으면 경량 JSON 사용
+            const useFastPath = item.bgImgCache && item.jsonLight;
+            const jsonToLoad = useFastPath ? item.jsonLight : item.json;
 
-            canvas.loadFromJSON(item.json, () => {
-                if (seq !== _recentLoadSeq) return; // 더 최신 요청이 있으면 무시
+            canvas.loadFromJSON(jsonToLoad, () => {
+                if (seq !== _recentLoadSeq) return;
 
                 canvas.renderOnAddRemove = true;
                 const w = item.width || canvas.width;
                 const h = item.height || canvas.height;
                 canvas.setWidth(w);
                 canvas.setHeight(h);
-                syncFabricContainerSize();
-                canvas.calcOffset();
-                enableTools();
-                applyFitZoom();
-                applyCanvasClipping();
 
-                canvas.renderAll();
-                initHistory();
-                isHistoryAction = false;
+                function finishLoad() {
+                    syncFabricContainerSize();
+                    canvas.calcOffset();
+                    enableTools();
+                    applyFitZoom();
+                    applyCanvasClipping();
+                    canvas.renderAll();
+                    initHistory();
+                    isHistoryAction = false;
+                }
+
+                if (useFastPath) {
+                    // 캐시된 Image 객체로 즉시 배경 복원 (Base64 디코딩 불필요)
+                    const fabricBg = new fabric.Image(item.bgImgCache, {
+                        originX: 'left', originY: 'top', left: 0, top: 0
+                    });
+                    canvas.setBackgroundImage(fabricBg, () => { finishLoad(); });
+                } else {
+                    finishLoad();
+                }
             });
         }
         // 현재 활성 항목 인덱스
@@ -1899,7 +1939,8 @@
 
         let activeTool = null; let isDrawing = false; let origX, origY;
         let currentShape = null; let liveEmojiImgObj = null; let arrowHead = null;
-        let selectedEmoji = '😀'; let uploadedImageSrc = null;
+        let selectedEmoji = '😀'; let selectedEmojiUrl = null; let uploadedImageSrc = null;
+        let customEmojiFolders = [];
         let txtB = false, txtI = false, txtU = false; let editingObject = null;
         let origShapeRatio = 1, origImageRatio = 1, origLineRatio = 1;
         
@@ -1932,12 +1973,16 @@
                     data[id] = { bg: el.style.backgroundColor, img: el.style.backgroundImage };
                 }
             });
+            data.customEmojiFolders = customEmojiFolders;
             return data;
         }
 
         window.restoreSettings = function(jsonStr) {
             try {
                 let data = JSON.parse(jsonStr);
+                if (data.customEmojiFolders) {
+                    customEmojiFolders = data.customEmojiFolders;
+                }
                 for(let id in data) {
                     let el = document.getElementById(id);
                     if(!el) continue;
@@ -1962,47 +2007,55 @@
         };
 
         window.applySettings = function() {
-            document.getElementById('text_size_input').value = document.getElementById('set_txt_size').value;
-            txtB = document.getElementById('set_txt_b_chk').checked;
-            txtI = document.getElementById('set_txt_i_chk').checked;
-            txtU = document.getElementById('set_txt_u_chk').checked;
-            if(txtB) document.getElementById('btn_txt_b').classList.add('active'); else document.getElementById('btn_txt_b').classList.remove('active');
-            if(txtI) document.getElementById('btn_txt_i').classList.add('active'); else document.getElementById('btn_txt_i').classList.remove('active');
-            if(txtU) document.getElementById('btn_txt_u').classList.add('active'); else document.getElementById('btn_txt_u').classList.remove('active');
+            renderEmojiFolderList();
+            loadCustomEmojisFromFolders();
+            if(document.getElementById('text_size_input') && document.getElementById('set_txt_size')) {
+                document.getElementById('text_size_input').value = document.getElementById('set_txt_size').value;
+            }
+            txtB = document.getElementById('set_txt_b_chk')?.checked || false;
+            txtI = document.getElementById('set_txt_i_chk')?.checked || false;
+            txtU = document.getElementById('set_txt_u_chk')?.checked || false;
+            if(txtB) document.getElementById('btn_txt_b')?.classList.add('active'); else document.getElementById('btn_txt_b')?.classList.remove('active');
+            if(txtI) document.getElementById('btn_txt_i')?.classList.add('active'); else document.getElementById('btn_txt_i')?.classList.remove('active');
+            if(txtU) document.getElementById('btn_txt_u')?.classList.add('active'); else document.getElementById('btn_txt_u')?.classList.remove('active');
 
-            sysPenBallpointWeight = parseInt(document.getElementById('set_pen_ballpoint_weight').value);
-            sysPenBallpointColor = document.getElementById('set_pen_ballpoint_color').style.backgroundColor;
-            sysPenHighlighterWeight = parseInt(document.getElementById('set_pen_highlighter_weight').value);
-            sysPenHighlighterColor = document.getElementById('set_pen_highlighter_color').style.backgroundColor;
+            sysPenBallpointWeight = parseInt(document.getElementById('set_pen_ballpoint_weight')?.value || 3);
+            sysPenBallpointColor = document.getElementById('set_pen_ballpoint_color')?.style.backgroundColor || '#E03C31';
+            sysPenHighlighterWeight = parseInt(document.getElementById('set_pen_highlighter_weight')?.value || 10);
+            sysPenHighlighterColor = document.getElementById('set_pen_highlighter_color')?.style.backgroundColor || 'rgba(255, 255, 0, 0.3)';
             
-            if (document.getElementById('pen_type').value === 'ballpoint') {
-                document.getElementById('pen_weight').value = sysPenBallpointWeight;
-                document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
+            if (document.getElementById('pen_type')?.value === 'ballpoint') {
+                if(document.getElementById('pen_weight')) document.getElementById('pen_weight').value = sysPenBallpointWeight;
+                if(document.getElementById('btn_pen_color')) document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
                 penCurrentColor = sysPenBallpointColor;
             } else {
-                document.getElementById('pen_weight').value = sysPenHighlighterWeight;
-                document.getElementById('btn_pen_color').style.backgroundColor = sysPenHighlighterColor;
+                if(document.getElementById('pen_weight')) document.getElementById('pen_weight').value = sysPenHighlighterWeight;
+                if(document.getElementById('btn_pen_color')) document.getElementById('btn_pen_color').style.backgroundColor = sysPenHighlighterColor;
                 penCurrentColor = sysPenHighlighterColor;
             }
             updatePenBrush();
 
-            document.getElementById('shape_weight').value = document.getElementById('set_shape_weight').value;
-            sysShapeOpacity = (parseFloat(document.getElementById('set_shape_opacity_val').value) || 20) / 100;
-            sysArrowType = document.getElementById('set_arrow_type').value || 'triangle';
-            sysArrowSize = document.getElementById('set_arrow_size').value || 'm';
-            sysEraserFat = parseFloat(document.getElementById('set_eraser_fat').value) || 1.5;
+            if(document.getElementById('shape_weight') && document.getElementById('set_shape_weight')) {
+                document.getElementById('shape_weight').value = document.getElementById('set_shape_weight').value;
+            }
+            sysShapeOpacity = (parseFloat(document.getElementById('set_shape_opacity_val')?.value) || 20) / 100;
+            sysArrowType = document.getElementById('set_arrow_type')?.value || 'triangle';
+            sysArrowSize = document.getElementById('set_arrow_size')?.value || 'm';
+            sysEraserFat = parseFloat(document.getElementById('set_eraser_fat')?.value) || 1.5;
             
-            window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px').value) || 5;
+            window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px')?.value) || 5;
             
-            strokeColor = document.getElementById('set_shape_stroke_color').style.backgroundColor;
-            document.getElementById('btn_stroke_color').style.backgroundColor = strokeColor;
+            strokeColor = document.getElementById('set_shape_stroke_color')?.style.backgroundColor || '#E03C31';
+            if(document.getElementById('btn_stroke_color')) document.getElementById('btn_stroke_color').style.backgroundColor = strokeColor;
             
-            textColor = document.getElementById('set_txt_color').style.backgroundColor;
-            document.getElementById('btn_text_color').style.backgroundColor = textColor;
+            textColor = document.getElementById('set_txt_color')?.style.backgroundColor || '#E03C31';
+            if(document.getElementById('btn_text_color')) document.getElementById('btn_text_color').style.backgroundColor = textColor;
 
-            fillColor = document.getElementById('set_shape_fill_color').style.backgroundColor;
-            document.getElementById('btn_fill_color').style.backgroundColor = fillColor;
-            document.getElementById('btn_fill_color').style.backgroundImage = document.getElementById('set_shape_fill_color').style.backgroundImage;
+            fillColor = document.getElementById('set_shape_fill_color')?.style.backgroundColor || 'transparent';
+            if(document.getElementById('btn_fill_color')) {
+                document.getElementById('btn_fill_color').style.backgroundColor = fillColor;
+                document.getElementById('btn_fill_color').style.backgroundImage = document.getElementById('set_shape_fill_color')?.style.backgroundImage || '';
+            }
 
             updateEraserCursor();
 
@@ -2014,6 +2067,65 @@
                 window.pyBackend.save_settings(JSON.stringify(collectSettings()));
             }
         }
+
+        window.addEmojiFolder = async function() {
+            if (customEmojiFolders.length >= 5) {
+                return customAlert("사용자 정의 폴더는 최대 5개까지만 추가할 수 있습니다.");
+            }
+            if (typeof pyBackend !== 'undefined') {
+                const folder = await pyBackend.select_directory();
+                if (folder) {
+                    if (customEmojiFolders.includes(folder)) return customAlert("이미 추가된 폴더입니다.");
+                    customEmojiFolders.push(folder);
+                    renderEmojiFolderList();
+                    if (window.pyBackend) window.pyBackend.save_settings(JSON.stringify(collectSettings()));
+                }
+            }
+        };
+
+        window.removeEmojiFolder = function(index) {
+            customEmojiFolders.splice(index, 1);
+            renderEmojiFolderList();
+            if (window.pyBackend) window.pyBackend.save_settings(JSON.stringify(collectSettings()));
+        };
+
+        window.renderEmojiFolderList = function() {
+            const listEl = document.getElementById('emoji_folder_list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+            customEmojiFolders.forEach((folder, idx) => {
+                const div = document.createElement('div');
+                div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.background = '#f8fafc'; div.style.padding = '4px 8px'; div.style.borderRadius = '4px'; div.style.alignItems = 'center';
+                div.innerHTML = `<span style="font-size:11px; color:#334155; word-break:break-all;">${folder}</span><button onclick="removeEmojiFolder(${idx})" style="color:red; background:none; border:none; cursor:pointer; font-weight:bold;">X</button>`;
+                listEl.appendChild(div);
+            });
+        };
+
+        window.loadCustomEmojisFromFolders = async function() {
+            if (typeof pyBackend === 'undefined') return;
+            let allCustomEmojis = [];
+            let customIcons = {};
+            for (let i = 0; i < customEmojiFolders.length; i++) {
+                const folder = customEmojiFolders[i];
+                try {
+                    const jsonStr = await pyBackend.get_images_in_directory(folder);
+                    const images = JSON.parse(jsonStr);
+                    allCustomEmojis = allCustomEmojis.concat(images);
+                    
+                    const categoryName = folder.split('\\').pop().split('/').pop();
+                    const num = i + 1;
+                    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#3b82f6"/><text x="12" y="16" fill="white" font-size="12" font-family="Arial" font-weight="bold" text-anchor="middle">${num}</text></svg>`;
+                    customIcons[categoryName] = svgStr;
+                } catch (e) {
+                    console.error("Failed to load emoji folder", folder, e);
+                }
+            }
+            const picker = document.querySelector('emoji-picker');
+            if (picker) {
+                picker.customEmoji = allCustomEmojis;
+                picker.customCategoryIcons = customIcons;
+            }
+        };
 
         function applyTheme(mode) {
             if (mode === 'dark') {
@@ -2141,7 +2253,19 @@
         function triggerHistorySave() {
             clearTimeout(historySaveTimer);
             historySaveTimer = setTimeout(() => {
-                if (pyBackend) pyBackend.save_history(JSON.stringify(recentList));
+                if (pyBackend) {
+                    // bgImgCache(HTMLImageElement)와 jsonLight는 직렬화 불가 → 제외
+                    const cleanList = recentList.map(item => ({
+                        thumb: item.thumb,
+                        json: item.json,
+                        bgSrc: item.bgSrc,
+                        bgColor: item.bgColor,
+                        width: item.width,
+                        height: item.height,
+                        time: item.time
+                    }));
+                    pyBackend.save_history(JSON.stringify(cleanList));
+                }
             }, 1000);
         }
         
@@ -2163,6 +2287,24 @@
                                         recentList = parsed;
                                         renderRecentList();
                                         loadRecentItem(0);
+                                        
+                                        // ★ 백그라운드에서 bgImgCache/jsonLight 복원 (고속 전환 준비)
+                                        setTimeout(() => {
+                                            recentList.forEach(item => {
+                                                if (!item.bgImgCache && item.json) {
+                                                    try {
+                                                        const p = JSON.parse(item.json);
+                                                        if (p.backgroundImage && p.backgroundImage.src) {
+                                                            const img = new Image();
+                                                            img.src = p.backgroundImage.src;
+                                                            item.bgImgCache = img;
+                                                            delete p.backgroundImage;
+                                                            item.jsonLight = JSON.stringify(p);
+                                                        }
+                                                    } catch(e2) {}
+                                                }
+                                            });
+                                        }, 500);
                                     }
                                 } catch(e) {}
                             }
@@ -2499,7 +2641,20 @@
                 if (toolName.includes('도형')) { activeTool = 'shape'; document.getElementById('panel_shape').classList.add('active'); }
                 else if (toolName.includes('펜')) { activeTool = 'pen'; document.getElementById('panel_pen').classList.add('active'); updatePenBrush(); }
                 else if (toolName.includes('텍스트')) { activeTool = 'text'; document.getElementById('panel_text').classList.add('active'); }
-                else if (toolName.includes('이모티콘')) { activeTool = 'emoji'; document.getElementById('panel_emoji').classList.add('active'); document.getElementById('emoji_popup').style.display = 'block'; }
+                else if (toolName.includes('이모티콘')) { 
+                    activeTool = 'emoji'; 
+                    document.getElementById('panel_emoji').classList.add('active'); 
+                    document.getElementById('emoji_popup').style.display = 'block'; 
+                    const toast = document.getElementById('toast_emoji_notice');
+                    if (toast) {
+                        toast.style.display = 'block';
+                        setTimeout(() => toast.style.opacity = '1', 10);
+                        setTimeout(() => {
+                            toast.style.opacity = '0';
+                            setTimeout(() => toast.style.display = 'none', 300);
+                        }, 2000);
+                    }
+                }
                 else if (toolName.includes('이미지')) { activeTool = 'image'; document.getElementById('panel_image').classList.add('active'); }
                 else if (toolName.includes('지우개')) { activeTool = 'eraser'; document.getElementById('panel_eraser').classList.add('active'); }
                 else if (toolName.includes('모자이크')) { activeTool = 'mosaic'; document.getElementById('panel_mosaic').classList.add('active'); }
@@ -2844,7 +2999,19 @@
             }
         }
         ['b','i','u'].forEach(type => { document.getElementById('btn_txt_'+type).addEventListener('click', function() { window['txt'+type.toUpperCase()] = !window['txt'+type.toUpperCase()]; this.classList.toggle('active'); updateActiveText(); }); document.getElementById('edit_btn_'+type).addEventListener('click', function() { this.classList.toggle('active'); }); });
-        document.querySelector('emoji-picker').addEventListener('emoji-click', event => { selectedEmoji = event.detail.unicode; document.getElementById('emoji_preview').innerText = selectedEmoji; document.getElementById('emoji_popup').style.display = 'none'; });
+        document.querySelector('emoji-picker').addEventListener('emoji-click', event => { 
+            const clickedUrl = event.detail.url || (event.detail.emoji && event.detail.emoji.url);
+            if (clickedUrl) {
+                selectedEmojiUrl = clickedUrl;
+                selectedEmoji = null;
+                document.getElementById('emoji_preview').innerHTML = `<img src="${clickedUrl}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle;">`;
+            } else {
+                selectedEmoji = event.detail.unicode || (event.detail.emoji && event.detail.emoji.unicode); 
+                selectedEmojiUrl = null;
+                document.getElementById('emoji_preview').innerText = selectedEmoji || "😀";
+            }
+            document.getElementById('emoji_popup').style.display = 'none'; 
+        });
         document.getElementById('emoji_preview').addEventListener('click', () => document.getElementById('emoji_popup').style.display = 'block');
         
         let imageInsertData = null; // { src, frame, sx, sy, sw, sh }
@@ -3841,8 +4008,27 @@
                 } else if (activeTool === 'mosaic') {
                     currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(0,0,0,0.0)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true }); canvas.add(currentShape);
                 } else if (activeTool === 'emoji') {
-                    if (!selectedEmoji) return customAlert("이모티콘을 먼저 선택해주세요.");
+                    if (!selectedEmoji && !selectedEmojiUrl) return customAlert("이모티콘을 먼저 선택해주세요.");
                     const scaledSize = parseInt(document.getElementById('text_size_input').value) || 36;
+                    
+                    if (selectedEmojiUrl) {
+                        const customHtmlImg = new Image();
+                        customHtmlImg.onload = function() {
+                            liveEmojiImgObj = new fabric.Image(customHtmlImg, {
+                                left: origX, top: origY,
+                                originX: 'left', originY: 'top',
+                                isTemp: true, selectable: false, evented: false,
+                                isEmoji: true
+                            });
+                            liveEmojiImgObj.scaleToWidth(10);
+                            canvas.add(liveEmojiImgObj);
+                            liveEmojiImgObj.setCoords();
+                            canvas.requestRenderAll();
+                        };
+                        customHtmlImg.src = selectedEmojiUrl;
+                        return;
+                    }
+                    
                     // 캔버스를 이용해 이모티콘을 이미지로 렌더링 (가장 완벽하고 타이트한 픽셀 단위 외곽선)
                     const tempCanvas = document.createElement('canvas');
                     const tCtx = tempCanvas.getContext('2d');
@@ -4061,7 +4247,7 @@
                         const s = newSize / liveEmojiImgObj.baseFontSize;
                         liveEmojiImgObj.set({ scaleX: s, scaleY: s });
                     } else {
-                        liveEmojiImgObj.set({ fontSize: newSize });
+                        liveEmojiImgObj.scaleToWidth(newSize);
                     }
                 } else if (imageInsertData) {
                     const frame = imageInsertData.frame;
