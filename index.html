@@ -2273,6 +2273,7 @@
             if (typeof QWebChannel !== 'undefined') {
                 new QWebChannel(qt.webChannelTransport, function(channel) {
                     pyBackend = channel.objects.pyBackend;
+                    window.pyBackend = channel.objects.pyBackend;
                     
                     if (pyBackend) {
                         pyBackend.load_settings((settingsStr) => {
