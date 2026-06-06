@@ -728,6 +728,9 @@
             // 이동 커서
             fabric.Object.prototype.moveCursor = 'move';
             fabric.Object.prototype.hoverCursor = 'move';
+            fabric.IText.prototype.hoverCursor = 'text';
+            fabric.Textbox.prototype.hoverCursor = 'text';
+
             // 회전 핸들 숨김 (mtr은 사용 안 함)
             if (controls.mtr) controls.mtr.visible = false;
 
@@ -3286,14 +3289,40 @@
             closeModals();
         };
 
-        function updateActiveText() {
+        function updateActiveText(skipSelection = false) {
             const obj = canvas.getActiveObject();
-            if (obj && obj.type === 'i-text' && !obj.isEmoji) {
-                obj.set({ fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontSize: parseInt(document.getElementById('text_size_input').value), fill: textColor, backgroundColor: getTextBgOpacity() });
+            if (obj && (obj.type === 'i-text' || obj.type === 'textbox') && !obj.isEmoji) {
+                const fw = txtB ? 'bold' : 'normal';
+                const fst = txtI ? 'italic' : 'normal';
+                const und = txtU;
+                const fs = parseInt(document.getElementById('text_size_input').value);
+
+                if (!skipSelection && obj.isEditing && obj.selectionStart !== obj.selectionEnd) {
+                    obj.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und });
+                } else {
+                    obj.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity() });
+                }
                 canvas.requestRenderAll();
             }
         }
-        ['b','i','u'].forEach(type => { document.getElementById('btn_txt_'+type).addEventListener('click', function() { window['txt'+type.toUpperCase()] = !window['txt'+type.toUpperCase()]; this.classList.toggle('active'); updateActiveText(); }); document.getElementById('edit_btn_'+type).addEventListener('click', function() { this.classList.toggle('active'); }); });
+        ['b','i','u'].forEach(type => { 
+            const topBtn = document.getElementById('btn_txt_'+type);
+            const editBtn = document.getElementById('edit_btn_'+type);
+            if (topBtn) {
+                topBtn.addEventListener('mousedown', e => e.preventDefault());
+                topBtn.addEventListener('click', function() { 
+                    window['txt'+type.toUpperCase()] = !window['txt'+type.toUpperCase()]; 
+                    this.classList.toggle('active'); 
+                    updateActiveText(); 
+                }); 
+            }
+            if (editBtn) {
+                editBtn.addEventListener('mousedown', e => e.preventDefault());
+                editBtn.addEventListener('click', function() { 
+                    this.classList.toggle('active'); 
+                }); 
+            }
+        });
         document.querySelector('emoji-picker').addEventListener('emoji-click', event => { 
             const clickedUrl = event.detail.url || (event.detail.emoji && event.detail.emoji.url);
             if (clickedUrl) {
@@ -4232,6 +4261,7 @@
         }
 
         let lastMouseDownPoint = null;
+        let _lastActiveShapeForLinkedText = null;
         canvas.on('selection:created', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
         canvas.on('selection:updated', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
 
@@ -4245,14 +4275,44 @@
 
             // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
             if (!activeTool && o.target && o.target.linkedShape) {
+                // 클릭 대상이 텍스트 오브젝트인 경우
                 const shape = o.target.linkedShape;
-                const activeObj = canvas.getActiveObject();
-                if (activeObj !== shape) {
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // 두 번째 클릭: 텍스트 편집 모드 직접 진입
+                    _lastActiveShapeForLinkedText = null;
+                    const textTarget = o.target;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 첫 번째 클릭: 도형 선택으로 리다이렉트
                     o.target.__shapeJustSelected = true;
+                    _lastActiveShapeForLinkedText = shape;
                     canvas.setActiveObject(shape);
                     canvas.requestRenderAll();
                     return;
                 }
+            } else if (!activeTool && o.target && o.target.linkedText) {
+                // 클릭 대상이 도형 자체인 경우 (선택 핸들이 텍스트를 덮어서 도형이 타겟이 됨)
+                const shape = o.target;
+                const textTarget = shape.linkedText;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // 두 번째 클릭: 텍스트 편집 모드 진입
+                    _lastActiveShapeForLinkedText = null;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 첫 번째 클릭 또는 일반 도형 클릭
+                    _lastActiveShapeForLinkedText = shape;
+                }
+            } else {
+                // 다른 곳 클릭 시 리셋
+                _lastActiveShapeForLinkedText = null;
             }
 
             if (activeTool === 'text') {
@@ -4312,9 +4372,12 @@
 
             // 도구가 활성화되어 있지 않고 대상이 있다면 (선택 이동 & 맨 앞으로 가져오기)
             if (!activeTool && o.target && o.target.selectable) {
+                // 텍스트 편집 중에는 Fabric.js 내장 IText 핸들러에 완전히 위임 (드래그 블록지정, 커서 이동 등)
+                if (o.target.isEditing) return;
+                
                 if (o.target._skipBringToFront) {
                     delete o.target._skipBringToFront;
-                } else {
+                } else if (canvas.getActiveObject() !== o.target) {
                     canvas.bringToFront(o.target);
                 }
                 saveHistory();
@@ -4726,24 +4789,6 @@
         });
 
         canvas.on('mouse:up', async o => {
-            // 두 번째 클릭으로 텍스트 편집 모드 진입 (이미 선택된 상태에서 한 번 더 클릭)
-            if (!activeTool && o.target && !o.target.isEditing) {
-                const isTextType = (o.target.type === 'textbox' || o.target.type === 'i-text');
-                if (isTextType) {
-                    const isLinkedText = !!o.target.linkedShape;
-                    // linkedText: __shapeJustSelected가 아닐 때 편집 진입 (도형 선택 직후가 아닐 때)
-                    // standalone: __selectedThisClick가 아닐 때 편집 진입 (처음 선택 직후가 아닐 때)
-                    const shouldEdit = isLinkedText ? !o.target.__shapeJustSelected : !o.target.__selectedThisClick;
-                    if (shouldEdit) {
-                        const upPoint = canvas.getPointer(o.e);
-                        if (lastMouseDownPoint && Math.abs(upPoint.x - lastMouseDownPoint.x) < 3 && Math.abs(upPoint.y - lastMouseDownPoint.y) < 3) {
-                            o.target.enterEditing(o.e);
-                            o.target.setCursorByClick(o.e);
-                            canvas.requestRenderAll();
-                        }
-                    }
-                }
-            }
             if (o.target) { o.target.__selectedThisClick = false; o.target.__shapeJustSelected = false; }
 
             if(multiClickDrawing) return; 
