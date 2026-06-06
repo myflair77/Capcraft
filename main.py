@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtCore import QObject, pyqtSlot, QUrl, Qt, QByteArray
+from PyQt6.QtCore import QObject, pyqtSlot, QUrl, Qt, QByteArray, QTimer
 from PyQt6.QtGui import QImage, QPainter, QPixmap, QIcon
 from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
 try:
@@ -135,6 +135,78 @@ class Backend(QObject):
         except Exception as e:
             return f"<p>안내 파일을 불러오는 중 오류가 발생했습니다: {e}</p>"
 
+    @pyqtSlot(str, str)
+    def request_save(self, default_format, suggested_name):
+        QTimer.singleShot(0, lambda: self._do_request_save(default_format, suggested_name))
+
+    def _do_request_save(self, default_format, suggested_name):
+        filter_str = "PNG Files (*.png);;JPG Files (*.jpg);;SVG Files (*.svg);;PDF Files (*.pdf);;JSON Files (*.json)"
+        if default_format in ["jpg", "jpeg"]:
+            initial_filter = "JPG Files (*.jpg)"
+        elif default_format == "svg":
+            initial_filter = "SVG Files (*.svg)"
+        elif default_format == "pdf":
+            initial_filter = "PDF Files (*.pdf)"
+        elif default_format == "json":
+            initial_filter = "JSON Files (*.json)"
+        else:
+            initial_filter = "PNG Files (*.png)"
+            
+        save_path, selected_filter = QFileDialog.getSaveFileName(
+            self.view.window(), 
+            "저장", 
+            suggested_name, 
+            filter_str, 
+            initial_filter
+        )
+        
+        if save_path:
+            ext = "png"
+            if "jpg" in selected_filter.lower(): ext = "jpg"
+            elif "svg" in selected_filter.lower(): ext = "svg"
+            elif "pdf" in selected_filter.lower(): ext = "pdf"
+            elif "json" in selected_filter.lower(): ext = "json"
+            
+            path_b64 = base64.b64encode(save_path.encode('utf-8')).decode()
+            self.view.page().runJavaScript(f"window.execute_save_to_path(atob('{path_b64}'), '{ext}')")
+
+    @pyqtSlot(str, str)
+    def write_file_data(self, path, base64_data):
+        try:
+            if "," in base64_data:
+                base64_data = base64_data.split(",")[1]
+            data = base64.b64decode(base64_data)
+            with open(path, "wb") as f:
+                f.write(data)
+            self.view.page().runJavaScript("if(typeof showToast === 'function') showToast('저장되었습니다.');")
+        except Exception as e:
+            print(f"Save error: {e}")
+            self.view.page().runJavaScript(f"if(typeof customAlert === 'function') customAlert('저장 중 오류가 발생했습니다: {e}');")
+
+    @pyqtSlot()
+    def request_open_file(self):
+        QTimer.singleShot(0, self._do_request_open_file)
+
+    def _do_request_open_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.view.window(), 
+            "파일 열기", 
+            "", 
+            "JSON Files (*.json)"
+        )
+        if file_path:
+            try:
+                with open(file_path, "rb") as f:
+                    data = f.read()
+                    b64 = base64.b64encode(data).decode('utf-8')
+                    filename = os.path.basename(file_path)
+                    self.view.page().runJavaScript(f"window.execute_open_file('{filename}', '{b64}')")
+            except Exception as e:
+                print(f"Load error: {e}")
+                self.view.page().runJavaScript(f"if(typeof customAlert === 'function') customAlert('불러오기 중 오류가 발생했습니다: {e}');")
+
+
+
     @pyqtSlot(str)
     def save_settings(self, json_str):
         path = os.path.join(os.path.expanduser("~"), ".capcraft_settings.json")
@@ -149,8 +221,26 @@ class Backend(QObject):
         path = os.path.join(os.path.expanduser("~"), ".capcraft_settings.json")
         if os.path.exists(path):
             try:
+                mtime = os.path.getmtime(path)
+                uptime_sec = ctypes.windll.kernel32.GetTickCount64() / 1000.0
+                boot_time = time.time() - uptime_sec
                 with open(path, "r", encoding="utf-8") as f:
-                    return f.read()
+                    content = f.read()
+                
+                # 시스템 부팅 이전에 저장된 설정이라면, 최근 이모티콘 기록을 삭제
+                if mtime < boot_time:
+                    try:
+                        import json
+                        data = json.loads(content)
+                        if "recentEmojis" in data:
+                            del data["recentEmojis"]
+                            content = json.dumps(data)
+                            with open(path, "w", encoding="utf-8") as f:
+                                f.write(content)
+                    except Exception:
+                        pass
+
+                return content
             except Exception as e:
                 print("Failed to load settings:", e)
         return ""
@@ -212,15 +302,29 @@ def main():
 
     os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '0'
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'
+    # ★ QWebEngine GPU 래스터화만 선택적 비활성화 — 캔버스 깜빡임 방지 + GPU 컴포지팅 성능 유지
+    os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = '--disable-gpu-rasterization --disable-partial-raster'
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
-    main_window.setWindowTitle("Capcraft v1.1")
+    main_window.setWindowTitle("Capcraft v1.2")
     main_window.setWindowIcon(create_camera_icon())
-    main_window.resize(1800, 1100)
+    
+    # 모니터 화면 크기의 70%로 창 크기 설정
+    screen = app.primaryScreen()
+    if screen:
+        screen_geometry = screen.availableGeometry()
+        width = int(screen_geometry.width() * 0.7)
+        height = int(screen_geometry.height() * 0.7)
+        main_window.resize(width, height)
+        # 화면 크기에 비례해 UI(상단바, 사이드바 등) 줌 비율 조절
+        zoom_factor = max(0.8, (width / 1800.0) * 1.35)
+    else:
+        main_window.resize(1800, 1100)
+        zoom_factor = 1.35
     
     view = QWebEngineView()
     view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
@@ -243,8 +347,7 @@ def main():
     
     main_window.setCentralWidget(view)
     view.page().windowCloseRequested.connect(main_window.close)
-    main_window.resize(1800, 1100)
-    view.setZoomFactor(1.35)
+    view.setZoomFactor(zoom_factor)
     main_window.show()
     
     sys.exit(app.exec())

@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Capcraft v1.1</title>
+    <title>Capcraft v1.2</title>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
     <style>
@@ -191,7 +191,11 @@
             background: white; border: 2px solid #3b82f6; border-radius: 2px;
             pointer-events: none;
         }
-    </style>
+    
+        
+        .pin-icon { position: absolute; top: 2px; right: 2px; font-size: 10px; cursor: pointer; opacity: 0.3; transition: all 0.2s; pointer-events: auto; }
+        .pin-icon.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 2px rgba(0,0,0,0.5); }
+</style>
 </head>
 <body>
 
@@ -220,18 +224,19 @@
             <button class="btn-tool disabled" id="btn_redo"><span class="icon">↪️</span>앞으로</button>
         </div>
         <div class="tool-group">
-            <button class="btn-tool group-edit disabled" id="btn_tool_text"><span class="icon">Abc</span>텍스트</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_pen"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12c3-8 9-8 12 0s9 8 9 0"/></svg></span>펜</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="3" style="vertical-align: middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>도형</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_emoji"><span class="icon">😀</span>이모티콘</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_image"><span class="icon">🖼️</span>이미지</button>
-            <button class="btn-tool group-edit disabled" id="btn_tool_mosaic"><span class="icon">💧</span>모자이크</button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_text"><span class="icon">Abc</span>텍스트<span class="pin-icon" title="고정하기">📌</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_pen"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12c3-8 9-8 12 0s9 8 9 0"/></svg></span>펜<span class="pin-icon" title="고정하기">📌</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="3" style="vertical-align: middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>도형<span class="pin-icon" title="고정하기">📌</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_emoji"><span class="icon">😀</span>이모티콘<span class="pin-icon" title="고정하기">📌</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_image"><span class="icon">🖼️</span>이미지<span class="pin-icon" title="고정하기">📌</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_mosaic"><span class="icon">💧</span>모자이크<span class="pin-icon" title="고정하기">📌</span></button>
             <button class="btn-tool group-edit disabled" id="btn_tool_eraser">
                 <span class="icon"><img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>" width="22" height="22"></span>지우개
             </button>
             <button class="btn-tool group-edit disabled" id="btn_tool_crop"><span class="icon">✂️</span>자르기</button>
         </div>
         <div class="tool-group">
+            <button id="btn_add_text_to_shape" style="display:none;"></button>
             <button class="btn-tool disabled" id="btn_action_copy"><span class="icon">📋</span>복사</button>
             <button class="btn-tool" id="btn_action_open" title="JSON파일을 열어서 작업을 계속할 수 있습니다."><span class="icon">📂</span>열기</button>
             <div id="grp_save" style="position:relative;">
@@ -239,6 +244,7 @@
                 <div class="dropdown-menu" id="dropdown_save" style="min-width:110px;">
                     <button data-format="png">PNG 저장</button>
                     <button data-format="jpg">JPG 저장</button>
+                    <button data-format="svg">SVG 저장</button>
                     <button data-format="pdf">PDF 저장</button>
                     <button data-format="json">JSON 저장</button>
                 </div>
@@ -254,6 +260,7 @@
         <div id="panel_shape" class="sub-panel">
             <div class="custom-select-group" id="shape_type_group">
                 <button class="active" data-val="rect">직사각형</button>
+                <button data-val="rhombus">마름모</button>
                 <button data-val="ellipse">타원</button>
                 <button data-val="line">선분</button>
                 <button data-val="arrow">화살표</button>
@@ -270,6 +277,12 @@
             <button id="btn_txt_b" class="btn-text-style" style="font-weight: bold; margin-left:8px;">B</button>
             <button id="btn_txt_i" class="btn-text-style" style="font-style: italic;">I</button>
             <button id="btn_txt_u" class="btn-text-style" style="text-decoration: underline;">U</button>
+            <div class="custom-select-group btn-group" id="text_align_group" style="margin-left: 8px;">
+                <button class="btn-align active" data-val="left" data-align="left" title="왼쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <button class="btn-align" data-val="center" data-align="center" title="가운데 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <button class="btn-align" data-val="right" data-align="right" title="오른쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+            </div>
+            <input type="hidden" id="text_align" value="left">
             <span style="margin-left:8px;">색상:</span><div id="btn_text_color" class="color-btn" style="background-color: #E03C31;"></div>
             <span>배경:</span><div id="btn_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
         </div>
@@ -355,6 +368,12 @@
                     <button id="edit_btn_b" class="btn-text-style" style="font-weight: bold; margin-left:5px;">B</button>
                     <button id="edit_btn_i" class="btn-text-style" style="font-style: italic;">I</button>
                     <button id="edit_btn_u" class="btn-text-style" style="text-decoration: underline;">U</button>
+                    <div class="custom-select-group btn-group" id="edit_text_align_group" style="margin-left: 8px;">
+                        <button class="btn-align active" data-val="left" data-align="left" title="왼쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                        <button class="btn-align" data-val="center" data-align="center" title="가운데 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                        <button class="btn-align" data-val="right" data-align="right" title="오른쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                    </div>
+                    <input type="hidden" id="edit_text_align" value="left">
                     <span style="margin-left:10px;">글자색:</span><div id="edit_text_color" class="color-btn" style="background-color: #000;"></div>
                     <span style="margin-left:10px;">배경색:</span><div id="edit_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
                 </div>
@@ -601,7 +620,7 @@
         <div class="logo-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </div>
-        <div class="program-name">Capcraft v1.1</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
+        <div class="program-name">Capcraft v1.2</div><div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
         
         <button class="btn-nav" onclick="openGuide()">사용법</button>
         <button class="btn-nav" onclick="openModal('modal_settings')">환경설정</button>
@@ -688,8 +707,9 @@
                 cornerColor: '#3b82f6',
                 cornerStrokeColor: '#ffffff',
                 cornerSize: 10,
+                touchCornerSize: 24,
                 cornerStyle: 'circle',
-                padding: 5,
+                padding: 10,
                 borderDashArray: [3, 3]
             });
 
@@ -699,7 +719,10 @@
             controls.mt.cursorStyle = 'ns-resize';
             controls.mb.cursorStyle = 'ns-resize';
             controls.tl.cursorStyle = 'nwse-resize';
-            controls.tr.cursorStyle = 'nesw-resize';
+            const rawRotateSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8' stroke='rgba(0,0,0,0.6)' stroke-width='5'/><path d='M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8'/><path d='M21 3v5h-5' stroke='rgba(0,0,0,0.6)' stroke-width='5'/><path d='M21 3v5h-5'/></svg>";
+            const rotateCursorUrl = `url(data:image/svg+xml;base64,${btoa(rawRotateSvg)}) 12 12, crosshair`;
+            controls.tr.cursorStyle = rotateCursorUrl;
+            controls.tr.cursorStyleHandler = function() { return rotateCursorUrl; };
             controls.bl.cursorStyle = 'nesw-resize';
             controls.br.cursorStyle = 'nwse-resize';
             // 이동 커서
@@ -825,13 +848,17 @@
                 return true;
             }
 
-            // 모서리 컨트롤 핸들러 변경 (우측 상단만 크기+회전)
+            // 모서리 컨트롤 핸들러 변경 (우측 상단은 회전 전용)
             controls.tl.actionHandler = fabric.controlsUtils.scalingEqually;
             controls.bl.actionHandler = fabric.controlsUtils.scalingEqually;
             controls.br.actionHandler = fabric.controlsUtils.scalingEqually;
-            controls.tr.actionHandler = scaleAndRotate;
+            controls.tr.actionHandler = function(eventData, transform, x, y) {
+                transform.originX = 'left';
+                transform.originY = 'top';
+                return fabric.controlsUtils.rotationWithSnapping(eventData, transform, x, y);
+            };
 
-            const rotateIconSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='11' fill='white' stroke='%233b82f6' stroke-width='2'/><path d='M15.5 12c0 1.93-1.57 3.5-3.5 3.5s-3.5-1.57-3.5-3.5 1.57-3.5 3.5-3.5v2l3.5-3-3.5-3v2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h-1.5z' fill='%233b82f6'/></svg>";
+            const rotateIconSvg = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='18' height='18'><circle cx='12' cy='12' r='11' fill='white' stroke='#3b82f6' stroke-width='2'/><path d='M15.5 12c0 1.93-1.57 3.5-3.5 3.5s-3.5-1.57-3.5-3.5 1.57-3.5 3.5-3.5v2l3.5-3-3.5-3v2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h-1.5z' fill='#3b82f6'/></svg>");
             const rotateImg = new Image(); rotateImg.src = rotateIconSvg;
             
             controls.tr.render = function(ctx, left, top, styleOverride, fabricObject) {
@@ -866,7 +893,7 @@
             }
 
             controls.flipX = new fabric.Control({
-                x: 0, y: -0.5, offsetY: -40, offsetX: -75, cursorStyle: 'pointer',
+                x: 0, y: -0.5, offsetY: -40, offsetX: -100, cursorStyle: 'pointer',
                 mouseDownHandler: function(eventData, transform, x, y) {
                     const target = transform.target;
                     const center = target.getCenterPoint();
@@ -882,11 +909,37 @@
                 },
                 actionName: 'flipX',
                 render: renderFlipX,
-                cornerSize: 40
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
+            });
+
+            
+            const addTextIcon = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='#3b82f6' stroke-width='2'/><path d='M7 7h10v2h-4v8h-2v-8H7V7z' fill='#3b82f6'/></svg>");
+            const addTextImg = new Image(); addTextImg.src = addTextIcon;
+
+            controls.addText = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 100, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (['rect', 'ellipse', 'polygon'].includes(target.type) && !target.linkedText) {
+                        document.getElementById('btn_add_text_to_shape').click();
+                    }
+                    return true;
+                },
+                actionName: 'addText',
+                render: function(ctx, left, top, styleOverride, fabricObject) {
+                    if (['rect', 'ellipse', 'polygon'].includes(fabricObject.type) && !fabricObject.linkedText) {
+                        const size = 40;
+                        ctx.save();
+                        ctx.translate(left, top);
+                        ctx.drawImage(addTextImg, -size/2, -size/2, size, size);
+                        ctx.restore();
+                    }
+                },
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
 
             controls.flipY = new fabric.Control({
-                x: 0, y: -0.5, offsetY: -40, offsetX: -25, cursorStyle: 'pointer',
+                x: 0, y: -0.5, offsetY: -40, offsetX: -50, cursorStyle: 'pointer',
                 mouseDownHandler: function(eventData, transform, x, y) {
                     const target = transform.target;
                     const center = target.getCenterPoint();
@@ -902,7 +955,7 @@
                 },
                 actionName: 'flipY',
                 render: renderFlipY,
-                cornerSize: 40
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
 
             const sendBackIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><rect x='10' y='6' width='8' height='8' fill='none' stroke='%2394a3b8' stroke-width='1.5'/><rect x='6' y='10' width='8' height='8' fill='%233b82f6'/></svg>";
@@ -912,7 +965,7 @@
             const bringFrontImg = new Image(); bringFrontImg.src = bringFrontIcon;
 
             controls.sendBack = new fabric.Control({
-                x: 0, y: -0.5, offsetY: -40, offsetX: 25, cursorStyle: 'pointer',
+                x: 0, y: -0.5, offsetY: -40, offsetX: 0, cursorStyle: 'pointer',
                 mouseDownHandler: function(eventData, transform, x, y) {
                     const target = transform.target;
                     if (target.canvas) {
@@ -930,11 +983,11 @@
                     ctx.drawImage(sendBackImg, -size/2, -size/2, size, size);
                     ctx.restore();
                 },
-                cornerSize: 40
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
 
             controls.bringFront = new fabric.Control({
-                x: 0, y: -0.5, offsetY: -40, offsetX: 75, cursorStyle: 'pointer',
+                x: 0, y: -0.5, offsetY: -40, offsetX: 50, cursorStyle: 'pointer',
                 mouseDownHandler: function(eventData, transform, x, y) {
                     const target = transform.target;
                     if (target.canvas) {
@@ -951,8 +1004,19 @@
                     ctx.drawImage(bringFrontImg, -size/2, -size/2, size, size);
                     ctx.restore();
                 },
-                cornerSize: 40
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
+
+            // Textbox 전용 컨트롤 오버라이드 (텍스트 크기 변동 방지, 너비만 조절)
+            fabric.Textbox.prototype.controls = fabric.util.object.clone(controls);
+            fabric.Textbox.prototype.controls.ml.actionHandler = fabric.controlsUtils.changeWidth;
+            fabric.Textbox.prototype.controls.mr.actionHandler = fabric.controlsUtils.changeWidth;
+            fabric.Textbox.prototype.controls.tl.actionHandler = fabric.controlsUtils.changeWidth;
+            fabric.Textbox.prototype.controls.bl.actionHandler = fabric.controlsUtils.changeWidth;
+            fabric.Textbox.prototype.controls.br.actionHandler = fabric.controlsUtils.changeWidth;
+            fabric.Textbox.prototype.controls.mt.actionHandler = function(){ return false; };
+            fabric.Textbox.prototype.controls.mb.actionHandler = function(){ return false; };
+
 
             window.addEventListener('mouseup', () => {
                 let floating = document.getElementById('floating_angle_tooltip');
@@ -967,7 +1031,7 @@
             width: 800, height: 600, selection: true, 
             imageSmoothingEnabled: false,
             perPixelTargetFind: false,
-            targetFindTolerance: 10,
+            targetFindTolerance: 15,
             preserveObjectStacking: true,
             enableRetinaScaling: false
         });
@@ -999,6 +1063,20 @@
                 }
                 obj.set('dirty', true);
             });
+        }
+
+        
+        canvas.on('selection:created', updateObjectControls);
+        canvas.on('selection:updated', updateObjectControls);
+        
+        function updateObjectControls(e) {
+            const obj = e.selected[0];
+            if (!obj) return;
+            if (['rect', 'ellipse', 'polygon'].includes(obj.type) && !obj.linkedText) {
+                obj.setControlVisible('addText', true);
+            } else {
+                obj.setControlVisible('addText', false);
+            }
         }
 
         canvas.on('selection:created', (e) => { toggleEdgeGlow(e, true); canvas.requestRenderAll(); });
@@ -1282,21 +1360,120 @@
         });
         window.addEventListener('mouseup', () => { isPanning = false; updateGlobalCursor(); });
 
+        
+        canvas.on('object:scaling', (e) => {
+            const obj = e.target;
+            if (obj.linkedText) {
+                const textObj = obj.linkedText;
+                const minW = textObj.dynamicMinWidth || 50;
+                const minH = textObj.calcTextHeight() + 20;
+                const currentW = obj.width * obj.scaleX;
+                const currentH = obj.height * obj.scaleY;
+                
+                let newScaleX = obj.scaleX;
+                let newScaleY = obj.scaleY;
+                let clamped = false;
+                
+                const minScaleX = minW / obj.width;
+                const minScaleY = minH / obj.height;
+                
+                const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
+                
+                if (isCorner) {
+                    if (currentW < minW || currentH < minH) {
+                        let requiredRatioX = minScaleX / newScaleX;
+                        let requiredRatioY = minScaleY / newScaleY;
+                        let maxRatio = Math.max(requiredRatioX, requiredRatioY);
+                        if (maxRatio > 1) {
+                            newScaleX *= maxRatio;
+                            newScaleY *= maxRatio;
+                            clamped = true;
+                        }
+                    }
+                } else {
+                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
+                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
+                }
+                
+                if (clamped && e.transform) {
+                    const originX = e.transform.originX;
+                    const originY = e.transform.originY;
+                    const fixedPoint = obj.getPointByOrigin(originX, originY);
+                    
+                    obj.set({ scaleX: newScaleX, scaleY: newScaleY });
+                    obj.setPositionByOrigin(fixedPoint, originX, originY);
+                }
+                
+                const center = obj.getCenterPoint();
+                textObj.set({ 
+                    width: Math.max(minW, (obj.width * obj.scaleX) - 20),
+                    left: center.x,
+                    top: center.y,
+                    angle: obj.angle
+                });
+                textObj.setCoords();
+            }
+        });
+
+        canvas.on('object:rotating', (e) => {
+            const obj = e.target;
+            if (obj.linkedText) {
+                const center = obj.getCenterPoint();
+                obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
+                obj.linkedText.setCoords();
+                canvas.requestRenderAll();
+            } else if (obj.linkedShape) {
+                const center = obj.getCenterPoint();
+                obj.linkedShape.set({ angle: obj.angle });
+                obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
+                obj.linkedShape.setCoords();
+                canvas.requestRenderAll();
+            }
+        });
+        
         canvas.on('object:moving', (e) => {
             const obj = e.target; 
-            obj.setCoords(); 
+            const cw = canvas.width;
+            const ch = canvas.height;
             
-            let br = obj.getBoundingRect();
-            let cw = canvas.width;
-            let ch = canvas.height;
+            const objW = (obj.width || 0) * (obj.scaleX || 1);
+            const objH = (obj.height || 0) * (obj.scaleY || 1);
             
-            if (br.width <= cw) {
-                if (br.left < 0) obj.left -= br.left;
-                else if (br.left + br.width > cw) obj.left -= (br.left + br.width - cw);
+            const rad = (obj.angle || 0) * Math.PI / 180;
+            const sin = Math.abs(Math.sin(rad));
+            const cos = Math.abs(Math.cos(rad));
+            const boundW = objW * cos + objH * sin;
+            const boundH = objW * sin + objH * cos;
+            
+            let center = obj.getCenterPoint();
+            let clamped = false;
+            
+            if (boundW <= cw) {
+                const minX = boundW / 2;
+                const maxX = cw - boundW / 2;
+                if (center.x < minX) { center.x = minX; clamped = true; }
+                else if (center.x > maxX) { center.x = maxX; clamped = true; }
             }
-            if (br.height <= ch) {
-                if (br.top < 0) obj.top -= br.top;
-                else if (br.top + br.height > ch) obj.top -= (br.top + br.height - ch);
+            if (boundH <= ch) {
+                const minY = boundH / 2;
+                const maxY = ch - boundH / 2;
+                if (center.y < minY) { center.y = minY; clamped = true; }
+                else if (center.y > maxY) { center.y = maxY; clamped = true; }
+            }
+            
+            if (clamped) {
+                obj.setPositionByOrigin(center, 'center', 'center');
+            }
+            
+            if (obj.linkedText) {
+                const center = obj.getCenterPoint();
+                obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
+                obj.linkedText.setCoords();
+            } else if (obj.linkedShape) {
+                const center = obj.getCenterPoint();
+                obj.linkedShape.set({ angle: obj.angle });
+                obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
+                obj.linkedShape.setCoords();
             }
         });
 
@@ -1925,7 +2102,7 @@
             document.getElementById('btn_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
             document.getElementById('label_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
 
-            if (['rect', 'ellipse'].includes(type)) {
+            if (['rect', 'ellipse', 'rhombus'].includes(type)) {
                 container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>';
             } else {
                 container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>' +
@@ -2178,7 +2355,7 @@
                     obj.set({
                         evented: true,
                         selectable: true,
-                        hoverCursor: (obj.type === 'i-text' || obj.type === 'text') ? 'text' : 'move'
+                        hoverCursor: (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') ? 'text' : 'move'
                     });
                 }
             });
@@ -2189,6 +2366,16 @@
         
         let isEraserFatState = false; // 글로벌 DOM 연속 조작 방지 상태
         
+        
+        function deactivateActiveTool() {
+            const activeBtn = document.querySelector('.btn-tool.group-edit.active');
+            if (activeBtn) {
+                const pin = activeBtn.querySelector('.pin-icon');
+                if (pin && pin.classList.contains('active')) return;
+                activeBtn.click(); // This toggles it off
+            }
+        }
+
         function updateGlobalCursor() {
             if (activeTool === 'text') {
                 workspace.style.cursor = 'text';
@@ -2366,6 +2553,9 @@
                     commitLoadToCanvas(img, img.width, img.height, null);
                     // commitLoadToCanvas -> finalizeLoad -> saveHistory -> pushCurrentToRecent 자동 호출됨
                 });
+                    document.getElementById('btn_tool_shape').click();
+                    const rectBtn = document.querySelector('#shape_type_group button[data-val="rect"]');
+                    if (rectBtn) rectBtn.click();
             }
         };
 
@@ -2507,6 +2697,103 @@
             });
         });
 
+        
+        document.getElementById('btn_add_text_to_shape').addEventListener('click', () => {
+            const obj = canvas.getActiveObject();
+            if (!obj || !['rect', 'ellipse', 'polygon'].includes(obj.type) || obj.linkedText) return;
+            
+            const txtColor = window.textColor || '#000000';
+            const txtBgColor = typeof getTextBgOpacity === 'function' ? getTextBgOpacity() : '';
+            const txtSize = parseInt(document.getElementById('text_size_input') ? document.getElementById('text_size_input').value : 50) || 50;
+            const isBold = (document.getElementById('btn_txt_b') || {classList:{contains:()=>false}}).classList.contains('active');
+            const isItalic = (document.getElementById('btn_txt_i') || {classList:{contains:()=>false}}).classList.contains('active');
+            const isUnderline = (document.getElementById('btn_txt_u') || {classList:{contains:()=>false}}).classList.contains('active');
+            
+            const alignActive = document.querySelector('.btn-group .btn-align.active');
+            const textAlign = alignActive ? alignActive.getAttribute('data-align') : 'center';
+
+            const center = obj.getCenterPoint();
+            const textObj = new fabric.Textbox('내용 입력', {
+                left: center.x,
+                top: center.y,
+                originX: 'center',
+                originY: 'center',
+                width: obj.width * obj.scaleX - 20,
+                fontSize: txtSize,
+                fill: txtColor,
+                textBackgroundColor: txtBgColor === 'transparent' ? '' : txtBgColor,
+                fontWeight: isBold ? 'bold' : 'normal',
+                fontStyle: isItalic ? 'italic' : 'normal',
+                underline: isUnderline,
+                textAlign: textAlign,
+                fontFamily: 'Pretendard',
+                editable: true,
+                hasControls: false,
+                hasBorders: false,
+                selectable: true
+            });
+            
+            obj.linkedText = textObj;
+            textObj.linkedShape = obj;
+            
+            canvas.add(textObj);
+            // 도형 원본 크기 백업
+            obj.originalScaleX = obj.scaleX;
+            obj.originalScaleY = obj.scaleY;
+            obj.originalWidth = obj.width;
+            obj.originalHeight = obj.height;
+
+            textObj.on('changed', function() {
+                const shape = this.linkedShape;
+                if (!shape) return;
+                
+                const padding = 20;
+                const reqW = this.width + padding;
+                const reqH = this.height + padding;
+
+                const baseW = shape.originalWidth * shape.originalScaleX;
+                const baseH = shape.originalHeight * shape.originalScaleY;
+
+                let newW = Math.max(baseW, reqW);
+                let newH = Math.max(baseH, reqH);
+
+                if (shape.type === 'polygon' && shape.points && shape.points.length === 4) {
+                    const ratio = (this.width / newW) + (this.height / newH);
+                    if (ratio > 0.85) {
+                        const f = ratio / 0.85; newW *= f; newH *= f;
+                    }
+                } else if (shape.type === 'ellipse') {
+                    const ratioSq = Math.pow(this.width / newW, 2) + Math.pow(this.height / newH, 2);
+                    if (ratioSq > 0.8) {
+                        const f = Math.sqrt(ratioSq / 0.8); newW *= f; newH *= f;
+                    }
+                }
+
+                shape.set({
+                    scaleX: newW / shape.originalWidth,
+                    scaleY: newH / shape.originalHeight
+                });
+                
+                shape.setCoords();
+                if (shape.canvas) {
+                    shape.canvas.requestRenderAll();
+                }
+            });
+
+            obj.setControlVisible('addText', false);
+            
+            canvas.setActiveObject(textObj);
+            
+            document.getElementById('sub_toolbar').style.display = 'block';
+            document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('panel_text').classList.add('active');
+
+            textObj.enterEditing();
+            textObj.selectAll();
+            canvas.requestRenderAll();
+            saveHistory();
+        });
+
         document.getElementById('btn_action_copy').addEventListener('click', async () => {
             if(!hasActiveCanvas) return;
             canvas.discardActiveObject(); 
@@ -2546,7 +2833,8 @@
                         @page { size: ${canvas.width}px ${canvas.height}px; margin: 0; }
                         body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background: white; min-height: 100vh; }
                         img { width: 100%; height: 100%; display: block; object-fit: contain; }
-                    </style>
+                    
+        </style>
                     </head><body><img src="${dataUrl}" onload="setTimeout(() => { window.print(); window.close(); }, 250);"></body></html>
                 `);
                 printWindow.document.close();
@@ -2749,6 +3037,11 @@
                 document.getElementById('edit_btn_i').classList.toggle('active', editingObject.fontStyle === 'italic');
                 document.getElementById('edit_btn_u').classList.toggle('active', editingObject.underline);
                 
+                document.querySelectorAll('#edit_text_align_group .btn-align').forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-align') === (editingObject.textAlign || 'left'));
+                });
+                document.getElementById('edit_text_align').value = editingObject.textAlign || 'left';
+                
                 document.getElementById('edit_text_color').style.backgroundColor = editingObject.fill || '#000';
                 let bCol = editingObject.backgroundColor;
                 document.getElementById('edit_text_bg').style.backgroundColor = (bCol && bCol !== 'rgba(0,0,0,0)') ? bCol : 'transparent';
@@ -2863,7 +3156,8 @@
                     fontSize: size, fill: tColor, backgroundColor: bColor === 'transparent' ? '' : bColor,
                     fontWeight: document.getElementById('edit_btn_b').classList.contains('active') ? 'bold' : 'normal',
                     fontStyle: document.getElementById('edit_btn_i').classList.contains('active') ? 'italic' : 'normal',
-                    underline: document.getElementById('edit_btn_u').classList.contains('active')
+                    underline: document.getElementById('edit_btn_u').classList.contains('active'),
+                    textAlign: document.getElementById('edit_text_align').value
                 });
                 editingObject.setCoords();
             } else if (isRectEllipse) {
@@ -2974,7 +3268,7 @@
                         let newHead = createArrowHead(finalP.x, finalP.y, angle, arrowType, arrowSize, sColor, size);
                         newObj = new fabric.Group([newBody, newHead], { selectable: true, evented: true, arrowType: arrowType, arrowSize: arrowSize });
                     } else {
-                        newObj = new fabric.Path(newPathStr, { fill: finalLineFill, stroke: sColor, strokeWidth: size, strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round', selectable: true, evented: true, objectCaching: false });
+                        newObj = new fabric.Path(newPathStr, { fill: finalLineFill, stroke: sColor, strokeWidth: size, strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round', selectable: true, evented: true, objectCaching: true });
                     }
                     
                     canvas.remove(editingObject);
@@ -3270,12 +3564,35 @@
         // 8. 캔버스 마우스 조작 (정밀도 및 다중클릭 그리기 교정)
         // ==========================================
         
-        canvas.on('text:editing:entered', () => { 
+        canvas.on('text:editing:entered', (e) => { 
             window.scrollTo(0, 0); document.getElementById('workspace').scrollLeft = 0; document.getElementById('workspace').scrollTop = 0; 
+            const obj = e.target;
+            if (obj && obj.linkedShape) {
+                document.getElementById('sub_toolbar').style.display = 'block';
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel_text').classList.add('active');
+            } else if (!activeTool) {
+                document.getElementById('sub_toolbar').style.display = 'block';
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel_text').classList.add('active');
+            }
         });
 
         let lastTextEditExitTime = 0;
-        canvas.on('text:editing:exited', () => { lastTextEditExitTime = Date.now(); canvas.discardActiveObject(); canvas.requestRenderAll(); });
+        canvas.on('text:editing:exited', (e) => { 
+            lastTextEditExitTime = Date.now(); 
+            canvas.discardActiveObject(); 
+            canvas.requestRenderAll(); 
+            
+            const obj = e.target;
+            if (obj && obj.linkedShape && activeTool === 'shape') {
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel_shape').classList.add('active');
+            } else if (!activeTool) {
+                document.getElementById('sub_toolbar').style.display = 'none';
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+            }
+        });
         
         // ==========================================
         // ★ 펜 '일반' 모드 — 도형 자동 인식 엔진 (Shape Recognition)
@@ -3797,7 +4114,7 @@
                 
                 if (!isAuto) {
                     // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
-                    e.path.set({ selectable: true, isTemp: false, objectCaching: false });
+                    e.path.set({ selectable: true, isTemp: false, objectCaching: true });
                     updateObjectSelectability();
                     saveHistory();
                     return; 
@@ -3911,30 +4228,65 @@
             }
             currentShape = null; arrowHead = null; clickPoints = [];
             updateObjectSelectability();
-            canvas.requestRenderAll(); saveHistory();
+            canvas.requestRenderAll(); saveHistory(); deactivateActiveTool(); deactivateActiveTool();
         }
+
+        let lastMouseDownPoint = null;
+        canvas.on('selection:created', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
+        canvas.on('selection:updated', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
 
         canvas.on('mouse:down', o => {
             if (document.getElementById('emoji_popup').style.display === 'block') { document.getElementById('emoji_popup').style.display = 'none'; return; }
             const pointer = canvas.getPointer(o.e);
+            lastMouseDownPoint = pointer;
             
             // 붙여넣기 좌표 갱신
             lastCanvasClick = { x: pointer.x, y: pointer.y };
 
+            // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
+            if (!activeTool && o.target && o.target.linkedShape) {
+                const shape = o.target.linkedShape;
+                const activeObj = canvas.getActiveObject();
+                if (activeObj !== shape) {
+                    o.target.__shapeJustSelected = true;
+                    canvas.setActiveObject(shape);
+                    canvas.requestRenderAll();
+                    return;
+                }
+            }
 
             if (activeTool === 'text') {
                 if (Date.now() - lastTextEditExitTime < 200) return; 
                 const activeObj = canvas.getActiveObject();
                 if (activeObj && activeObj.isEditing) { canvas.discardActiveObject(); canvas.requestRenderAll(); return; }
-                if (o.target && (o.target.type === 'i-text' || o.target.type === 'text')) return;
+                if (o.target && (o.target.type === 'i-text' || o.target.type === 'text' || o.target.type === 'textbox')) return;
                 
                 const fColor = getTextBgOpacity();
                 const scaledSize = parseInt(document.getElementById('text_size_input').value);
-                currentShape = new fabric.IText('', {
+                const textAlignVal = document.getElementById('text_align').value;
+                currentShape = new fabric.Textbox('', {
                     left: pointer.x, top: pointer.y, fontSize: scaledSize,
-                    cursorWidth: 2, cursorColor: textColor,
-                    fill: textColor, backgroundColor: fColor, fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontFamily: 'Pretendard'
-                }); currentShape.isTemp = true; canvas.add(currentShape); canvas.setActiveObject(currentShape); currentShape.enterEditing(); return;
+                    cursorWidth: 2, cursorColor: textColor, textAlign: textAlignVal,
+                    fill: textColor, backgroundColor: fColor, fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontFamily: 'Pretendard',
+                    originX: 'left', originY: 'top', splitByGrapheme: true, isWidthFixed: false
+                }); 
+                currentShape.on('changed', function() {
+                    if (!this.isWidthFixed) {
+                        const ctx = this.canvas.getContext();
+                        ctx.font = (this.fontStyle || 'normal') + ' ' + (this.fontWeight || 'normal') + ' ' + this.fontSize + 'px ' + this.fontFamily;
+                        let maxW = 50;
+                        const lines = this.text.split('\n');
+                        for (let i=0; i<lines.length; i++) {
+                            const w = ctx.measureText(lines[i]).width;
+                            if (w > maxW) maxW = w;
+                        }
+                        this.set({ width: maxW + 10 });
+                    }
+                });
+                currentShape.on('resizing', function() { this.isWidthFixed = true; });
+                currentShape.on('scaling', function() { this.isWidthFixed = true; });
+                
+                currentShape.isTemp = true; canvas.add(currentShape); canvas.setActiveObject(currentShape); currentShape.enterEditing(); return;
             }
 
             if (activeTool === 'eraser') { 
@@ -3984,9 +4336,9 @@
                     const dashArr = isDashed ? [weight * 3, weight * 3] : null;
 
                     if(lineRadio && lineRadio.value === 'curve') {
-                        currentShape = new fabric.Path(getSmoothCurvePath(clickPoints), { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, isTemp: true, objectCaching: false, isArrowBody: true });
+                        currentShape = new fabric.Path(getSmoothCurvePath(clickPoints), { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, isTemp: true, isArrowBody: true });
                     } else {
-                        currentShape = new fabric.Path(`M ${clickPoints[0].x} ${clickPoints[0].y} L ${clickPoints[1].x} ${clickPoints[1].y}`, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'round', isTemp: true, objectCaching: false, isArrowBody: true });
+                        currentShape = new fabric.Path(`M ${clickPoints[0].x} ${clickPoints[0].y} L ${clickPoints[1].x} ${clickPoints[1].y}`, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
                     }
                     canvas.add(currentShape);
                     if (shapeType === 'arrow') { 
@@ -4015,16 +4367,65 @@
                     if (selectedEmojiUrl) {
                         const customHtmlImg = new Image();
                         customHtmlImg.onload = function() {
-                            liveEmojiImgObj = new fabric.Image(customHtmlImg, {
-                                left: origX, top: origY,
-                                originX: 'left', originY: 'top',
-                                isTemp: true, selectable: false, evented: false,
-                                isEmoji: true
-                            });
-                            liveEmojiImgObj.scaleToWidth(10);
-                            canvas.add(liveEmojiImgObj);
-                            liveEmojiImgObj.setCoords();
-                            canvas.requestRenderAll();
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = customHtmlImg.width;
+                            tempCanvas.height = customHtmlImg.height;
+                            const ctx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                            ctx.drawImage(customHtmlImg, 0, 0);
+                            const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                            const data = imageData.data;
+                            let top = 0, bottom = tempCanvas.height, left = 0, right = tempCanvas.width;
+                            outer1: for (let y = 0; y < tempCanvas.height; y++) {
+                                for (let x = 0; x < tempCanvas.width; x++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { top = y; break outer1; }
+                                }
+                            }
+                            outer2: for (let y = tempCanvas.height - 1; y >= 0; y--) {
+                                for (let x = 0; x < tempCanvas.width; x++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { bottom = y + 1; break outer2; }
+                                }
+                            }
+                            outer3: for (let x = 0; x < tempCanvas.width; x++) {
+                                for (let y = 0; y < tempCanvas.height; y++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { left = x; break outer3; }
+                                }
+                            }
+                            outer4: for (let x = tempCanvas.width - 1; x >= 0; x--) {
+                                for (let y = 0; y < tempCanvas.height; y++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { right = x + 1; break outer4; }
+                                }
+                            }
+                            let trimW = right - left; let trimH = bottom - top;
+                            if (trimW <= 0 || trimH <= 0) { trimW = 1; trimH = 1; left = 0; top = 0; }
+                            const trimCanvas = document.createElement('canvas');
+                            trimCanvas.width = trimW; trimCanvas.height = trimH;
+                            trimCanvas.getContext('2d').putImageData(ctx.getImageData(left, top, trimW, trimH), 0, 0);
+                            
+                            const croppedImg = new Image();
+                            croppedImg.onload = function() {
+                                liveEmojiImgObj = new fabric.Image(croppedImg, {
+                                    left: origX, top: origY,
+                                    originX: 'left', originY: 'top',
+                                    isTemp: true, selectable: false, evented: false,
+                                    isEmoji: true,
+                                    hasBorders: true, hasControls: true,
+                                    borderColor: '#3b82f6', borderScaleFactor: 2,
+                                    objectCaching: false
+                                });
+                                liveEmojiImgObj.scaleToWidth(10);
+                                canvas.add(liveEmojiImgObj);
+                                liveEmojiImgObj.setCoords();
+                                canvas.requestRenderAll();
+                                if (!isDrawing) {
+                                    liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
+                                    liveEmojiImgObj.setCoords();
+                                    liveEmojiImgObj = null;
+                                    updateObjectSelectability();
+                                    canvas.requestRenderAll();
+                                    saveHistory(); deactivateActiveTool();
+                                }
+                            };
+                            croppedImg.src = trimCanvas.toDataURL();
                         };
                         customHtmlImg.src = selectedEmojiUrl;
                         return;
@@ -4084,7 +4485,7 @@
                             liveEmojiImgObj = null;
                             updateObjectSelectability();
                             canvas.requestRenderAll();
-                            saveHistory();
+                            saveHistory(); deactivateActiveTool();
                         }
                     };
                     emojiHtmlImg.src = emojiDataUrl;
@@ -4111,6 +4512,11 @@
                         currentShape = new fabric.Rect({ left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true }); canvas.add(currentShape); 
                     } else if (shapeType === 'ellipse') { 
                         currentShape = new fabric.Ellipse({ left: origX, top: origY, originX: 'center', originY: 'center', fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, isTemp: true }); canvas.add(currentShape); 
+                    } else if (shapeType === 'rhombus') {
+                        currentShape = new fabric.Polygon([
+                            {x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 0, y: 1}
+                        ], { left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true, objectCaching: false });
+                        canvas.add(currentShape);
                     }
                 }
             }
@@ -4118,6 +4524,7 @@
 
         let lastEraserTarget = null;
         canvas.on('mouse:move', o => {
+            if (!activeTool && !isDrawing && !multiClickDrawing) return;
             if (activeTool === 'crop') { document.getElementById('guide_x').style.top = o.e.clientY + 'px'; document.getElementById('guide_y').style.left = o.e.clientX + 'px'; }
 
             // 지우개 애니메이션 연동 처리 (부드러운 최적화)
@@ -4223,7 +4630,7 @@
                 let newPathStr = (lineRadio.value === 'curve') ? getSmoothCurvePath(renderPoints) : renderPoints.reduce((acc, pt, idx) => acc + (idx===0?'M':'L') + ` ${pt.x} ${pt.y} `, '');
 
                 canvas.remove(currentShape);
-                currentShape = new fabric.Path(newPathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, objectCaching: false, isArrowBody: true });
+                currentShape = new fabric.Path(newPathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
                 canvas.add(currentShape);
 
                 canvas.requestRenderAll();
@@ -4273,6 +4680,22 @@
 
                 if (shapeType === 'rect' || activeTool === 'mosaic') { currentShape.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y) }); if (origX > pointer.x) currentShape.set({ left: pointer.x }); if (origY > pointer.y) currentShape.set({ top: pointer.y }); } 
                 else if (shapeType === 'ellipse') { currentShape.set({ rx: Math.abs(origX - pointer.x) / 2, ry: Math.abs(origY - pointer.y) / 2 }); currentShape.set({ left: (origX + pointer.x) / 2, top: (origY + pointer.y) / 2 }); } 
+                else if (shapeType === 'rhombus') { 
+                    let minX = Math.min(origX, pointer.x);
+                    let maxX = Math.max(origX, pointer.x);
+                    let minY = Math.min(origY, pointer.y);
+                    let maxY = Math.max(origY, pointer.y);
+                    let w = maxX - minX; let h = maxY - minY;
+                    if(w > 0 && h > 0) {
+                        currentShape.set({
+                            left: minX, top: minY, width: w, height: h,
+                            points: [{x: w/2, y: 0}, {x: w, y: h/2}, {x: w/2, y: h}, {x: 0, y: h/2}]
+                        });
+                        currentShape._calcDimensions();
+                        currentShape.pathOffset = {x: w/2, y: h/2};
+                        currentShape.setCoords();
+                    }
+                } 
                 else if (isNormalLine) { 
                     // 일반 화살표도 곡선/다중 클릭과 100% 동일한 알고리즘을 사용하도록 수학적 위치 갱신 도입
                     let angle = Math.atan2(pointer.y - origY, pointer.x - origX);
@@ -4289,7 +4712,7 @@
                     const dashArr = isDashed ? [weight * 3, weight * 3] : null;
 
                     canvas.remove(currentShape);
-                    currentShape = new fabric.Path(pathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, objectCaching: false, isArrowBody: true }); 
+                    currentShape = new fabric.Path(pathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, isArrowBody: true }); 
                     canvas.add(currentShape);
 
                     if (shapeType === 'arrow' && arrowHead) { 
@@ -4303,8 +4726,28 @@
         });
 
         canvas.on('mouse:up', async o => {
+            // 두 번째 클릭으로 텍스트 편집 모드 진입 (이미 선택된 상태에서 한 번 더 클릭)
+            if (!activeTool && o.target && !o.target.isEditing) {
+                const isTextType = (o.target.type === 'textbox' || o.target.type === 'i-text');
+                if (isTextType) {
+                    const isLinkedText = !!o.target.linkedShape;
+                    // linkedText: __shapeJustSelected가 아닐 때 편집 진입 (도형 선택 직후가 아닐 때)
+                    // standalone: __selectedThisClick가 아닐 때 편집 진입 (처음 선택 직후가 아닐 때)
+                    const shouldEdit = isLinkedText ? !o.target.__shapeJustSelected : !o.target.__selectedThisClick;
+                    if (shouldEdit) {
+                        const upPoint = canvas.getPointer(o.e);
+                        if (lastMouseDownPoint && Math.abs(upPoint.x - lastMouseDownPoint.x) < 3 && Math.abs(upPoint.y - lastMouseDownPoint.y) < 3) {
+                            o.target.enterEditing(o.e);
+                            o.target.setCursorByClick(o.e);
+                            canvas.requestRenderAll();
+                        }
+                    }
+                }
+            }
+            if (o.target) { o.target.__selectedThisClick = false; o.target.__shapeJustSelected = false; }
+
             if(multiClickDrawing) return; 
-            if(activeTool === 'text' && currentShape) { currentShape.isTemp = false; updateObjectSelectability(); saveHistory(); currentShape = null; }
+            if(activeTool === 'text' && currentShape) { currentShape.isTemp = false; updateObjectSelectability(); saveHistory(); deactivateActiveTool(); currentShape = null; }
             
             if (activeTool === 'eraser' && isDrawing) { isDrawing = false; return; }
             
@@ -4319,7 +4762,7 @@
                 currentShape.set({ selectable: true, isTemp: false });
                 currentShape = null;
                 updateObjectSelectability();
-                canvas.requestRenderAll(); saveHistory();
+                canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
                 return;
             }
 
@@ -4462,7 +4905,7 @@
                 }
                 currentShape = null; arrowHead = null;
                 updateObjectSelectability();
-                canvas.requestRenderAll(); saveHistory();
+                canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
             }
         });
 
