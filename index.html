@@ -2716,15 +2716,25 @@
             const textAlign = alignActive ? alignActive.getAttribute('data-align') : 'center';
 
             const center = obj.getCenterPoint();
+            
+            let padW = 20;
+            let startW = obj.width * obj.scaleX;
+            if (obj.type === 'ellipse') {
+                startW = startW * Math.cos(Math.PI / 4);
+            } else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) {
+                startW = startW * 0.5;
+            }
+            startW = Math.max(50, startW - padW);
+
             const textObj = new fabric.Textbox('내용 입력', {
                 left: center.x,
                 top: center.y,
                 originX: 'center',
                 originY: 'center',
-                width: obj.width * obj.scaleX - 20,
+                width: startW,
                 fontSize: txtSize,
                 fill: txtColor,
-                textBackgroundColor: txtBgColor === 'transparent' ? '' : txtBgColor,
+                backgroundColor: txtBgColor === 'transparent' ? '' : txtBgColor,
                 fontWeight: isBold ? 'bold' : 'normal',
                 fontStyle: isItalic ? 'italic' : 'normal',
                 underline: isUnderline,
@@ -2733,47 +2743,54 @@
                 editable: true,
                 hasControls: false,
                 hasBorders: false,
-                selectable: true
+                selectable: false, // 단독 선택 불가 (도형 종속)
+                evented: true,     // 클릭 이벤트는 받아야 함
+                splitByGrapheme: true
             });
             
             obj.linkedText = textObj;
             textObj.linkedShape = obj;
             
             canvas.add(textObj);
-            // 도형 원본 크기 백업
+            
             obj.originalScaleX = obj.scaleX;
             obj.originalScaleY = obj.scaleY;
             obj.originalWidth = obj.width;
             obj.originalHeight = obj.height;
+
+            // 도형 수동 리사이징 시 텍스트 폭 자동 갱신
+            obj.on('scaling', function() {
+                if (this.linkedText) {
+                    let pw = 20;
+                    let sw = this.width * this.scaleX;
+                    if (this.type === 'ellipse') {
+                        sw = sw * Math.cos(Math.PI / 4);
+                    } else if (this.type === 'polygon' && this.points && this.points.length === 4) {
+                        sw = sw * 0.5;
+                    }
+                    sw = Math.max(50, sw - pw);
+                    this.linkedText.set({ width: sw });
+                    this.linkedText.fire('changed');
+                }
+            });
 
             textObj.on('changed', function() {
                 const shape = this.linkedShape;
                 if (!shape) return;
                 
                 const padding = 20;
-                const reqW = this.width + padding;
-                const reqH = this.height + padding;
+                let reqH = this.height + padding;
+                let baseH = shape.originalHeight * shape.originalScaleY;
 
-                const baseW = shape.originalWidth * shape.originalScaleX;
-                const baseH = shape.originalHeight * shape.originalScaleY;
-
-                let newW = Math.max(baseW, reqW);
-                let newH = Math.max(baseH, reqH);
-
-                if (shape.type === 'polygon' && shape.points && shape.points.length === 4) {
-                    const ratio = (this.width / newW) + (this.height / newH);
-                    if (ratio > 0.85) {
-                        const f = ratio / 0.85; newW *= f; newH *= f;
-                    }
-                } else if (shape.type === 'ellipse') {
-                    const ratioSq = Math.pow(this.width / newW, 2) + Math.pow(this.height / newH, 2);
-                    if (ratioSq > 0.8) {
-                        const f = Math.sqrt(ratioSq / 0.8); newW *= f; newH *= f;
-                    }
+                if (shape.type === 'ellipse') {
+                    reqH = reqH / Math.sin(Math.PI / 4);
+                } else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) {
+                    reqH = reqH / 0.5;
                 }
 
+                let newH = Math.max(baseH, reqH);
+
                 shape.set({
-                    scaleX: newW / shape.originalWidth,
                     scaleY: newH / shape.originalHeight
                 });
                 
@@ -3043,7 +3060,7 @@
                 document.querySelectorAll('#edit_text_align_group .btn-align').forEach(btn => {
                     btn.classList.toggle('active', btn.getAttribute('data-align') === (editingObject.textAlign || 'left'));
                 });
-                document.getElementById('edit_text_align').value = editingObject.textAlign || 'left';
+                document.getElementById('edit_text_align').value = editingObject.textAlign || 'center';
                 
                 document.getElementById('edit_text_color').style.backgroundColor = editingObject.fill || '#000';
                 let bCol = editingObject.backgroundColor;
@@ -3291,17 +3308,21 @@
 
         function updateActiveText(skipSelection = false) {
             const obj = canvas.getActiveObject();
-            if (obj && (obj.type === 'i-text' || obj.type === 'textbox') && !obj.isEmoji) {
+            if (!obj) return;
+            const targetText = obj.linkedText || (['i-text', 'textbox', 'text'].includes(obj.type) && !obj.isEmoji ? obj : null);
+            if (targetText) {
                 const fw = txtB ? 'bold' : 'normal';
                 const fst = txtI ? 'italic' : 'normal';
                 const und = txtU;
-                const fs = parseInt(document.getElementById('text_size_input').value);
+                const fs = parseInt(document.getElementById('text_size_input').value) || 50;
+                const alignVal = document.getElementById('edit_text_align') ? document.getElementById('edit_text_align').value : 'center';
 
-                if (!skipSelection && obj.isEditing && obj.selectionStart !== obj.selectionEnd) {
-                    obj.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und });
+                if (!skipSelection && targetText.isEditing && targetText.selectionStart !== targetText.selectionEnd) {
+                    targetText.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und });
                 } else {
-                    obj.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity() });
+                    targetText.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity(), textAlign: alignVal });
                 }
+                if (targetText.linkedShape) targetText.fire('changed');
                 canvas.requestRenderAll();
             }
         }
@@ -3323,6 +3344,46 @@
                 }); 
             }
         });
+        
+        document.querySelectorAll('.btn-align').forEach(btn => {
+            btn.addEventListener('mousedown', e => e.preventDefault());
+            btn.addEventListener('click', function() {
+                const group = this.closest('.btn-group');
+                if (group) {
+                    group.querySelectorAll('.btn-align').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const val = this.getAttribute('data-align');
+                    
+                    if (group.id === 'edit_text_align_group') {
+                        document.getElementById('edit_text_align').value = val;
+                        updateActiveText();
+                    } else {
+                        // main toolbar align group
+                        if (document.getElementById('text_align')) {
+                            document.getElementById('text_align').value = val;
+                            updateActiveText();
+                        }
+                    }
+                }
+            });
+        });
+
+        
+        const sizeInput = document.getElementById('text_size_input');
+        if (sizeInput) {
+            sizeInput.addEventListener('input', updateActiveText);
+            sizeInput.addEventListener('change', updateActiveText);
+        }
+        const editSizeInput = document.getElementById('edit_text_size');
+        if (editSizeInput) {
+            editSizeInput.addEventListener('input', function() {
+                if(document.getElementById('text_size_input')) {
+                    document.getElementById('text_size_input').value = this.value;
+                }
+                updateActiveText();
+            });
+        }
+
         document.querySelector('emoji-picker').addEventListener('emoji-click', event => { 
             const clickedUrl = event.detail.url || (event.detail.emoji && event.detail.emoji.url);
             if (clickedUrl) {
@@ -4283,7 +4344,8 @@
                     const textTarget = o.target;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
-                    canvas._currentTransform = null;
+                    textTarget.setCursorByClick(o.e);
+                    // 삭제: canvas._currentTransform = null; (드래그 버그 방지)
                     canvas.requestRenderAll();
                     return;
                 } else {
@@ -4303,7 +4365,7 @@
                     _lastActiveShapeForLinkedText = null;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
-                    canvas._currentTransform = null;
+                    textTarget.setCursorByClick(o.e);
                     canvas.requestRenderAll();
                     return;
                 } else {
