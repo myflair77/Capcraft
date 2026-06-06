@@ -4349,8 +4349,20 @@
                     const textTarget = o.target;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
-                    textTarget.setCursorByClick(o.e);
-                    // 삭제: canvas._currentTransform = null; (드래그 버그 방지)
+                    
+                    // 커서 위치 지정
+                    if (typeof textTarget.setCursorByClick === 'function') {
+                        textTarget.setCursorByClick(o.e);
+                    }
+                    
+                    // 드래그 블록 선택(텍스트 하이라이트) 활성화
+                    if (typeof textTarget.initMouseMoveHandler === 'function') {
+                        textTarget.initMouseMoveHandler();
+                    }
+                    
+                    // 이동(4방향 커서) 트랜스폼 취소
+                    canvas._currentTransform = null;
+                    
                     canvas.requestRenderAll();
                     return;
                 } else {
@@ -4370,7 +4382,20 @@
                     _lastActiveShapeForLinkedText = null;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
-                    textTarget.setCursorByClick(o.e);
+                    
+                    // 커서 위치 지정
+                    if (typeof textTarget.setCursorByClick === 'function') {
+                        textTarget.setCursorByClick(o.e);
+                    }
+                    
+                    // 드래그 블록 선택(텍스트 하이라이트) 활성화
+                    if (typeof textTarget.initMouseMoveHandler === 'function') {
+                        textTarget.initMouseMoveHandler();
+                    }
+                    
+                    // 이동(4방향 커서) 트랜스폼 취소
+                    canvas._currentTransform = null;
+                    
                     canvas.requestRenderAll();
                     return;
                 } else {
