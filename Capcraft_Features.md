@@ -137,3 +137,9 @@
     - 블록 지정 후 컬러 피커 사용 시 발생하던 `ReferenceError` 버그 픽스 및 정렬(Align) 속성이 부분 서식으로 오적용되던 문제 수정
 
     - 외곽선의 모서리 조절 시 가로세로 비율이 유지되도록 캔버스 설정(uniformScaling: true) 변경 및 상/하변 조절 시 도형 크기가 정상 변경되도록 제어점 동기화 순서(getPointByOrigin 선 호출) 수정.
+
+
+### 2026-06-07 도형 세로 길이 조절 및 텍스트 블록 설정 개선
+- **도형 크기 조절 개선:** object:scaling 시 set()이나 setPositionByOrigin()을 사용하여 Fabric.js 네이티브 드래그 상호작용이 끊기는(상/하변 조절 불가) 문제를 해결하기 위해 수학적 오프셋을 계산하여 scaleX, scaleY, left, 	op 속성을 직접 업데이트하도록 수정했습니다.
+- **도형 내 텍스트 정렬 및 줄바꿈:** 마름모와 타원에 텍스트 상자 생성 시 isWidthFixed: true를 부여하여 도형 크기에 맞게 즉각적인 줄바꿈(Word Wrap)이 발생하도록 적용했습니다. 텍스트 수정으로 인해 텍스트 높이가 변할 때마다 도형 크기가 맞추어 늘어나거나 처음 생성된 크기로 돌아가도록 originalScaleY를 활용한 복원 로직을 추가했습니다.
+- **텍스트 일부분 수정 오류 수정:** 색상 팔레트(.palette-cell) 및 컬러 버튼 클릭 시 캔버스가 포커스를 잃어 hasSelection 판단이 실패하는 버그를 막기 위해 mousedown에 e.preventDefault()를 추가했습니다. 또한, B/I/U 버튼 등 텍스트 서식 변경 시 선택된 텍스트에만 propName 값을 전달하게 수정하고 강제 렌더링을 위해 	argetText.dirty = true; targetText.initDimensions(); 로직을 추가하여 선택 영역에만 서식이 완벽하게 적용되도록 했습니다.

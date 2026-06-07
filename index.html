@@ -1371,45 +1371,60 @@
             const padding = 20;
             const minW = textObj.dynamicMinWidth || 50;
             
-            // Sync text width to shape width
-            textObj.set({ width: Math.max(minW, (shape.width * shape.scaleX) - padding) });
-            
-            // Calculate required height based on new text width
-            let reqH = textObj.calcTextHeight() + padding;
-            
-            // Clamp shape height if it's too small
-            let baseH = shape.originalHeight * shape.scaleY;
-            if (shape.type === 'ellipse') reqH = reqH / Math.sin(Math.PI / 4);
-            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
-            
-            let clamped = false;
+            let maxTextW = shape.width * shape.scaleX;
+            if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
+            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
+
+            let clampedX = false;
             let newScaleX = shape.scaleX;
+            
+            if (maxTextW < minW + padding) {
+                newScaleX = (minW + padding) / (maxTextW / shape.scaleX);
+                clampedX = true;
+                maxTextW = shape.width * newScaleX;
+                if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
+                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
+            }
+
+            textObj.set({ width: Math.max(minW, maxTextW - padding) });
+            
+            let reqH = textObj.calcTextHeight() + padding;
+            let maxTextH = shape.originalHeight * shape.scaleY;
+            
+            if (shape.type === 'ellipse') reqH = reqH / Math.cos(Math.PI / 4);
+            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
+
+            let clampedY = false;
             let newScaleY = shape.scaleY;
 
-            if ((shape.width * shape.scaleX) < minW + 20) {
-                newScaleX = (minW + 20) / shape.width;
-                clamped = true;
-            }
-            if (baseH < reqH) {
+            if (maxTextH < reqH) {
                 newScaleY = reqH / shape.originalHeight;
-                clamped = true;
+                clampedY = true;
             }
-            
-            if (clamped) {
+
+            if (clampedX || clampedY) {
+                let dx = shape.width * (newScaleX - shape.scaleX);
+                let dy = shape.height * (newScaleY - shape.scaleY);
+                
+                shape.scaleX = newScaleX;
+                shape.scaleY = newScaleY;
+
                 if (transform) {
-                    const fixedPoint = shape.getPointByOrigin(transform.originX, transform.originY);
-                    shape.set({ scaleX: newScaleX, scaleY: newScaleY });
-                    shape.setPositionByOrigin(fixedPoint, transform.originX, transform.originY);
-                } else {
-                    shape.set({ scaleX: newScaleX, scaleY: newScaleY });
+                    let rad = shape.angle * Math.PI / 180;
+                    let localDx = 0; let localDy = 0;
+                    if (transform.originX === 'left') localDx = dx / 2;
+                    else if (transform.originX === 'right') localDx = -dx / 2;
+                    if (transform.originY === 'top') localDy = dy / 2;
+                    else if (transform.originY === 'bottom') localDy = -dy / 2;
+
+                    shape.left += localDx * Math.cos(rad) - localDy * Math.sin(rad);
+                    shape.top += localDx * Math.sin(rad) + localDy * Math.cos(rad);
                 }
             }
             
-            // Sync text position and angle
             const center = shape.getCenterPoint();
             textObj.set({ left: center.x, top: center.y, angle: shape.angle });
             textObj.setCoords();
-            // shape.setCoords() removed to prevent breaking native Fabric scaling drag interaction
         }
 
         canvas.on('object:scaling', (e) => {
@@ -1968,6 +1983,7 @@
             cell.className = 'palette-cell'; cell.style.backgroundColor = c.h;
             cell.setAttribute('data-name', c.n); 
             if (c.h === 'transparent') cell.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
+            cell.addEventListener('mousedown', e => e.preventDefault());
             cell.addEventListener('click', () => { 
                 const bgImg = c.h === 'transparent' ? cell.style.backgroundImage : 'none'; 
                 if (targetColorBtn === 'stroke' || targetColorBtn === 'edit_shape_stroke' || targetColorBtn === 'edit_line_stroke' || targetColorBtn === 'set_shape_stroke') { 
@@ -2100,6 +2116,8 @@
         }
         
         bindCP('btn_stroke_color', 'stroke'); bindCP('btn_fill_color', 'fill');
+        document.getElementById('btn_text_color').addEventListener('mousedown', e => e.preventDefault());
+        document.getElementById('btn_text_bg').addEventListener('mousedown', e => e.preventDefault());
         bindCP('btn_text_color', 'text'); bindCP('btn_text_bg', 'text_bg');
         bindCP('new_bg_color', 'new_bg');
         bindCP('btn_pen_color', 'pen');
@@ -2759,6 +2777,7 @@
                 selectable: true,
                 evented: true,     // 클릭 이벤트는 받아야 함
                 splitByGrapheme: true,
+                isWidthFixed: true,
                 hoverCursor: 'move'
             });
             
@@ -2785,27 +2804,26 @@
                 const shape = this.linkedShape;
                 if (!shape) return;
                 
-                // Just use syncShapeToText but don't clamp width, only height
                 const padding = 20;
-                let reqH = this.height + padding;
-                let baseH = shape.originalHeight * shape.scaleY;
+                let maxTextW = shape.width * shape.scaleX;
+                if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
+                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
+                
+                this.set({ width: Math.max(50, maxTextW - padding) });
+                
+                let reqH = this.calcTextHeight() + padding;
+                if (shape.type === 'ellipse') reqH = reqH / Math.cos(Math.PI / 4);
+                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
 
-                if (shape.type === 'ellipse') {
-                    reqH = reqH / Math.sin(Math.PI / 4);
-                } else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) {
-                    reqH = reqH / 0.5;
-                }
-
-                if (baseH < reqH) {
-                    shape.set({ scaleY: reqH / shape.originalHeight });
-                    
-                    const center = shape.getCenterPoint();
-                    this.set({ left: center.x, top: center.y });
-                    this.setCoords();
-                    shape.setCoords();
-                    if (shape.canvas) {
-                        shape.canvas.requestRenderAll();
-                    }
+                let targetScaleY = Math.max(shape.originalScaleY || 1, reqH / shape.originalHeight);
+                shape.set({ scaleY: targetScaleY });
+                
+                const center = shape.getCenterPoint();
+                this.set({ left: center.x, top: center.y });
+                this.setCoords();
+                shape.setCoords();
+                if (shape.canvas) {
+                    shape.canvas.requestRenderAll();
                 }
             });
 
@@ -3347,6 +3365,10 @@
                     } else {
                         targetText.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity(), textAlign: alignVal });
                     }
+                }
+                targetText.dirty = true;
+                if (targetText.isEditing && targetText.initDimensions) {
+                    targetText.initDimensions();
                 }
                 if (targetText.linkedShape) targetText.fire('changed');
                 canvas.requestRenderAll();
