@@ -739,7 +739,7 @@
             // 이미지 개체에 대한 특별 처리 (변 드래그 시 자르기, 꼭짓점 드래그 시 크기 조절)
             function cropX(eventData, transform, x, y) {
                 const target = transform.target;
-                if (!target.isMediaImage && target.type !== 'image') {
+                if (!target.isMediaImage) {
                     return fabric.controlsUtils.scalingX(eventData, transform, x, y);
                 }
                 const localPoint = fabric.controlsUtils.getLocalPoint(transform, transform.originX, transform.originY, x, y);
@@ -761,7 +761,7 @@
 
             function cropY(eventData, transform, x, y) {
                 const target = transform.target;
-                if (!target.isMediaImage && target.type !== 'image') {
+                if (!target.isMediaImage) {
                     return fabric.controlsUtils.scalingY(eventData, transform, x, y);
                 }
                 const localPoint = fabric.controlsUtils.getLocalPoint(transform, transform.originX, transform.originY, x, y);
