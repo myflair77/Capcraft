@@ -1406,7 +1406,7 @@
             const center = shape.getCenterPoint();
             textObj.set({ left: center.x, top: center.y, angle: shape.angle });
             textObj.setCoords();
-            shape.setCoords();
+            // shape.setCoords() removed to prevent breaking native Fabric scaling drag interaction
         }
 
         canvas.on('object:scaling', (e) => {
@@ -1418,6 +1418,7 @@
                 obj.originalHeight = obj.height;
                 
                 syncShapeToText(obj, e.transform);
+                if (obj.canvas) obj.canvas.renderAll();
             }
         });
 
@@ -1427,13 +1428,13 @@
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
-                canvas.requestRenderAll();
+                canvas.renderAll(); // Use synchronous render to prevent 1-frame visual lag
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
                 obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
                 obj.linkedShape.setCoords();
-                canvas.requestRenderAll();
+                canvas.renderAll();
             }
         });
         
@@ -1475,7 +1476,7 @@
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
-                canvas.requestRenderAll();
+                canvas.renderAll();
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
