@@ -1030,7 +1030,8 @@
 
 
 
-        const canvas = new fabric.Canvas('mainCanvas', { 
+        const canvas = new fabric.Canvas('mainCanvas', {
+            uniformScaling: true, 
             width: 800, height: 600, selection: true, 
             imageSmoothingEnabled: false,
             perPixelTargetFind: false,
@@ -1395,10 +1396,12 @@
             }
             
             if (clamped) {
-                shape.set({ scaleX: newScaleX, scaleY: newScaleY });
                 if (transform) {
                     const fixedPoint = shape.getPointByOrigin(transform.originX, transform.originY);
+                    shape.set({ scaleX: newScaleX, scaleY: newScaleY });
                     shape.setPositionByOrigin(fixedPoint, transform.originX, transform.originY);
+                } else {
+                    shape.set({ scaleX: newScaleX, scaleY: newScaleY });
                 }
             }
             
