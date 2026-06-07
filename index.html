@@ -1369,21 +1369,32 @@
             if (obj.linkedText) {
                 const textObj = obj.linkedText;
                 const minW = textObj.dynamicMinWidth || 50;
-                const minH = textObj.calcTextHeight() + 20;
-                const currentW = obj.width * obj.scaleX;
-                const currentH = obj.height * obj.scaleY;
+                let minH = textObj.calcTextHeight() + 20;
+                
+                let currentW = obj.width * obj.scaleX;
+                let currentH = obj.height * obj.scaleY;
+                
+                let requiredShapeW = minW + 20;
+                let requiredShapeH = minH;
+                if (obj.type === 'ellipse') {
+                    requiredShapeW = requiredShapeW / Math.cos(Math.PI / 4);
+                    requiredShapeH = requiredShapeH / Math.sin(Math.PI / 4);
+                } else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) {
+                    requiredShapeW = requiredShapeW / 0.5;
+                    requiredShapeH = requiredShapeH / 0.5;
+                }
                 
                 let newScaleX = obj.scaleX;
                 let newScaleY = obj.scaleY;
                 let clamped = false;
                 
-                const minScaleX = minW / obj.width;
-                const minScaleY = minH / obj.height;
+                const minScaleX = requiredShapeW / obj.width;
+                const minScaleY = requiredShapeH / obj.height;
                 
                 const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
                 
                 if (isCorner) {
-                    if (currentW < minW || currentH < minH) {
+                    if (currentW < requiredShapeW || currentH < requiredShapeH) {
                         let requiredRatioX = minScaleX / newScaleX;
                         let requiredRatioY = minScaleY / newScaleY;
                         let maxRatio = Math.max(requiredRatioX, requiredRatioY);
@@ -1394,8 +1405,8 @@
                         }
                     }
                 } else {
-                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
-                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
+                    if (currentW < requiredShapeW) { newScaleX = minScaleX; clamped = true; }
+                    if (currentH < requiredShapeH) { newScaleY = minScaleY; clamped = true; }
                 }
                 
                 if (clamped && e.transform) {
@@ -1407,9 +1418,14 @@
                     obj.setPositionByOrigin(fixedPoint, originX, originY);
                 }
                 
+                let textTargetW = (obj.width * obj.scaleX);
+                if (obj.type === 'ellipse') textTargetW *= Math.cos(Math.PI / 4);
+                else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) textTargetW *= 0.5;
+                textTargetW = Math.max(minW, textTargetW - 20);
+                
                 const center = obj.getCenterPoint();
                 textObj.set({ 
-                    width: Math.max(minW, (obj.width * obj.scaleX) - 20),
+                    width: textTargetW,
                     left: center.x,
                     top: center.y,
                     angle: obj.angle
@@ -2743,7 +2759,7 @@
                 editable: true,
                 hasControls: false,
                 hasBorders: false,
-                selectable: false, // 단독 선택 불가 (도형 종속)
+                selectable: true,
                 evented: true,     // 클릭 이벤트는 받아야 함
                 splitByGrapheme: true
             });
@@ -2758,21 +2774,7 @@
             obj.originalWidth = obj.width;
             obj.originalHeight = obj.height;
 
-            // 도형 수동 리사이징 시 텍스트 폭 자동 갱신
-            obj.on('scaling', function() {
-                if (this.linkedText) {
-                    let pw = 20;
-                    let sw = this.width * this.scaleX;
-                    if (this.type === 'ellipse') {
-                        sw = sw * Math.cos(Math.PI / 4);
-                    } else if (this.type === 'polygon' && this.points && this.points.length === 4) {
-                        sw = sw * 0.5;
-                    }
-                    sw = Math.max(50, sw - pw);
-                    this.linkedText.set({ width: sw });
-                    this.linkedText.fire('changed');
-                }
-            });
+
 
             textObj.on('changed', function() {
                 const shape = this.linkedShape;
@@ -4336,6 +4338,7 @@
 
             // 텍스트가 이미 편집 중인 상태라면 Fabric.js 내장 로직(드래그 블록지정, 커서 이동 등)에 위임
             if (o.target && (o.target.isEditing || (o.target.type === 'textbox' && o.target.isEditing))) {
+                canvas._currentTransform = null; // 드래그 시 도형 이동(4방향 커서) 방지
                 return;
             }
             
@@ -4349,20 +4352,7 @@
                     const textTarget = o.target;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
-                    
-                    // 커서 위치 지정
-                    if (typeof textTarget.setCursorByClick === 'function') {
-                        textTarget.setCursorByClick(o.e);
-                    }
-                    
-                    // 드래그 블록 선택(텍스트 하이라이트) 활성화
-                    if (typeof textTarget.initMouseMoveHandler === 'function') {
-                        textTarget.initMouseMoveHandler();
-                    }
-                    
-                    // 이동(4방향 커서) 트랜스폼 취소
                     canvas._currentTransform = null;
-                    
                     canvas.requestRenderAll();
                     return;
                 } else {
@@ -4382,20 +4372,7 @@
                     _lastActiveShapeForLinkedText = null;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
-                    
-                    // 커서 위치 지정
-                    if (typeof textTarget.setCursorByClick === 'function') {
-                        textTarget.setCursorByClick(o.e);
-                    }
-                    
-                    // 드래그 블록 선택(텍스트 하이라이트) 활성화
-                    if (typeof textTarget.initMouseMoveHandler === 'function') {
-                        textTarget.initMouseMoveHandler();
-                    }
-                    
-                    // 이동(4방향 커서) 트랜스폼 취소
                     canvas._currentTransform = null;
-                    
                     canvas.requestRenderAll();
                     return;
                 } else {
