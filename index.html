@@ -313,7 +313,7 @@
         <div id="panel_eraser" class="sub-panel"><button id="btn_clear_all" style="padding: 4px 10px; background: var(--accent-red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🗑️ 개체 모두 지우기</button></div>
         <div id="panel_mosaic" class="sub-panel">
             <span style="font-weight:bold;">모자이크 크기:</span>
-            <input type="number" id="mosaic_intensity" min="1" max="20" value="5" style="width: 50px;">
+            <input type="number" id="mosaic_intensity" min="1" max="20" value="3" style="width: 50px;">
         </div>
         <div id="panel_crop" class="sub-panel" style="gap:10px;">
             <span style="color: var(--accent-blue); font-weight: bold;">이미지의 네 변을 조절하여 자를 수 있습니다.</span>
@@ -555,7 +555,7 @@
                 <span>지우개 비대화:</span> <input type="number" id="set_eraser_fat" value="1.5" min="1.0" max="2.0" step="0.1" style="width:60px;">
             </div>
             <div>
-                <span>모자이크 블록 크기:</span> <input type="number" id="set_mosaic_px" value="5" min="1" max="20" style="width:60px;">
+                <span>모자이크 블록 크기:</span> <input type="number" id="set_mosaic_px" value="3" min="1" max="20" style="width:60px;">
             </div>
         </div>
 
@@ -690,7 +690,7 @@
         window.addEventListener('scroll', () => { window.scrollTo(0, 0); });
         document.getElementById('workspace').addEventListener('scroll', function() { this.scrollLeft = 0; this.scrollTop = 0; });
 
-        window.sysMosaicPx = 5;
+        window.sysMosaicPx = 3;
 
         // 선택 개체 컨트롤 커스터마이징
         function initCustomControls() {
@@ -1209,11 +1209,11 @@
 
         // 모자이크 서브툴바 ↔ 설정 모달 동기화
         document.getElementById('mosaic_intensity').addEventListener('input', (e) => { 
-            sysMosaicPx = parseInt(e.target.value) || 5; 
+            sysMosaicPx = parseInt(e.target.value) || 3; 
             document.getElementById('set_mosaic_px').value = sysMosaicPx; 
         });
         document.getElementById('set_mosaic_px').addEventListener('input', (e) => { 
-            sysMosaicPx = parseInt(e.target.value) || 5; 
+            sysMosaicPx = parseInt(e.target.value) || 3; 
             document.getElementById('mosaic_intensity').value = sysMosaicPx; 
         });
 
@@ -2258,7 +2258,7 @@
             sysArrowSize = document.getElementById('set_arrow_size')?.value || 'm';
             sysEraserFat = parseFloat(document.getElementById('set_eraser_fat')?.value) || 1.5;
             
-            window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px')?.value) || 5;
+            window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px')?.value) || 3;
             
             strokeColor = document.getElementById('set_shape_stroke_color')?.style.backgroundColor || '#E03C31';
             if(document.getElementById('btn_stroke_color')) document.getElementById('btn_stroke_color').style.backgroundColor = strokeColor;
