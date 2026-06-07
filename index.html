@@ -2750,11 +2750,19 @@
                 hasBorders: false,
                 selectable: true,
                 evented: true,     // 클릭 이벤트는 받아야 함
-                splitByGrapheme: true
+                splitByGrapheme: true,
+                hoverCursor: 'move'
             });
             
             obj.linkedText = textObj;
             textObj.linkedShape = obj;
+            
+            textObj.on('editing:entered', function() {
+                this.set('hoverCursor', 'text');
+            });
+            textObj.on('editing:exited', function() {
+                this.set('hoverCursor', 'move');
+            });
             
             canvas.add(textObj);
             
