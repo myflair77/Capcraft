@@ -1367,6 +1367,11 @@
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
+                // Update original scales so that textObj's 'changed' event respects the manual resize
+                obj.originalScaleX = obj.scaleX;
+                obj.originalScaleY = obj.scaleY;
+                obj.originalWidth = obj.width;
+                obj.originalHeight = obj.height;
                 const textObj = obj.linkedText;
                 const minW = textObj.dynamicMinWidth || 50;
                 const minH = textObj.calcTextHeight() + 20;
@@ -3297,14 +3302,22 @@
             if (!obj) return;
             const targetText = obj.linkedText || (['i-text', 'textbox', 'text'].includes(obj.type) && !obj.isEmoji ? obj : null);
             if (targetText) {
-                const fw = txtB ? 'bold' : 'normal';
-                const fst = txtI ? 'italic' : 'normal';
-                const und = txtU;
+                // UI 버튼 상태에서 직접 값을 읽어옴 (txtB, txtI, txtU 전역 변수 충돌 방지)
+                const isB = document.getElementById('btn_txt_b') && document.getElementById('btn_txt_b').classList.contains('active');
+                const isI = document.getElementById('btn_txt_i') && document.getElementById('btn_txt_i').classList.contains('active');
+                const isU = document.getElementById('btn_txt_u') && document.getElementById('btn_txt_u').classList.contains('active');
+                
+                const fw = isB ? 'bold' : 'normal';
+                const fst = isI ? 'italic' : 'normal';
+                const und = !!isU;
+                
                 const fs = parseInt(document.getElementById('text_size_input').value) || 50;
-                const alignVal = document.getElementById('edit_text_align') ? document.getElementById('edit_text_align').value : 'center';
+                let alignVal = 'center';
+                if (document.getElementById('text_align')) alignVal = document.getElementById('text_align').value;
+                if (document.getElementById('edit_text_align')) alignVal = document.getElementById('edit_text_align').value;
 
                 if (!skipSelection && targetText.isEditing && targetText.selectionStart !== targetText.selectionEnd) {
-                    targetText.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und });
+                    targetText.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor });
                 } else {
                     targetText.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity(), textAlign: alignVal });
                 }
@@ -3318,8 +3331,8 @@
             if (topBtn) {
                 topBtn.addEventListener('mousedown', e => e.preventDefault());
                 topBtn.addEventListener('click', function() { 
-                    window['txt'+type.toUpperCase()] = !window['txt'+type.toUpperCase()]; 
                     this.classList.toggle('active'); 
+                    if (editBtn) editBtn.classList.toggle('active', this.classList.contains('active'));
                     updateActiveText(); 
                 }); 
             }
@@ -3327,6 +3340,8 @@
                 editBtn.addEventListener('mousedown', e => e.preventDefault());
                 editBtn.addEventListener('click', function() { 
                     this.classList.toggle('active'); 
+                    if (topBtn) topBtn.classList.toggle('active', this.classList.contains('active'));
+                    updateActiveText();
                 }); 
             }
         });
@@ -3342,11 +3357,13 @@
                     
                     if (group.id === 'edit_text_align_group') {
                         document.getElementById('edit_text_align').value = val;
+                        if (document.getElementById('text_align')) document.getElementById('text_align').value = val;
                         updateActiveText();
                     } else {
                         // main toolbar align group
                         if (document.getElementById('text_align')) {
                             document.getElementById('text_align').value = val;
+                            if (document.getElementById('edit_text_align')) document.getElementById('edit_text_align').value = val;
                             updateActiveText();
                         }
                     }
