@@ -1364,62 +1364,49 @@
         window.addEventListener('mouseup', () => { isPanning = false; updateGlobalCursor(); });
 
         
+        function syncShapeToText(shape) {
+            if (!shape || !shape.linkedText) return;
+            const textObj = shape.linkedText;
+            const padding = 20;
+            const minW = textObj.dynamicMinWidth || 50;
+            
+            // Sync text width to shape width
+            textObj.set({ width: Math.max(minW, (shape.width * shape.scaleX) - padding) });
+            
+            // Calculate required height based on new text width
+            const reqH = textObj.calcTextHeight() + padding;
+            
+            // Clamp shape height if it's too small
+            let baseH = shape.originalHeight * shape.scaleY;
+            if (shape.type === 'ellipse') reqH = reqH / Math.sin(Math.PI / 4);
+            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
+            
+            if (baseH < reqH) {
+                shape.set({ scaleY: reqH / shape.originalHeight });
+            }
+            
+            // Sync text position and angle
+            const center = shape.getCenterPoint();
+            textObj.set({ left: center.x, top: center.y, angle: shape.angle });
+            textObj.setCoords();
+            shape.setCoords();
+        }
+
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
-                // Update original scales so that textObj's 'changed' event respects the manual resize
+                // Constrain min width manually before syncing
+                const minW = obj.linkedText.dynamicMinWidth || 50;
+                if ((obj.width * obj.scaleX) < minW + 20) {
+                    obj.set('scaleX', (minW + 20) / obj.width);
+                }
+                
                 obj.originalScaleX = obj.scaleX;
                 obj.originalScaleY = obj.scaleY;
                 obj.originalWidth = obj.width;
                 obj.originalHeight = obj.height;
-                const textObj = obj.linkedText;
-                const minW = textObj.dynamicMinWidth || 50;
-                const minH = textObj.calcTextHeight() + 20;
-                const currentW = obj.width * obj.scaleX;
-                const currentH = obj.height * obj.scaleY;
                 
-                let newScaleX = obj.scaleX;
-                let newScaleY = obj.scaleY;
-                let clamped = false;
-                
-                const minScaleX = minW / obj.width;
-                const minScaleY = minH / obj.height;
-                
-                const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
-                
-                if (isCorner) {
-                    if (currentW < minW || currentH < minH) {
-                        let requiredRatioX = minScaleX / newScaleX;
-                        let requiredRatioY = minScaleY / newScaleY;
-                        let maxRatio = Math.max(requiredRatioX, requiredRatioY);
-                        if (maxRatio > 1) {
-                            newScaleX *= maxRatio;
-                            newScaleY *= maxRatio;
-                            clamped = true;
-                        }
-                    }
-                } else {
-                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
-                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
-                }
-                
-                if (clamped && e.transform) {
-                    const originX = e.transform.originX;
-                    const originY = e.transform.originY;
-                    const fixedPoint = obj.getPointByOrigin(originX, originY);
-                    
-                    obj.set({ scaleX: newScaleX, scaleY: newScaleY });
-                    obj.setPositionByOrigin(fixedPoint, originX, originY);
-                }
-                
-                const center = obj.getCenterPoint();
-                textObj.set({ 
-                    width: Math.max(minW, (obj.width * obj.scaleX) - 20),
-                    left: center.x,
-                    top: center.y,
-                    angle: obj.angle
-                });
-                textObj.setCoords();
+                syncShapeToText(obj);
             }
         });
 
@@ -1477,6 +1464,7 @@
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
+                canvas.requestRenderAll();
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
@@ -1999,10 +1987,10 @@
                     }
                 }
                 paletteEl.style.display = 'none'; 
-                if(activeTool==='text') {
-                    if (targetColorBtn === 'text') updateActiveText('fill', textColor);
-                    else if (targetColorBtn === 'text_bg') updateActiveText('backgroundColor', getTextBgOpacity());
-                    else updateActiveText();
+                if (['text', 'set_text', 'edit_text_c'].includes(targetColorBtn)) {
+                    updateActiveText('fill', finalColor);
+                } else if (['text_bg', 'set_text_bg', 'edit_text_b'].includes(targetColorBtn)) {
+                    updateActiveText('backgroundColor', getTextBgOpacity());
                 }
                 if(targetColorBtn === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
                     // Update stroke color for straight line mode
