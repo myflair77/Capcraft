@@ -1364,7 +1364,7 @@
         window.addEventListener('mouseup', () => { isPanning = false; updateGlobalCursor(); });
 
         
-        function syncShapeToText(shape) {
+        function syncShapeToText(shape, transform) {
             if (!shape || !shape.linkedText) return;
             const textObj = shape.linkedText;
             const padding = 20;
@@ -1374,15 +1374,32 @@
             textObj.set({ width: Math.max(minW, (shape.width * shape.scaleX) - padding) });
             
             // Calculate required height based on new text width
-            const reqH = textObj.calcTextHeight() + padding;
+            let reqH = textObj.calcTextHeight() + padding;
             
             // Clamp shape height if it's too small
             let baseH = shape.originalHeight * shape.scaleY;
             if (shape.type === 'ellipse') reqH = reqH / Math.sin(Math.PI / 4);
             else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
             
+            let clamped = false;
+            let newScaleX = shape.scaleX;
+            let newScaleY = shape.scaleY;
+
+            if ((shape.width * shape.scaleX) < minW + 20) {
+                newScaleX = (minW + 20) / shape.width;
+                clamped = true;
+            }
             if (baseH < reqH) {
-                shape.set({ scaleY: reqH / shape.originalHeight });
+                newScaleY = reqH / shape.originalHeight;
+                clamped = true;
+            }
+            
+            if (clamped) {
+                shape.set({ scaleX: newScaleX, scaleY: newScaleY });
+                if (transform) {
+                    const fixedPoint = shape.getPointByOrigin(transform.originX, transform.originY);
+                    shape.setPositionByOrigin(fixedPoint, transform.originX, transform.originY);
+                }
             }
             
             // Sync text position and angle
@@ -1395,18 +1412,12 @@
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
-                // Constrain min width manually before syncing
-                const minW = obj.linkedText.dynamicMinWidth || 50;
-                if ((obj.width * obj.scaleX) < minW + 20) {
-                    obj.set('scaleX', (minW + 20) / obj.width);
-                }
-                
                 obj.originalScaleX = obj.scaleX;
                 obj.originalScaleY = obj.scaleY;
                 obj.originalWidth = obj.width;
                 obj.originalHeight = obj.height;
                 
-                syncShapeToText(obj);
+                syncShapeToText(obj, e.transform);
             }
         });
 
@@ -1988,7 +1999,7 @@
                 }
                 paletteEl.style.display = 'none'; 
                 if (['text', 'set_text', 'edit_text_c'].includes(targetColorBtn)) {
-                    updateActiveText('fill', finalColor);
+                    updateActiveText('fill', c.h);
                 } else if (['text_bg', 'set_text_bg', 'edit_text_b'].includes(targetColorBtn)) {
                     updateActiveText('backgroundColor', getTextBgOpacity());
                 }
@@ -2770,9 +2781,10 @@
                 const shape = this.linkedShape;
                 if (!shape) return;
                 
+                // Just use syncShapeToText but don't clamp width, only height
                 const padding = 20;
                 let reqH = this.height + padding;
-                let baseH = shape.originalHeight * shape.originalScaleY;
+                let baseH = shape.originalHeight * shape.scaleY;
 
                 if (shape.type === 'ellipse') {
                     reqH = reqH / Math.sin(Math.PI / 4);
@@ -2780,15 +2792,16 @@
                     reqH = reqH / 0.5;
                 }
 
-                let newH = Math.max(baseH, reqH);
-
-                shape.set({
-                    scaleY: newH / shape.originalHeight
-                });
-                
-                shape.setCoords();
-                if (shape.canvas) {
-                    shape.canvas.requestRenderAll();
+                if (baseH < reqH) {
+                    shape.set({ scaleY: reqH / shape.originalHeight });
+                    
+                    const center = shape.getCenterPoint();
+                    this.set({ left: center.x, top: center.y });
+                    this.setCoords();
+                    shape.setCoords();
+                    if (shape.canvas) {
+                        shape.canvas.requestRenderAll();
+                    }
                 }
             });
 
@@ -3307,7 +3320,7 @@
                 const hasSelection = targetText.isEditing && targetText.selectionStart !== targetText.selectionEnd;
 
                 if (propName) {
-                    if (!skipSelection && hasSelection) {
+                    if (!skipSelection && hasSelection && propName !== 'textAlign' && propName !== 'backgroundColor') {
                         const styleObj = {}; styleObj[propName] = propValue;
                         targetText.setSelectionStyles(styleObj);
                     } else {
