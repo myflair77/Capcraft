@@ -1011,7 +1011,12 @@
             });
 
             // Textbox 전용 컨트롤 오버라이드 (텍스트 크기 변동 방지, 너비만 조절)
-            fabric.Textbox.prototype.controls = fabric.util.object.clone(controls);
+            // 각 컨트롤 객체도 개별 복사해야 원본 prototype controls를 오염시키지 않음
+            const textboxControls = {};
+            Object.keys(controls).forEach(key => {
+                textboxControls[key] = new fabric.Control(Object.assign({}, controls[key]));
+            });
+            fabric.Textbox.prototype.controls = textboxControls;
             fabric.Textbox.prototype.controls.ml.actionHandler = fabric.controlsUtils.changeWidth;
             fabric.Textbox.prototype.controls.mr.actionHandler = fabric.controlsUtils.changeWidth;
             fabric.Textbox.prototype.controls.tl.actionHandler = fabric.controlsUtils.changeWidth;
