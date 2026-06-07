@@ -1369,32 +1369,21 @@
             if (obj.linkedText) {
                 const textObj = obj.linkedText;
                 const minW = textObj.dynamicMinWidth || 50;
-                let minH = textObj.calcTextHeight() + 20;
-                
-                let currentW = obj.width * obj.scaleX;
-                let currentH = obj.height * obj.scaleY;
-                
-                let requiredShapeW = minW + 20;
-                let requiredShapeH = minH;
-                if (obj.type === 'ellipse') {
-                    requiredShapeW = requiredShapeW / Math.cos(Math.PI / 4);
-                    requiredShapeH = requiredShapeH / Math.sin(Math.PI / 4);
-                } else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) {
-                    requiredShapeW = requiredShapeW / 0.5;
-                    requiredShapeH = requiredShapeH / 0.5;
-                }
+                const minH = textObj.calcTextHeight() + 20;
+                const currentW = obj.width * obj.scaleX;
+                const currentH = obj.height * obj.scaleY;
                 
                 let newScaleX = obj.scaleX;
                 let newScaleY = obj.scaleY;
                 let clamped = false;
                 
-                const minScaleX = requiredShapeW / obj.width;
-                const minScaleY = requiredShapeH / obj.height;
+                const minScaleX = minW / obj.width;
+                const minScaleY = minH / obj.height;
                 
                 const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
                 
                 if (isCorner) {
-                    if (currentW < requiredShapeW || currentH < requiredShapeH) {
+                    if (currentW < minW || currentH < minH) {
                         let requiredRatioX = minScaleX / newScaleX;
                         let requiredRatioY = minScaleY / newScaleY;
                         let maxRatio = Math.max(requiredRatioX, requiredRatioY);
@@ -1405,8 +1394,8 @@
                         }
                     }
                 } else {
-                    if (currentW < requiredShapeW) { newScaleX = minScaleX; clamped = true; }
-                    if (currentH < requiredShapeH) { newScaleY = minScaleY; clamped = true; }
+                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
+                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
                 }
                 
                 if (clamped && e.transform) {
@@ -1418,14 +1407,9 @@
                     obj.setPositionByOrigin(fixedPoint, originX, originY);
                 }
                 
-                let textTargetW = (obj.width * obj.scaleX);
-                if (obj.type === 'ellipse') textTargetW *= Math.cos(Math.PI / 4);
-                else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) textTargetW *= 0.5;
-                textTargetW = Math.max(minW, textTargetW - 20);
-                
                 const center = obj.getCenterPoint();
                 textObj.set({ 
-                    width: textTargetW,
+                    width: Math.max(minW, (obj.width * obj.scaleX) - 20),
                     left: center.x,
                     top: center.y,
                     angle: obj.angle
@@ -4336,10 +4320,28 @@
             // 붙여넣기 좌표 갱신
             lastCanvasClick = { x: pointer.x, y: pointer.y };
 
-            // 텍스트가 이미 편집 중인 상태라면 Fabric.js 내장 로직(드래그 블록지정, 커서 이동 등)에 위임
-            if (o.target && (o.target.isEditing || (o.target.type === 'textbox' && o.target.isEditing))) {
-                canvas._currentTransform = null; // 드래그 시 도형 이동(4방향 커서) 방지
-                return;
+            // === 텍스트 편집 모드 보호 및 드래그 선택 강화 ===
+            if (!activeTool && o.target) {
+                let editingText = null;
+                if (o.target.isEditing) editingText = o.target;
+                else if (o.target.linkedText && o.target.linkedText.isEditing) editingText = o.target.linkedText;
+                
+                if (editingText) {
+                    canvas._currentTransform = null; // 이동 방지 (4방향 커서 방지)
+                    if (canvas.getActiveObject() !== editingText) {
+                        canvas.setActiveObject(editingText);
+                    }
+                    if (o.target !== editingText) {
+                        // 도형의 빈 공간을 클릭한 경우, 텍스트 객체에 직접 마우스 이벤트를 전달한 효과를 줌
+                        if (typeof editingText.setCursorByClick === 'function') {
+                            try { editingText.setCursorByClick(o.e); } catch(e) {}
+                        }
+                        if (typeof editingText.initMouseMoveHandler === 'function') {
+                            try { editingText.initMouseMoveHandler(o.e); } catch(e) {}
+                        }
+                    }
+                    return;
+                }
             }
             
             // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
