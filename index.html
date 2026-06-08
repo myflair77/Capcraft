@@ -1376,6 +1376,12 @@
             const padding = 20;
             const minW = textObj.dynamicMinWidth || 50;
             
+            let clamped = false;
+            let originPoint;
+            if (transform) {
+                originPoint = shape.translateToOriginPoint(shape.getCenterPoint(), transform.originX, transform.originY);
+            }
+
             // Calculate available text width inside the shape
             let shapeVisualW = shape.width * shape.scaleX;
             let textAreaFactor = 1;
@@ -1389,6 +1395,7 @@
                 shape.scaleX = minShapeW / shape.width;
                 shapeVisualW = minShapeW;
                 availTextW = minW;
+                clamped = true;
             }
             
             textObj.set({ width: Math.max(minW, availTextW) });
@@ -1403,6 +1410,11 @@
             
             if (shapeVisualH < minShapeH) {
                 shape.scaleY = minShapeH / shape.height;
+                clamped = true;
+            }
+            
+            if (clamped && transform) {
+                shape.setPositionByOrigin(originPoint, transform.originX, transform.originY);
             }
             
             // Sync text position and angle to shape center
@@ -1874,22 +1886,16 @@
 
         canvas.on('object:modified', (e) => { 
             if(e.target && (e.target.scaleX !== 1 || e.target.scaleY !== 1)) {
-                // Skip normalizeScale for shapes with linked text (rect/ellipse/polygon)
+                // Skip normalizeScale for shapes with linked text (rect/ellipse)
                 // because normalizeScale recreates the object and breaks the linkedText binding
                 const t = e.target;
-                if (t.linkedText && ['rect', 'ellipse', 'polygon'].includes(t.type)) {
+                if (t.linkedText && ['rect', 'ellipse'].includes(t.type)) {
                     // Bake scale into width/height without recreating the object
                     if (t.type === 'rect') {
                         t.set({ width: t.width * t.scaleX, height: t.height * t.scaleY, scaleX: 1, scaleY: 1 });
                     } else if (t.type === 'ellipse') {
                         t.set({ rx: t.rx * t.scaleX, ry: t.ry * t.scaleY, scaleX: 1, scaleY: 1 });
                         t.set({ width: t.rx * 2, height: t.ry * 2 });
-                    } else if (t.type === 'polygon') {
-                        const sx = t.scaleX, sy = t.scaleY;
-                        const newPoints = t.points.map(p => ({ x: p.x * sx, y: p.y * sy }));
-                        t.set({ points: newPoints, scaleX: 1, scaleY: 1 });
-                        t._calcDimensions();
-                        t.setCoords();
                     }
                     // Update stored original dimensions for future clamping
                     t.originalWidth = t.width;
