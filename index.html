@@ -667,7 +667,7 @@
         // 커스텀 속성 직렬화 (Undo/Redo 및 JSON 로드 시 속성 손실 방지)
         const originalToObject = fabric.Object.prototype.toObject;
         fabric.Object.prototype.toObject = function(additionalProperties) {
-            return originalToObject.call(this, ['isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize'].concat(additionalProperties || []));
+            return originalToObject.call(this, ['id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize'].concat(additionalProperties || []));
         };
 
         // 한글(IME) 입력 시 커서 위치 보정
@@ -684,6 +684,33 @@
             boundaries.left += offset;
             _originalRenderCursor.call(this, boundaries, ctx);
             boundaries.left = origLeft;
+        };
+
+        // 빈 글상자(Placeholder)에 가상의 '내용 입력' 텍스트 플로팅 렌더링
+        const _originalRenderText = fabric.Textbox.prototype._renderText;
+        fabric.Textbox.prototype._renderText = function(ctx) {
+            _originalRenderText.call(this, ctx);
+            if (this.isPlaceholder && (!this.text || this.text === '') && !this.isPlaceholderHidden) {
+                ctx.save();
+                ctx.font = this._getFontDeclaration();
+                ctx.fillStyle = '#999999';
+                ctx.textAlign = this.textAlign;
+                
+                // 텍스트상자의 경우 렌더링 기준점(origin)은 중앙이므로 (0,0)이 박스의 중앙.
+                // 텍스트의 시작 y 좌표는 대략 -this.height/2 + 패딩 또는 줄간격 계산값.
+                let textHeight = this.fontSize * this.lineHeight;
+                let topOffset = -this.height / 2;
+                let y = topOffset + (textHeight * 0.75); // 폰트 베이스라인 근사치
+                
+                if (this.textAlign === 'center') {
+                    ctx.fillText('내용 입력', 0, y);
+                } else if (this.textAlign === 'left') {
+                    ctx.fillText('내용 입력', -this.width / 2, y);
+                } else if (this.textAlign === 'right') {
+                    ctx.fillText('내용 입력', this.width / 2, y);
+                }
+                ctx.restore();
+            }
         };
 
         // 글로벌 스크롤 방어
@@ -844,17 +871,34 @@
                 floating.style.left = (eventData.clientX + 15) + 'px';
                 floating.style.top = (eventData.clientY + 15) + 'px';
                 
-                let displayAngle = Math.round(newAngle) % 360;
+                let displayAngle = newAngle % 360;
                 if (displayAngle < 0) displayAngle += 360;
-                floating.innerText = displayAngle + '°';
+                floating.innerText = displayAngle.toFixed(1) + '°';
                 
                 return true;
             }
 
-            // 모서리 컨트롤 핸들러 변경 (우측 상단은 회전 전용)
-            controls.tl.actionHandler = fabric.controlsUtils.scalingEqually;
-            controls.bl.actionHandler = fabric.controlsUtils.scalingEqually;
-            controls.br.actionHandler = fabric.controlsUtils.scalingEqually;
+            // 모서리 컨트롤 핸들러 변경 (이모티콘, 이미지, 모자이크는 비율 유지. 나머지는 자유 변형)
+            function customCornerScaling(eventData, transform, x, y) {
+                const target = transform.target;
+                const isProportional = target.isEmoji || target.isMediaImage || target.isMosaic;
+                const wasLocked = target.lockUniScaling;
+                
+                if (isProportional) {
+                    target.lockUniScaling = true;
+                }
+                
+                const result = fabric.controlsUtils.scalingEqually(eventData, transform, x, y);
+                
+                if (isProportional) {
+                    target.lockUniScaling = wasLocked;
+                }
+                
+                return result;
+            }
+            controls.tl.actionHandler = customCornerScaling;
+            controls.bl.actionHandler = customCornerScaling;
+            controls.br.actionHandler = customCornerScaling;
             controls.tr.actionHandler = function(eventData, transform, x, y) {
                 transform.originX = 'left';
                 transform.originY = 'top';
@@ -1423,6 +1467,110 @@
             textObj.setCoords();
         }
 
+        function bindTextBoxEvents(shape, textObj) {
+            // Placeholder initialization
+            if (textObj.isPlaceholder === undefined) {
+                if (!textObj.text || textObj.text === '' || textObj.text === '내용 입력') {
+                    if (textObj.text === '내용 입력') textObj.text = '';
+                    textObj.isPlaceholder = true;
+                } else {
+                    textObj.isPlaceholder = false;
+                }
+            }
+
+            // Avoid duplicate bindings
+            if (textObj.__hasTextBoxBindings) return;
+            textObj.__hasTextBoxBindings = true;
+
+            textObj.on('selected', function() {
+                this.isPlaceholderHidden = true;
+                if (this.canvas) this.canvas.requestRenderAll();
+            });
+            textObj.on('deselected', function() {
+                this.isPlaceholderHidden = false;
+                if (this.canvas) this.canvas.requestRenderAll();
+            });
+
+            textObj.on('editing:entered', function() {
+                this.set('hoverCursor', 'text');
+            });
+            textObj.on('editing:exited', function() {
+                this.set('hoverCursor', 'move');
+                // Automatically restore placeholder flag if text is empty
+                if (!this.text || this.text.trim() === '') {
+                    this.text = '';
+                    this.isPlaceholder = true;
+                    if (this.canvas) this.canvas.requestRenderAll();
+                }
+            });
+            
+            textObj.on('changed', function() {
+                const s = this.linkedShape;
+                if (!s) return;
+                
+                const padding = 20;
+                let shapeVisualW = s.width * s.scaleX;
+                let textAreaFactor = 1;
+                if (s.type === 'ellipse') textAreaFactor = Math.cos(Math.PI / 4);
+                else if (s.type === 'polygon' && s.points && s.points.length === 4) textAreaFactor = 0.5;
+                
+                this.set({ width: Math.max(50, shapeVisualW * textAreaFactor - padding) });
+                
+                let reqTextH = this.calcTextHeight() + padding;
+                let heightFactor = 1;
+                if (s.type === 'ellipse') heightFactor = Math.cos(Math.PI / 4);
+                else if (s.type === 'polygon' && s.points && s.points.length === 4) heightFactor = 0.5;
+                let reqShapeH = reqTextH / heightFactor;
+                
+                let minH = s._initHeight || (s.originalHeight * (s.originalScaleY || 1));
+                let currentH = s.height * s.scaleY;
+                let targetH = Math.max(minH, reqShapeH);
+                
+                if (Math.abs(currentH - targetH) > 1) {
+                    s.scaleY = targetH / s.height;
+                }
+                
+                const center = s.getCenterPoint();
+                this.set({ left: center.x, top: center.y });
+                this.setCoords();
+                s.setCoords();
+                if (s.canvas) s.canvas.requestRenderAll();
+            });
+        }
+
+        function restoreLinkedTexts() {
+            const objs = canvas.getObjects();
+            const textMap = {};
+            const shapeMap = {};
+            
+            // First pass: map objects by id
+            objs.forEach(obj => {
+                if (obj.id) {
+                    if (obj.isLinkedText) textMap[obj.id] = obj;
+                    else shapeMap[obj.id] = obj;
+                }
+            });
+            
+            // Second pass: link them together and ensure order
+            objs.forEach(obj => {
+                if (obj.linkedTextId && !obj.linkedText) {
+                    const textObj = textMap[obj.linkedTextId];
+                    if (textObj) {
+                        obj.linkedText = textObj;
+                        textObj.linkedShape = obj;
+                        bindTextBoxEvents(obj, textObj);
+                        
+                        // Z-index order preservation: bring text exactly to top of shape, if not already
+                        const shapeIdx = canvas.getObjects().indexOf(obj);
+                        const textIdx = canvas.getObjects().indexOf(textObj);
+                        if (textIdx < shapeIdx) {
+                            textObj.moveTo(shapeIdx); // Move text above shape
+                        }
+                    }
+                }
+            });
+        }
+
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
@@ -1433,6 +1581,32 @@
 
         canvas.on('object:rotating', (e) => {
             const obj = e.target;
+            
+            // 툴팁 표시 로직 (모든 객체 회전 시)
+            let floating = document.getElementById('floating_angle_tooltip');
+            if (!floating) {
+                floating = document.createElement('div');
+                floating.id = 'floating_angle_tooltip';
+                floating.style.position = 'fixed';
+                floating.style.background = 'rgba(15,23,42,0.85)';
+                floating.style.color = '#fff';
+                floating.style.padding = '4px 8px';
+                floating.style.borderRadius = '4px';
+                floating.style.fontSize = '12px';
+                floating.style.fontWeight = 'bold';
+                floating.style.pointerEvents = 'none';
+                floating.style.zIndex = '10000';
+                document.body.appendChild(floating);
+            }
+            floating.style.display = 'block';
+            if (e.e) {
+                floating.style.left = (e.e.clientX + 15) + 'px';
+                floating.style.top = (e.e.clientY + 15) + 'px';
+            }
+            let displayAngle = obj.angle % 360;
+            if (displayAngle < 0) displayAngle += 360;
+            floating.innerText = displayAngle.toFixed(1) + '°';
+
             if (obj.linkedText) {
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
@@ -1702,6 +1876,7 @@
 
             canvas.loadFromJSON(jsonToLoad, () => {
                 if (seq !== _recentLoadSeq) return;
+                restoreLinkedTexts();
 
                 canvas.renderOnAddRemove = true;
                 const w = item.width || canvas.width;
@@ -1941,6 +2116,7 @@
             const bgColor = canvas.backgroundColor;
 
             canvas.loadFromJSON(state.objects, () => { 
+                restoreLinkedTexts();
                 canvas.backgroundImage = bgImg;
                 canvas.backgroundColor = bgColor;
                 canvas.renderOnAddRemove = true; 
@@ -2623,6 +2799,7 @@
                     stateHistory = []; historyIndex = -1;
                     
                     canvas.loadFromJSON(f.target.result, () => {
+                        restoreLinkedTexts();
                         let parsed = {};
                         try { parsed = JSON.parse(f.target.result); } catch(e) {}
                         
@@ -2767,7 +2944,7 @@
             }
             startW = Math.max(50, startW - padW);
 
-            const textObj = new fabric.Textbox('내용 입력', {
+            const textObj = new fabric.Textbox('', {
                 left: center.x,
                 top: center.y,
                 originX: 'center',
@@ -2794,12 +2971,14 @@
             obj.linkedText = textObj;
             textObj.linkedShape = obj;
             
-            textObj.on('editing:entered', function() {
-                this.set('hoverCursor', 'text');
-            });
-            textObj.on('editing:exited', function() {
-                this.set('hoverCursor', 'move');
-            });
+            // Assign unique IDs to preserve the link after JSON load (e.g. Undo/Redo)
+            if (!obj.id) obj.id = 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            textObj.id = 'text_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            textObj.isLinkedText = true;
+            obj.linkedTextId = textObj.id;
+            textObj.linkedShapeId = obj.id;
+            
+            bindTextBoxEvents(obj, textObj);
             
             canvas.add(textObj);
             
@@ -2808,44 +2987,6 @@
             obj.originalWidth = obj.width;
             obj.originalHeight = obj.height;
             obj._initHeight = obj.height * obj.scaleY; // Store initial visual height for shrink-back
-
-            textObj.on('changed', function() {
-                const shape = this.linkedShape;
-                if (!shape) return;
-                
-                const padding = 20;
-                // Calculate text area width from current shape dimensions
-                let shapeVisualW = shape.width * shape.scaleX;
-                let textAreaFactor = 1;
-                if (shape.type === 'ellipse') textAreaFactor = Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) textAreaFactor = 0.5;
-                
-                this.set({ width: Math.max(50, shapeVisualW * textAreaFactor - padding) });
-                
-                // Calculate required shape height for the text content
-                let reqTextH = this.calcTextHeight() + padding;
-                let heightFactor = 1;
-                if (shape.type === 'ellipse') heightFactor = Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) heightFactor = 0.5;
-                let reqShapeH = reqTextH / heightFactor;
-                
-                // Minimum height is the initial creation height
-                let minH = shape._initHeight || (shape.originalHeight * (shape.originalScaleY || 1));
-                let currentH = shape.height * shape.scaleY;
-                let targetH = Math.max(minH, reqShapeH);
-                
-                if (Math.abs(currentH - targetH) > 1) {
-                    shape.scaleY = targetH / shape.height;
-                }
-                
-                const center = shape.getCenterPoint();
-                this.set({ left: center.x, top: center.y });
-                this.setCoords();
-                shape.setCoords();
-                if (shape.canvas) {
-                    shape.canvas.requestRenderAll();
-                }
-            });
 
             obj.setControlVisible('addText', false);
             
