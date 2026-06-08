@@ -757,7 +757,9 @@
             fabric.Object.prototype.hoverCursor = 'move';
             fabric.IText.prototype.hoverCursor = 'text';
             fabric.Textbox.prototype.hoverCursor = 'text';
-
+            
+            // 이미지(이모티콘, 이미지, 모자이크)는 항상 가로 세로 비율을 유지하도록 설정
+            fabric.Image.prototype.lockUniScaling = true;
             // 회전 핸들 숨김 (mtr은 사용 안 함)
             if (controls.mtr) controls.mtr.visible = false;
 
@@ -878,32 +880,31 @@
                 return true;
             }
 
-            // 모서리 컨트롤 핸들러 변경 (이모티콘, 이미지, 모자이크는 비율 유지. 나머지는 자유 변형)
-            function customCornerScaling(eventData, transform, x, y) {
-                const target = transform.target;
-                const isProportional = target.isEmoji || target.isMediaImage || target.isMosaic;
-                const wasLocked = target.lockUniScaling;
-                
-                if (isProportional) {
-                    target.lockUniScaling = true;
-                }
-                
-                const result = fabric.controlsUtils.scalingEqually(eventData, transform, x, y);
-                
-                if (isProportional) {
-                    target.lockUniScaling = wasLocked;
-                }
-                
-                return result;
-            }
-            controls.tl.actionHandler = customCornerScaling;
-            controls.bl.actionHandler = customCornerScaling;
-            controls.br.actionHandler = customCornerScaling;
+            // 모서리 컨트롤 핸들러 변경 (우측 상단은 회전 전용)
+            controls.tl.actionHandler = fabric.controlsUtils.scalingEqually;
+            controls.bl.actionHandler = fabric.controlsUtils.scalingEqually;
+            controls.br.actionHandler = fabric.controlsUtils.scalingEqually;
             controls.tr.actionHandler = function(eventData, transform, x, y) {
                 transform.originX = 'left';
                 transform.originY = 'top';
                 return fabric.controlsUtils.rotationWithSnapping(eventData, transform, x, y);
             };
+
+            // 이미지(이모티콘, 이미지, 모자이크) 전용: 가로 세로 비율 강제 유지 (캔버스 uniformScaling 무시)
+            const forceUniformScaling = function(eventData, transform, x, y) {
+                const canvas = transform.target.canvas;
+                const wasUniform = canvas ? canvas.uniformScaling : false;
+                if (canvas) canvas.uniformScaling = true;
+                const result = fabric.controlsUtils.scalingEqually(eventData, transform, x, y);
+                if (canvas) canvas.uniformScaling = wasUniform;
+                return result;
+            };
+
+            fabric.Image.prototype.controls = Object.assign({}, fabric.Object.prototype.controls, {
+                tl: new fabric.Control(Object.assign({}, controls.tl, { actionHandler: forceUniformScaling })),
+                bl: new fabric.Control(Object.assign({}, controls.bl, { actionHandler: forceUniformScaling })),
+                br: new fabric.Control(Object.assign({}, controls.br, { actionHandler: forceUniformScaling }))
+            });
 
             const rotateIconSvg = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='18' height='18'><circle cx='12' cy='12' r='11' fill='white' stroke='#3b82f6' stroke-width='2'/><path d='M15.5 12c0 1.93-1.57 3.5-3.5 3.5s-3.5-1.57-3.5-3.5 1.57-3.5 3.5-3.5v2l3.5-3-3.5-3v2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5h-1.5z' fill='#3b82f6'/></svg>");
             const rotateImg = new Image(); rotateImg.src = rotateIconSvg;
@@ -1973,6 +1974,10 @@
         }
 
         canvas.on('object:added', (e) => { 
+            const target = e.target;
+            if (target.isEmoji || target.isMediaImage || target.isMosaic) {
+                target.set('lockUniScaling', true);
+            }
             if (activeTool && activeTool !== 'crop' && activeTool !== 'eraser') {
                 e.target.set('evented', false);
                 e.target.set('selectable', false);
