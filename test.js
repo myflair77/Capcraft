@@ -1784,9 +1784,49 @@
             if (activeBtn) {
                 const pin = activeBtn.querySelector('.pin-icon');
                 if (pin && pin.classList.contains('active')) return;
-                activeBtn.click(); // This toggles it off
+                
+                activeBtn.classList.remove('active');
+                activeTool = null;
+                const emojiPopup = document.getElementById('emoji_popup');
+                if (emojiPopup) emojiPopup.style.display = 'none';
+                canvas.isDrawingMode = false;
+                const capOverlay = document.getElementById('capture_overlay');
+                if (capOverlay) capOverlay.style.display = 'none';
+                if (typeof hideCropOverlay === 'function') hideCropOverlay();
+                updateGlobalCursor();
             }
         }
+
+        document.getElementById('sub_toolbar').addEventListener('click', function(e) {
+            const activePanel = document.querySelector('.sub-panel.active');
+            if (!activePanel) return;
+            
+            const panelToBtn = {
+                'panel_shape': 'btn_tool_shape',
+                'panel_pen': 'btn_tool_pen',
+                'panel_text': 'btn_tool_text',
+                'panel_emoji': 'btn_tool_emoji',
+                'panel_image': 'btn_tool_image',
+                'panel_mosaic': 'btn_tool_mosaic',
+                'panel_eraser': 'btn_tool_eraser',
+                'panel_crop': 'btn_tool_crop'
+            };
+            
+            const btnId = panelToBtn[activePanel.id];
+            if (btnId) {
+                const toolBtn = document.getElementById(btnId);
+                if (toolBtn && !toolBtn.classList.contains('active') && !toolBtn.classList.contains('disabled')) {
+                    toolBtn.click();
+                }
+            }
+        });
+
+        document.querySelectorAll('.pin-icon').forEach(pin => {
+            pin.addEventListener('click', function(e) {
+                e.stopPropagation();
+                this.classList.toggle('active');
+            });
+        });
 
         function updateGlobalCursor() {
             if (activeTool === 'text') {
@@ -3634,7 +3674,7 @@
                     // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
                     e.path.set({ selectable: true, isTemp: false, objectCaching: true });
                     updateObjectSelectability();
-                    saveHistory();
+                    saveHistory(); deactivateActiveTool();
                     return; 
                 }
 
@@ -3656,7 +3696,7 @@
                         canvas.setActiveObject(newObj);
                         _showShapeRecogNotice(recognized.type);
                         updateObjectSelectability();
-                        saveHistory();
+                        saveHistory(); deactivateActiveTool();
                         canvas.requestRenderAll();
                         return;
                     }
@@ -3665,7 +3705,7 @@
                 // 인식 실패 시 기존 동작 유지
                 pathObj.set({ selectable: true, isTemp: false });
                 updateObjectSelectability();
-                saveHistory();
+                saveHistory(); deactivateActiveTool();
             }
         });
 
@@ -4442,7 +4482,7 @@
                             patchImg.set({ left: mLeft, top: mTop, selectable: true, isMosaic: true });
                             canvas.add(patchImg); canvas.bringToFront(patchImg);
                             updateObjectSelectability();
-                            canvas.requestRenderAll(); saveHistory();
+                            canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
                         });
                     };
                     imgObj.src = cropData;
@@ -4453,7 +4493,7 @@
                 liveEmojiImgObj.setCoords();
                 liveEmojiImgObj = null; 
                 updateObjectSelectability();
-                canvas.requestRenderAll(); saveHistory(); 
+                canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
             } 
             else if (activeTool === 'shape' && currentShape) {
                 const shapeType = document.getElementById('shape_type').value;
