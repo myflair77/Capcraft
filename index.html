@@ -492,6 +492,15 @@
                 <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_i_chk"> I(기울임)</label>
                 <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_u_chk"> U(밑줄)</label>
             </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                <span>텍스트 정렬:</span>
+                <div class="custom-select-group btn-group" id="set_text_align_group">
+                    <button class="btn-align" data-val="left" data-align="left" title="왼쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                    <button class="btn-align active" data-val="center" data-align="center" title="가운데 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                    <button class="btn-align" data-val="right" data-align="right" title="오른쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                </div>
+                <input type="hidden" id="set_text_align" value="center">
+            </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span>글자 색상:</span> <div id="set_txt_color" class="color-btn" style="background-color: #E03C31;"></div>
                 <span style="margin-left:5px;">입력창 배경색:</span> <div id="set_txt_bg_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
@@ -2369,7 +2378,7 @@
         function collectSettings() {
             const settingsIds = [
                 'set_theme', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
-                'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk',
+                'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity',
                 'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size',
@@ -2431,6 +2440,13 @@
             loadCustomEmojisFromFolders();
             if(document.getElementById('text_size_input') && document.getElementById('set_txt_size')) {
                 document.getElementById('text_size_input').value = document.getElementById('set_txt_size').value;
+            }
+            if(document.getElementById('text_align') && document.getElementById('set_text_align')) {
+                const alignVal = document.getElementById('set_text_align').value || 'center';
+                document.getElementById('text_align').value = alignVal;
+                document.querySelectorAll('#text_align_group .btn-align').forEach(b => b.classList.remove('active'));
+                const targetBtn = document.querySelector(`#text_align_group .btn-align[data-align="${alignVal}"]`);
+                if(targetBtn) targetBtn.classList.add('active');
             }
             txtB = document.getElementById('set_txt_b_chk')?.checked || false;
             txtI = document.getElementById('set_txt_i_chk')?.checked || false;

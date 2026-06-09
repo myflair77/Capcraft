@@ -1531,7 +1531,7 @@
         function collectSettings() {
             const settingsIds = [
                 'set_theme', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
-                'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk',
+                'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity',
                 'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size',
@@ -1593,6 +1593,13 @@
             loadCustomEmojisFromFolders();
             if(document.getElementById('text_size_input') && document.getElementById('set_txt_size')) {
                 document.getElementById('text_size_input').value = document.getElementById('set_txt_size').value;
+            }
+            if(document.getElementById('text_align') && document.getElementById('set_text_align')) {
+                const alignVal = document.getElementById('set_text_align').value || 'center';
+                document.getElementById('text_align').value = alignVal;
+                document.querySelectorAll('#text_align_group .btn-align').forEach(b => b.classList.remove('active'));
+                const targetBtn = document.querySelector(`#text_align_group .btn-align[data-align="${alignVal}"]`);
+                if(targetBtn) targetBtn.classList.add('active');
             }
             txtB = document.getElementById('set_txt_b_chk')?.checked || false;
             txtI = document.getElementById('set_txt_i_chk')?.checked || false;
