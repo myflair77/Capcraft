@@ -1,5 +1,650 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Capcraft v1.2</title>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+    <style>
+        :root {
+            --bg-main: #f8fafc; --bg-panel: #ffffff; --text-main: #0f172a;
+            --accent-blue: #3b82f6; --accent-red: #ef4444; --border-color: #e2e8f0;
+            --sidebar-width: 170px;
+        }
+        /* ?고겢由?硫붾돱 ?ㅽ???*/
+        #canvas_context_menu {
+            display: none; position: absolute; z-index: 10000; background: var(--bg-panel);
+            border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            border-radius: 6px; padding: 5px 0; min-width: 140px; font-size: 13px;
+            color: var(--text-main); user-select: none;
+        }
+        #canvas_context_menu .menu-item {
+            padding: 8px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+        }
+        #canvas_context_menu .menu-item:hover { background: #f1f5f9; color: var(--accent-blue); }
+        #canvas_context_menu .menu-item.disabled { color: #cbd5e1; pointer-events: none; }
+        #canvas_context_menu .menu-shortcut { color: #94a3b8; font-size: 11px; }
+        #canvas_context_menu .menu-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+        /* ?ㅽ겕紐⑤뱶 蹂??*/
+        body.dark-mode {
+            --bg-main: #0f172a; --bg-panel: #1e293b; --text-main: #e2e8f0;
+            --border-color: #334155;
+        }
+        body.dark-mode #toolbar, body.dark-mode #sidebar { background: var(--bg-panel); color: var(--text-main); }
+        body.dark-mode #workspace { background-color: #1a2332; }
+        body.dark-mode .modal { background: var(--bg-panel); color: var(--text-main); border-color: var(--border-color); }
+        body.dark-mode .btn-tool { color: var(--text-main); }
+        body.dark-mode .btn-nav { color: #94a3b8; border-color: var(--border-color); }
+        body.dark-mode .dropdown-menu { background: var(--bg-panel); border-color: var(--border-color); }
+        body.dark-mode .dropdown-menu button { color: var(--text-main); }
+        body.dark-mode .recent-item { background: #1e293b; border-color: #334155; }
+        body.dark-mode #sub_toolbar { background: var(--bg-panel); border-color: var(--border-color); }
+        body.dark-mode .setting-group label { color: #60a5fa; }
+        body.dark-mode input, body.dark-mode select { background: #0f172a; color: var(--text-main); border-color: var(--border-color); }
+        /* 而ㅼ뒪? 踰꾪듉 洹몃９ */
+        .custom-select-group { display: flex; flex-wrap: wrap; gap: 3px; }
+        .custom-select-group button { padding: 3px 8px; border: 1px solid var(--border-color); background: #f8fafc; border-radius: 4px; cursor: pointer; font-size: 11px; color: var(--text-main); transition: 0.15s; white-space: nowrap; }
+        .custom-select-group button:hover { background: #e0f2fe; border-color: var(--accent-blue); }
+        .custom-select-group button.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
 
-        // Chromium/Fabric.js textBaseline 버그 패치 ('alphabetical' -> 'alphabetic')
+        body, html { margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; display: flex; height: 100vh; width: 100vw; background-color: #d1d5db; overflow: hidden; user-select: none; }
+        input, select, textarea { user-select: auto; }
+
+        /* ?곷떒 ?대컮 */
+        #toolbar { position: fixed; top: 0; left: 0; width: calc(100vw - var(--sidebar-width)); height: 60px; background: white; padding: 0 15px; border-radius: 0; display: flex; align-items: center; justify-content: flex-start; gap: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 2000; border-bottom: 1px solid var(--border-color); cursor: default; box-sizing: border-box; }
+        .tool-group { display: flex; align-items: center; gap: 4px; padding: 0 8px; border-right: 1px solid var(--border-color); position: relative; }
+        .tool-group:last-child { border-right: none; }
+        .btn-tool { display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); gap: 2px; min-width: 55px; height: 50px; padding: 2px 6px; white-space: nowrap; transition: 0.2s; }
+        .btn-tool .icon { font-size: 22px; display: flex; align-items: center; justify-content: center; height: 24px; pointer-events: none; }
+        .btn-tool:hover:not(.disabled) { background-color: #f1f5f9; color: var(--accent-blue); }
+        .btn-tool.red:hover:not(.disabled) { color: var(--accent-red); }
+        .btn-tool.active { background-color: #e0f2fe; color: var(--accent-blue); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        .btn-tool.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(100%); pointer-events: none; }
+
+        /* ?쒕∼?ㅼ슫 硫붾돱 */
+        .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-radius: 10px; border: 1px solid var(--border-color); padding: 8px 0; z-index: 2001; min-width: 110px; }
+        .dropdown-menu button { display: block; width: 100%; padding: 6px 15px; background: none; border: none; text-align: left; cursor: pointer; font-size: 12px; color: var(--text-main); transition: 0.2s; }
+        .dropdown-menu button:hover { background: #f1f5f9; color: var(--accent-blue); font-weight: bold; }
+
+        /* ?쒕툕 ?대컮 */
+        #sub_toolbar { position: fixed; background: white; padding: 8px 15px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); z-index: 1999; border: 1px solid var(--border-color); display: none; }
+        .sub-panel { display: none; align-items: center; gap: 8px; font-size: 12px; }
+        .sub-panel.active { display: flex; }
+        .color-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #cbd5e1; cursor: pointer; display: inline-block; vertical-align: middle; }
+        .btn-text-style { padding: 2px 6px; background: white; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-family: serif; font-size: 13px; }
+        .btn-text-style.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+
+        /* 紐⑤떖 諛??앹뾽 怨듯넻 */
+        .modal { display: none; position: fixed; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: 4000; border: 1px solid var(--border-color); min-width: 320px; max-height: 80vh; overflow-y: auto; }
+        .modal-header { font-size: 16px; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; cursor: move; }
+        .modal-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--accent-red); }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 3999; }
+
+        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.9); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: bold; z-index: 5000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        #floating_tooltip { display: none; position: fixed; background: rgba(15, 23, 42, 0.85); color: white; padding: 6px 12px; border-radius: 20px; font-size: 11px; z-index: 9999; pointer-events: none; transform: translate(15px, 15px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        /* 35?됱긽 ?붾젅??*/
+        #color_palette { position: fixed; background: white; padding: 8px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border: 1px solid var(--border-color); display: none; grid-template-columns: repeat(7, 1fr); gap: 5px; z-index: 4001; }
+        .palette-cell { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #e2e8f0; cursor: pointer; position: relative; }
+        .palette-cell:hover { transform: scale(1.2); }
+        .palette-cell[data-name]:hover::after { content: attr(data-name); position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); color: white; font-weight: bold; padding: 4px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; pointer-events: none; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+
+        /* 罹≪쿂/?먮Ⅴ湲??ㅻ쾭?덉씠 */
+        #capture_overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.0); z-index: 1500; cursor: crosshair; pointer-events: none; }
+        .guide-line-x { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.8); border-top: 1px dashed rgba(0,0,0,0.5); pointer-events: none; z-index: 1501; }
+        .guide-line-y { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.8); border-left: 1px dashed rgba(0,0,0,0.5); pointer-events: none; z-index: 1501; }
+        #selection_box { position: absolute; border: 1px dashed white; background: rgba(59, 130, 246, 0.2); display: none; pointer-events: none; z-index: 1502; }
+
+        /* ?묒뾽 ?곸뿭 */
+        /* QWebEngine compositor瑜??곸떆 ?쒖꽦 ?곹깭濡??좎??섎뒗 誘몄꽭 ?좊땲硫붿씠??(?덉씠?꾩썐 鍮꾩묠踰? */
+        @keyframes _keepCompositorAlive {
+            from { transform: translateZ(0); }
+            to   { transform: translateZ(0.1px); }
+        }
+        #workspace { position: absolute; top: 60px; left: 0; width: calc(100vw - var(--sidebar-width)); height: calc(100vh - 60px); overflow: hidden; cursor: grab; background-color: #d1d5db; animation: _keepCompositorAlive 2s infinite alternate; will-change: transform; }
+        #workspace:active { cursor: grabbing; }
+        
+        #canvas_container_wrapper { 
+            position: absolute; 
+            top: 50%; left: 50%; 
+            transform: translate(calc(-50% + var(--pan-x)), calc(-50% + var(--pan-y))) scale(var(--zoom));
+            transform-origin: center center; 
+        }
+        #canvas_container { background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: none; position: relative; overflow: hidden; will-change: transform; contain: layout style; }
+        /* Fabric.js媛 ?앹꽦?섎뒗 ?대? ?섑띁???믪씠 遺덉씪移섎줈 ?명븳 ?섎떒 源쒕묀??諛⑹? */
+        #canvas_container .canvas-container { display: block !important; line-height: 0; font-size: 0; }
+        
+        /* ?곗륫 ?ъ씠?쒕컮 */
+        #sidebar { 
+            position: fixed; top: 0; right: 0; bottom: 0; height: 100vh;
+            width: var(--sidebar-width); min-width: var(--sidebar-width); max-width: var(--sidebar-width); flex-shrink: 0;
+            background: var(--bg-panel); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 0 10px 15px 10px; margin: 0; z-index: 2500; box-shadow: -5px 0 15px rgba(0,0,0,0.05); box-sizing: border-box;
+        }
+        .logo-box { width: 100%; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; position: relative; }
+        .logo-box svg { width: 45px; height: 45px; z-index: 2; position: relative; }
+        .program-name { font-size: 14px; font-weight: 800; color: #1e293b; text-align: center; letter-spacing: -0.5px; }
+        .dev-name { font-size: 10px; color: #64748b; margin-top: 3px; text-align: center; }
+        .btn-nav { padding: 8px; background: none; border: 1px solid var(--border-color); text-align: center; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; border-radius: 8px; transition: 0.2s; margin-top: 6px; }
+        .btn-nav:hover { background: #f1f5f9; color: var(--accent-blue); border-color: var(--accent-blue); }
+        
+        .recent-section { flex: 1; display: flex; flex-direction: column; margin-top: 10px; min-height: 0; }
+        .recent-header { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 8px; }
+        .recent-title-row { display: flex; align-items: center; justify-content: space-between; width: 100%; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+        .recent-title { font-size: 12px; font-weight: bold; color: var(--accent-blue); }
+        .btn-sort { font-size: 10px; padding: 2px 4px; background: #f1f5f9; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; }
+        .recent-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 5px 4px; scroll-behavior: smooth; }
+        
+        .recent-item { position: relative; width: 100%; min-height: 85px; height: 85px; background: #f1f5f9; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer; background-size: contain; background-position: center; background-repeat: no-repeat; flex-shrink: 0; box-sizing: border-box; }
+        .recent-item.active { border-color: var(--accent-blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
+        .recent-num { position: absolute; top: -5px; left: -5px; width: 20px; height: 20px; background: var(--accent-blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; z-index: 5; border: 1.5px solid white; pointer-events: none; }
+        .btn-delete-thumb { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; background: rgba(0,0,0,0.6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; border: none; cursor: pointer; opacity: 0.7; }
+        .btn-delete-thumb:hover { opacity: 1; background: var(--accent-red); }
+
+        .custom-dialog-msg { font-size: 13px; color: #333; line-height: 1.6; margin-bottom: 20px; white-space: pre-wrap; text-align: center; }
+        .custom-dialog-btns { display: flex; justify-content: center; gap: 10px; }
+        .custom-dialog-btns button { padding: 8px 24px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; border: none; transition: 0.2s; }
+        .btn-dialog-cancel { background: #e2e8f0; color: #475569; }
+        .btn-dialog-cancel:hover { background: #cbd5e1; }
+        .btn-dialog-ok { background: var(--accent-blue); color: white; }
+        .btn-dialog-ok:hover { background: #2563eb; }
+
+        .setting-group { margin-bottom: 15px; font-size: 12px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
+        .setting-group label { display: block; font-weight: bold; margin-bottom: 8px; color: var(--accent-blue); }
+        .setting-group select, .setting-group input[type="text"] { flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; width: 100%; box-sizing: border-box; }
+        .setting-group input[type="number"] { padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+        
+        
+        /* ?덈궡 紐⑤떖 ?ㅽ???*/
+        .guide-content { font-size: 12px; color: #334155; line-height: 1.6; }
+        .guide-content h4 { color: var(--accent-blue); margin: 15px 0 5px 0; font-size: 13px; }
+        .guide-content ul { padding-left: 20px; margin: 0; }
+
+        /* ?섏젙 紐⑤떖 ???덉씠?꾩썐 蹂닿컯 */
+        .edit-modal-form .row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .edit-modal-form span { font-weight: bold; font-size: 13px; white-space: nowrap; }
+        .edit-modal-form input[type="number"], .edit-modal-form input[type="text"] { padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; }
+
+        /* 吏?곌컻 ?꾩슜 而ㅼ뒪? 洹몃옒??而ㅼ꽌 */
+        #custom_eraser_cursor {
+            display: none; position: fixed; pointer-events: none; z-index: 9999; left: 0; top: 0;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>");
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+            transition: width 0.15s ease-out, height 0.15s ease-out;
+            transform: translate(-50%, -50%);
+            will-change: transform;
+        }
+
+        /* ?먮Ⅴ湲???蹂 議곗젅 ?ㅻ쾭?덉씠 */
+        #crop_edge_overlay {
+            display: none; position: absolute; top: 0; left: 0;
+            pointer-events: none; z-index: 200; box-sizing: border-box;
+        }
+        .crop-mask { position: absolute; background: rgba(0,0,0,0.45); pointer-events: none; }
+        .crop-edge-line {
+            position: absolute; background: #3b82f6; pointer-events: all;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+        }
+        .crop-edge-line.h { height: 4px; left: 0; right: 0; cursor: ns-resize; }
+        .crop-edge-line.v { width: 4px; top: 0; bottom: 0; cursor: ew-resize; }
+        .crop-corner {
+            position: absolute; width: 12px; height: 12px;
+            background: white; border: 2px solid #3b82f6; border-radius: 2px;
+            pointer-events: none;
+        }
+    
+        
+        .pin-icon { position: absolute; top: 2px; right: 2px; font-size: 10px; cursor: pointer; opacity: 0.3; transition: all 0.2s; pointer-events: auto; }
+        .pin-icon.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 2px rgba(0,0,0,0.5); }
+</style>
+</head>
+<body>
+
+    <div id="toast">?뚮┝</div>
+    <div id="floating_tooltip">?붾툝?대┃?섍굅??ESC瑜??꾨Ⅴ硫?醫낅즺?⑸땲??</div>
+    <div id="custom_eraser_cursor"></div>
+    
+    <div id="capture_overlay">
+        <div class="guide-line-x" id="guide_x"></div><div class="guide-line-y" id="guide_y"></div>
+        <div id="selection_box"></div>
+    </div>
+
+    <input type="file" id="file_open_input" accept=".json" style="display: none;">
+
+    <div id="toolbar">
+        <div class="tool-group" id="grp_capture">
+            <button class="btn-tool" id="btn_new_capture"><span class="icon">?벝</span>?덉벙泥?/button>
+            <div class="dropdown-menu" id="dropdown_capture">
+                <button data-mode="manual">吏곸젒吏??/button><button data-mode="window">李?/button><button data-mode="unit">?⑥쐞?곸뿭</button>
+                <button data-mode="full">?꾩껜?붾㈃</button>
+                <button data-mode="scroll">?ㅽ겕濡?/button><button data-mode="size">?ш린吏??/button>
+            </div>
+        </div>
+        <div class="tool-group">
+            <button class="btn-tool disabled" id="btn_undo"><span class="icon">?⑼툘</span>?ㅻ줈</button>
+            <button class="btn-tool disabled" id="btn_redo"><span class="icon">?わ툘</span>?욎쑝濡?/button>
+        </div>
+        <div class="tool-group">
+            <button class="btn-tool group-edit disabled" id="btn_tool_text"><span class="icon">Abc</span>?띿뒪??span class="pin-icon" title="怨좎젙?섍린">?뱦</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_pen"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12c3-8 9-8 12 0s9 8 9 0"/></svg></span>??span class="pin-icon" title="怨좎젙?섍린">?뱦</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_shape"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="3" style="vertical-align: middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>?꾪삎<span class="pin-icon" title="怨좎젙?섍린">?뱦</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_emoji"><span class="icon">??</span>?대え?곗퐯<span class="pin-icon" title="怨좎젙?섍린">?뱦</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_image"><span class="icon">?뼹截?/span>?대?吏<span class="pin-icon" title="怨좎젙?섍린">?뱦</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_mosaic"><span class="icon">?뮛</span>紐⑥옄?댄겕<span class="pin-icon" title="怨좎젙?섍린">?뱦</span></button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_eraser">
+                <span class="icon"><img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>" width="22" height="22"></span>吏?곌컻
+            </button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_crop"><span class="icon">?귨툘</span>?먮Ⅴ湲?/button>
+        </div>
+        <div class="tool-group">
+            <button id="btn_add_text_to_shape" style="display:none;"></button>
+            <button class="btn-tool disabled" id="btn_action_copy"><span class="icon">?뱥</span>蹂듭궗</button>
+            <button class="btn-tool" id="btn_action_open" title="JSON?뚯씪???댁뼱???묒뾽??怨꾩냽?????덉뒿?덈떎."><span class="icon">?뱛</span>?닿린</button>
+            <div id="grp_save" style="position:relative;">
+                <button class="btn-tool disabled" id="btn_action_save"><span class="icon">?뮶</span>???/button>
+                <div class="dropdown-menu" id="dropdown_save" style="min-width:110px;">
+                    <button data-format="png">PNG ???/button>
+                    <button data-format="jpg">JPG ???/button>
+                    <button data-format="svg">SVG ???/button>
+                    <button data-format="pdf">PDF ???/button>
+                    <button data-format="json">JSON ???/button>
+                </div>
+            </div>
+            <button class="btn-tool disabled" id="btn_action_print"><span class="icon">?뼥截?/span>?몄뇙</button>
+        </div>
+        <div class="tool-group">
+            <button class="btn-tool red" id="btn_action_close"><span class="icon">??/span>?リ린</button>
+        </div>
+    </div>
+
+    <div id="sub_toolbar">
+        <div id="panel_shape" class="sub-panel">
+            <div class="custom-select-group" id="shape_type_group">
+                <button class="active" data-val="rect">吏곸궗媛곹삎</button>
+                <button data-val="rhombus">留덈쫫紐?/button>
+                <button data-val="ellipse">???/button>
+                <button data-val="line">?좊텇</button>
+                <button data-val="arrow">?붿궡??/button>
+            </div>
+            <input type="hidden" id="shape_type" value="rect">
+            <div id="shape_options_container" style="display: flex; gap: 8px; align-items: center; margin: 0 5px; padding: 0 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc;"></div>
+            
+            <span>?좉도湲?</span><input type="number" id="shape_weight" value="3" min="1" style="width: 40px; padding: 4px;">
+            <span>??</span><div id="btn_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
+            <span id="label_fill_color">諛곌꼍:</span><div id="btn_fill_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+        </div>
+        <div id="panel_text" class="sub-panel">
+            <span>?ш린:</span><input type="number" id="text_size_input" value="50" min="10" style="width: 40px; padding: 4px;">
+            <button id="btn_txt_b" class="btn-text-style" style="font-weight: bold; margin-left:8px;">B</button>
+            <button id="btn_txt_i" class="btn-text-style" style="font-style: italic;">I</button>
+            <button id="btn_txt_u" class="btn-text-style" style="text-decoration: underline;">U</button>
+            <div class="custom-select-group btn-group" id="text_align_group" style="margin-left: 8px;">
+                <button class="btn-align active" data-val="left" data-align="left" title="?쇱そ 留욎땄"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <button class="btn-align" data-val="center" data-align="center" title="媛?대뜲 留욎땄"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <button class="btn-align" data-val="right" data-align="right" title="?ㅻⅨ履?留욎땄"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+            </div>
+            <input type="hidden" id="text_align" value="left">
+            <span style="margin-left:8px;">?됱긽:</span><div id="btn_text_color" class="color-btn" style="background-color: #E03C31;"></div>
+            <span>諛곌꼍:</span><div id="btn_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+        </div>
+        <div id="panel_pen" class="sub-panel">
+            <div class="custom-select-group" id="pen_type_group">
+                <button class="active" data-val="ballpoint">蹂쇳렂</button>
+                <button data-val="highlighter">?뺢킅??/button>
+            </div>
+            <input type="hidden" id="pen_type" value="ballpoint">
+            
+            <label style="margin-left:8px;"><input type="checkbox" id="pen_dashed"> ?먯꽑</label>
+            
+            <div style="display: flex; gap: 8px; margin-left: 8px; padding-left: 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding-right: 8px;">
+                <label><input type="radio" name="pen_mode" value="normal" checked> ?쇰컲</label>
+                <label><input type="radio" name="pen_mode" value="straight"> 以꾧툔湲?/label>
+            </div>
+            
+            <span style="margin-left:8px;">?좉도湲?</span><input type="number" id="pen_weight" value="3" min="1" style="width: 40px; padding: 4px;">
+            <span>?좎깋??</span><div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
+        </div>
+        <div id="panel_emoji" class="sub-panel">
+            <span style="color: var(--accent-blue); font-weight: bold;">?앹뾽?먯꽌 ?좏깮 ?? 罹붾쾭?ㅻ? ?쒕옒洹명븯?몄슂.</span>
+            <div id="emoji_preview" style="font-size: 20px; margin-left: 10px; cursor: pointer;">??</div>
+        </div>
+        <div id="panel_image" class="sub-panel">
+            <input type="file" id="image_upload" accept="image/png, image/jpeg, image/webp" style="font-size: 11px;">
+        </div>
+        <div id="panel_eraser" class="sub-panel"><button id="btn_clear_all" style="padding: 4px 10px; background: var(--accent-red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">?뿊截?媛쒖껜 紐⑤몢 吏?곌린</button></div>
+        <div id="panel_mosaic" class="sub-panel">
+            <span style="font-weight:bold;">紐⑥옄?댄겕 ?ш린:</span>
+            <input type="number" id="mosaic_intensity" min="1" max="20" value="5" style="width: 50px;">
+        </div>
+        <div id="panel_crop" class="sub-panel" style="gap:10px;">
+            <span style="color: var(--accent-blue); font-weight: bold;">?대?吏????蹂??議곗젅?섏뿬 ?먮? ???덉뒿?덈떎.</span>
+            <button id="btn_do_crop" disabled style="padding: 4px 12px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; opacity:0.4; transition:opacity 0.2s;">??紐⑥뼇?濡??먮Ⅴ湲?/button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="overlay"></div>
+
+    <!-- ?대?吏 ?쎌엯 ?앹뾽 紐⑤떖 -->
+    <div class="modal" id="modal_image_insert" style="width: 500px; max-width: 90vw;">
+        <div class="modal-header"><span>?뼹截??대?吏 ?곸뿭 ?좏깮</span><button class="modal-close" onclick="closeModals()">??/button></div>
+        <div class="setting-group" style="margin-bottom: 10px; border-bottom: none; padding-bottom: 0;">
+            <div class="custom-select-group" id="image_insert_frame_group" style="display: flex; gap: 5px;">
+                <button class="active btn-nav" data-val="rect" style="flex:1;">吏곸궗媛곹삎</button>
+                <button class="btn-nav" data-val="square" style="flex:1;">?뺤궗媛곹삎</button>
+                <button class="btn-nav" data-val="circle" style="flex:1;">??/button>
+                <button class="btn-nav" data-val="ellipse" style="flex:1;">???/button>
+            </div>
+            <input type="hidden" id="image_insert_frame" value="rect">
+        </div>
+        <div id="image_insert_preview_container" style="position: relative; width: 100%; height: 350px; background: #e2e8f0; overflow: hidden; border: 1px solid var(--border-color); border-radius: 4px; cursor: crosshair; display: flex; align-items: center; justify-content: center;">
+            <img id="image_insert_img" style="position: absolute; transform-origin: top left; pointer-events: none; display: none;">
+            <div id="image_insert_selection" style="position: absolute; border: 2px solid var(--accent-blue); background: rgba(59,130,246,0.2); display: none; pointer-events: none; z-index: 10;"></div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button id="btn_insert_original" style="flex: 1; padding: 12px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold;">?먮낯 ?쎌엯</button>
+            <button id="btn_confirm_image_insert" style="flex: 1; padding: 12px; background: var(--accent-blue); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold;">?좏깮?곸뿭 ?쎌엯</button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal_custom_dialog" style="min-width: 340px; z-index: 6000;">
+        <div class="modal-header"><span id="dialog_title">?뚮┝</span><button class="modal-close" onclick="closeDialog()">??/button></div>
+        <div id="dialog_msg" class="custom-dialog-msg">硫붿떆吏 ?댁슜</div>
+        <div class="custom-dialog-btns">
+            <button id="dialog_btn_ok" class="btn-dialog-ok">??/button>
+            <button id="dialog_btn_cancel" class="btn-dialog-cancel" style="display:none;">?꾨땲??/button>
+        </div>
+    </div>
+
+    <!-- 媛쒖껜 ?띿꽦 ?섏젙 李?-->
+    <div class="modal" id="modal_edit" style="min-width: 500px;">
+        <div class="modal-header"><span>媛쒖껜 ?띿꽦 ?섏젙</span><button class="modal-close" onclick="closeModals()">??/button></div>
+        <div class="edit-modal-form">
+            <!-- ?띿뒪???꾩슜 ??-->
+            <div id="form_edit_text" style="display:none;">
+                <div class="row">
+                    <input type="text" id="edit_text_content" style="flex:1; padding:8px;" placeholder="?띿뒪???댁슜">
+                </div>
+                <div class="row">
+                    <span>?ш린:</span> <input type="number" id="edit_text_size" style="width: 50px;">
+                    <button id="edit_btn_b" class="btn-text-style" style="font-weight: bold; margin-left:5px;">B</button>
+                    <button id="edit_btn_i" class="btn-text-style" style="font-style: italic;">I</button>
+                    <button id="edit_btn_u" class="btn-text-style" style="text-decoration: underline;">U</button>
+                    <div class="custom-select-group btn-group" id="edit_text_align_group" style="margin-left: 8px;">
+                        <button class="btn-align active" data-val="left" data-align="left" title="?쇱そ 留욎땄"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                        <button class="btn-align" data-val="center" data-align="center" title="媛?대뜲 留욎땄"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                        <button class="btn-align" data-val="right" data-align="right" title="?ㅻⅨ履?留욎땄"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                    </div>
+                    <input type="hidden" id="edit_text_align" value="left">
+                    <span style="margin-left:10px;">湲?먯깋:</span><div id="edit_text_color" class="color-btn" style="background-color: #000;"></div>
+                    <span style="margin-left:10px;">諛곌꼍??</span><div id="edit_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+                </div>
+            </div>
+
+            <!-- 吏곸궗媛곹삎/????꾩슜 ??-->
+            <div id="form_edit_shape" style="display:none;">
+                <div class="row">
+                    <span>?ш린:</span> <input type="number" id="edit_shape_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_shape_h" style="width: 60px;">
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_shape_lock_ratio"> 鍮꾩쑉?좎?</label>
+                </div>
+                <div class="row">
+                    <label style="font-size:12px; margin-right:5px;"><input type="checkbox" id="edit_shape_dashed"> ?먯꽑</label>
+                    <span>?좉도湲?</span> <input type="number" id="edit_shape_weight" style="width: 45px;">
+                    <span style="margin-left:10px;">?좎깋:</span><div id="edit_shape_stroke" class="color-btn" style="background-color: #000;"></div>
+                    <span style="margin-left:10px;">諛곌꼍??</span><div id="edit_shape_fill" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+                </div>
+                <div style="font-size:11px; color:#64748b; margin-top:5px;">* 諛곌꼍??吏????'?섍꼍?ㅼ젙'???щ챸?꾧? ?먮룞 ?곸슜?⑸땲??</div>
+            </div>
+
+            <!-- ?좊텇/?붿궡???꾩슜 ??-->
+            <div id="form_edit_line" style="display:none;">
+                <div class="row">
+                    <span>?ш린:</span> <input type="number" id="edit_line_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_line_h" style="width: 60px;">
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_line_lock_ratio"> 鍮꾩쑉?좎?</label>
+                </div>
+                <div class="row">
+                    <label style="font-size:12px; margin-right:5px;"><input type="checkbox" id="edit_line_dashed"> ?먯꽑</label>
+                    <span>?좉도湲?</span> <input type="number" id="edit_line_weight" style="width: 45px;">
+                    <span style="margin-left:10px;">?좎깋:</span><div id="edit_line_stroke" class="color-btn" style="background-color: #000;"></div>
+                    <span style="margin-left:10px;">諛곌꼍??</span><div id="edit_line_fill" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+                </div>
+                <div style="font-size:11px; color:#64748b; margin-top:5px;">* ?좎씠 ?먭끝?좎쓣 ?대０ 寃쎌슦 諛곌꼍???대? 梨꾩슦湲????곸슜?⑸땲??</div>
+            </div>
+
+            <!-- ?대え?곗퐯 ?꾩슜 ??-->
+            <div id="form_edit_emoji" style="display:none;">
+                <div class="row">
+                    <span>?ш린:</span> <input type="number" id="edit_emoji_size" style="width: 60px;">
+                </div>
+            </div>
+
+            <!-- ?대?吏 ?꾩슜 ??-->
+            <div id="form_edit_image" style="display:none;">
+                <div class="row">
+                    <span>?ш린:</span> <input type="number" id="edit_image_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_image_h" style="width: 60px;">
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_image_lock_ratio"> 媛濡쒖꽭濡?鍮꾩쑉 ?좎?</label>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="applyObjectEdit()" style="margin-top: 20px; width: 100%; padding: 10px; background: var(--accent-blue); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">?곸슜?섍린</button>
+    </div>
+
+    <!-- ??諛곌꼍 ?대?吏 紐⑤떖 UI -->
+    <div class="modal" id="modal_new_bg" style="width: 330px;">
+        <div class="modal-header"><span>??諛곌꼍 ?대?吏</span><button class="modal-close" onclick="closeModals()">??/button></div>
+        <div class="setting-group">
+            <label>諛곌꼍 ?ш린</label>
+            <div class="custom-select-group" id="new_bg_size_group">
+                <button class="active" data-val="1123x794">A4 媛濡?/button>
+                <button data-val="794x1123">A4 ?몃줈</button>
+                <button data-val="1587x1123">A3 媛濡?/button>
+                <button data-val="1123x1587">A3 ?몃줈</button>
+            </div>
+            <input type="hidden" id="new_bg_size" value="1123x794">
+        </div>
+        <div class="setting-group">
+            <label>諛곌꼍 ?됱긽 諛??띾룄</label>
+            <div class="row" style="margin-top: 8px;">
+                <span>?됱긽:</span>
+                <div id="new_bg_color" class="color-btn" style="background-color: #FFFFFF; width: 25px; height: 25px;"></div>
+                <span style="margin-left:15px;">?됱긽 ?띾룄(0~100%):</span>
+                <input type="number" id="new_bg_intensity" min="0" max="100" value="10" style="width:50px;">
+            </div>
+        </div>
+        <button onclick="createNewBackground()" style="width: 100%; padding: 10px; background: var(--accent-blue); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">?앹꽦?섍린</button>
+    </div>
+
+    <!-- ?섍꼍?ㅼ젙 紐⑤떖 -->
+    <div class="modal" id="modal_settings" style="width: 500px; max-height: 80vh; overflow-y: auto;">
+        <div class="modal-header"><span>?숋툘 ?섍꼍?ㅼ젙</span><button class="modal-close" onclick="closeModals()">??/button></div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">蹂닿린 ?ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div class="custom-select-group" id="set_theme_group">
+                <button data-val="light">?쇱씠??/button>
+                <button data-val="dark">?ㅽ겕</button>
+                <button class="active" data-val="system">?쒖뒪??/button>
+            </div>
+            <input type="hidden" id="set_theme" value="system">
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">罹≪쿂 ?ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center;">
+                <span style="width: 120px; font-weight: 600;">?ш린吏???ш린:</span>
+                <input type="number" id="set_cap_w" value="800" min="100" style="width: 60px;"> <span style="margin: 0 5px;">x</span> <input type="number" id="set_cap_h" value="600" min="100" style="width: 60px;">
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">罹≪쿂 ?붿쭏 ?ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div class="custom-select-group" id="set_cap_quality_group">
+                <button class="active" data-val="normal">?쇰컲 ?붿쭏</button>
+                <button data-val="high">怨좏솕吏?/button>
+            </div>
+            <input type="hidden" id="set_cap_quality" value="normal">
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">?띿뒪???ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                <span>?띿뒪???ш린:</span> <input type="number" id="set_txt_size" value="50" min="8" max="100" style="width:55px;">
+                <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_b_chk"> B(援듦쾶)</label>
+                <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_i_chk"> I(湲곗슱??</label>
+                <label style="display:inline; margin-bottom:0;"><input type="checkbox" id="set_txt_u_chk"> U(諛묒쨪)</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>湲???됱긽:</span> <div id="set_txt_color" class="color-btn" style="background-color: #E03C31;"></div>
+                <span style="margin-left:5px;">?낅젰李?諛곌꼍??</span> <div id="set_txt_bg_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+                <span style="margin-left:3px;">?낅젰李??щ챸??</span> <input type="number" id="set_txt_bg_opacity" value="50" min="0" max="100" style="width:45px;">
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">???ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span>蹂쇳렂 ??援듦린:</span> <input type="number" id="set_pen_ballpoint_weight" value="3" min="1" max="50" style="width:50px;">
+                <span>蹂쇳렂 ?됱긽:</span> <div id="set_pen_ballpoint_color" class="color-btn" style="background-color: #E03C31;"></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>?뺢킅????援듦린:</span> <input type="number" id="set_pen_highlighter_weight" value="20" min="1" max="100" style="width:50px;">
+                <span>?뺢킅???됱긽:</span> <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.3);"></div>
+                <span style="margin-left:3px;">?뺢킅???됱긽 ?띾룄:</span> <input type="number" id="set_pen_highlighter_opacity" value="30" min="0" max="100" style="width:45px;">
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">?꾪삎 ?ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span>??援듦린:</span> <input type="number" id="set_shape_weight" value="3" min="1" max="50" style="width:50px;">
+                <span>???됱긽:</span> <div id="set_shape_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span>諛곌꼍 ?됱긽:</span> <div id="set_shape_fill_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+                <span>諛곌꼍 ?щ챸??</span> <input type="number" id="set_shape_opacity_val" value="20" min="0" max="100" style="width:50px;">
+            </div>
+            <div style="margin-bottom: 8px;">
+                <span style="display:block; margin-bottom:4px; font-weight:600;">?붿궡????紐⑥뼇:</span>
+                <div class="custom-select-group" id="set_arrow_type_group">
+                    <button class="active" data-val="triangle">?쇨컖??/button><button data-val="stealth">?ㅽ뀛??/button><button data-val="open">?ㅽ뵂</button>
+                </div>
+                <input type="hidden" id="set_arrow_type" value="triangle">
+            </div>
+            <div>
+                <span style="display:block; margin-bottom:4px; font-weight:600;">?붿궡?????ш린:</span>
+                <div class="custom-select-group" id="set_arrow_size_group">
+                    <button data-val="xs">?꾩＜ ?묎쾶</button><button data-val="s">?묎쾶</button><button class="active" data-val="m">蹂댄넻</button><button data-val="l">?ш쾶</button><button data-val="xl">?꾩＜ ?ш쾶</button>
+                </div>
+                <input type="hidden" id="set_arrow_size" value="m">
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">?대え?곗퐯 ?ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight:600;">?ъ슜???뺤쓽 ?대え?곗퐯 ?대뜑 (理쒕? 5媛?:</span>
+                <button onclick="addEmojiFolder()" style="padding: 3px 8px; font-size: 11px; cursor: pointer;">+ ?대뜑 異붽?</button>
+            </div>
+            <div id="emoji_folder_list" style="display: flex; flex-direction: column; gap: 5px;">
+                <!-- ?대뜑 ??ぉ?ㅼ씠 ?숈쟻?쇰줈 異붽???-->
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">吏?곌컻 諛??④낵 ?ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="margin-bottom:8px;">
+                <span>吏?곌컻 鍮꾨???</span> <input type="number" id="set_eraser_fat" value="1.5" min="1.0" max="2.0" step="0.1" style="width:60px;">
+            </div>
+            <div>
+                <span>紐⑥옄?댄겕 釉붾줉 ?ш린:</span> <input type="number" id="set_mosaic_px" value="5" min="1" max="20" style="width:60px;">
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">?쒖뒪??諛?????ㅼ젙</div>
+        <div class="setting-group" style="margin-bottom: 12px; border-bottom: none; padding-bottom: 0; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <span>?대?吏 ????щ㎎:</span>
+                <div class="custom-select-group" id="setting_save_format_group"><button class="active" data-val="png">PNG</button><button data-val="jpg">JPG</button><button data-val="pdf">PDF</button><button data-val="json">JSON</button></div>
+                <input type="hidden" id="setting_save_format" value="png">
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>理쒓렐 紐⑸줉 理쒕?:</span> <input type="number" id="set_recent_max" value="100" min="10" max="200" style="width: 50px;">
+                <span>理쒕? 媛쒖닔 ?꾨떖??</span>
+                <div class="custom-select-group" id="set_recent_max_action_group"><button class="active" data-val="alert">?뚮┝</button><button data-val="auto_delete">?ㅻ옒???쒖꽌 ?먮룞 ??젣</button></div>
+                <input type="hidden" id="set_recent_max_action" value="alert">
+            </div>
+        </div>
+
+
+        <div style="font-size:11px; color:#64748b; margin-top:10px; line-height: 1.5; text-align: center;">
+            * ?섍꼍?ㅼ젙? '?곸슜' 踰꾪듉???꾨Ⅴ??利됱떆 諛섏쁺?⑸땲??
+        </div>
+        <button style="width: 100%; padding: 12px; background: var(--accent-blue); color: white; border: none; border-radius: 6px; cursor: pointer; font-size:13px; font-weight:bold; margin-top:15px;" onclick="applySettings(); closeModals();">?곸슜 諛???ν븯湲?/button>
+    </div>
+
+    <!-- ?덈궡 紐⑤떖 -->
+    <div class="modal" id="modal_guide" style="width: 500px;">
+        <div class="modal-header"><span>?뱰 ?꾨줈洹몃옩 ?ъ슜踰?/span><button class="modal-close" onclick="closeModals()">??/button></div>
+        <div class="guide-content">
+            <!-- guide.html ?뚯씪?먯꽌 ?댁슜??遺덈윭?듬땲??-->
+        </div>
+    </div>
+
+    <div id="emoji_popup" style="display: none; position: fixed; top: 120px; left: 50%; transform: translateX(-50%); z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 10px; background: white;"><emoji-picker id="ep_main"></emoji-picker></div>
+    <div id="toast_emoji_notice" style="position:fixed; top:20px; right:20px; background:rgba(0,0,0,0.8); color:white; padding:12px 20px; border-radius:8px; font-size:13px; z-index:9999; display:none; opacity:0; transition:opacity 0.3s; font-weight:bold;">
+        ?섍꼍?ㅼ젙?먯꽌 ?섎쭔???대え?곗퐯??異붽?濡?吏?뺥븷 ???덉뒿?덈떎.
+    </div>
+    <div id="color_palette"></div>
+
+    <div id="workspace">
+        <div id="canvas_container_wrapper" style="--pan-x: 0px; --pan-y: 0px; --zoom: 1;">
+            <div id="canvas_container"><canvas id="mainCanvas"></canvas></div>
+            <!-- ?먮Ⅴ湲???蹂 議곗젅 ?ㅻ쾭?덉씠 -->
+            <div id="crop_edge_overlay">
+                <div class="crop-mask" id="crop_mask_top"></div>
+                <div class="crop-mask" id="crop_mask_bottom"></div>
+                <div class="crop-mask" id="crop_mask_left"></div>
+                <div class="crop-mask" id="crop_mask_right"></div>
+                <div class="crop-edge-line h" id="crop_line_top"></div>
+                <div class="crop-edge-line h" id="crop_line_bottom"></div>
+                <div class="crop-edge-line v" id="crop_line_left"></div>
+                <div class="crop-edge-line v" id="crop_line_right"></div>
+                <div class="crop-corner" id="crop_corner_tl"></div>
+                <div class="crop-corner" id="crop_corner_tr"></div>
+                <div class="crop-corner" id="crop_corner_bl"></div>
+                <div class="crop-corner" id="crop_corner_br"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="recent-section" id="sidebar">
+        <div class="logo-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </div>
+        <div class="program-name">Capcraft v1.2</div><div class="dev-name" style="margin-bottom: 10px;">媛쒕컻: JBH</div>
+        
+        <button class="btn-nav" onclick="openGuide()">?ъ슜踰?/button>
+        <button class="btn-nav" onclick="openModal('modal_settings')">?섍꼍?ㅼ젙</button>
+        
+        <button id="btn_open_new_bg" style="width:100%; margin-top: 15px; font-size:12px; font-weight: bold; padding:8px 0; background:#fff; color:var(--accent-blue); border:1px solid var(--accent-blue); border-radius:6px; cursor:pointer; transition: 0.2s;">+ ??諛곌꼍 ?대?吏</button>
+        
+        <div class="recent-section">
+            <div class="recent-header">
+                <div class="recent-title-row">
+                    <div class="recent-title">理쒓렐 紐⑸줉</div>
+                    <button class="btn-sort" id="btn_recent_sort" data-order="desc">理쒖떊??/button>
+                </div>
+            </div>
+            <div class="recent-list" id="recent_list_container"></div>
+        </div>
+    </div>
+
+    <div id="canvas_context_menu"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <script>
+        // Chromium/Fabric.js textBaseline 踰꾧렇 ?⑥튂 ('alphabetical' -> 'alphabetic')
         const originalTextBaseline = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'textBaseline');
         if (originalTextBaseline) {
             Object.defineProperty(CanvasRenderingContext2D.prototype, 'textBaseline', {
@@ -11,21 +656,21 @@
             });
         }
         
-        // (이모티콘 패치는 개체 생성 시 fabric.Image로 변환하는 방식으로 대체됨)
+        // (?대え?곗퐯 ?⑥튂??媛쒖껜 ?앹꽦 ??fabric.Image濡?蹂?섑븯??諛⑹떇?쇰줈 ?泥대맖)
         
-        // 상태 관리 및 Undo/Redo 관련 변수 최우선 선언 (참조 오류 방지)
+        // ?곹깭 愿由?諛?Undo/Redo 愿??蹂??理쒖슦???좎뼵 (李몄“ ?ㅻ쪟 諛⑹?)
         let stateHistory = [];
         let historyIndex = -1;
         let isHistoryAction = false;
         let recentList = [];
 
-        // 커스텀 속성 직렬화 (Undo/Redo 및 JSON 로드 시 속성 손실 방지)
+        // 而ㅼ뒪? ?띿꽦 吏곷젹??(Undo/Redo 諛?JSON 濡쒕뱶 ???띿꽦 ?먯떎 諛⑹?)
         const originalToObject = fabric.Object.prototype.toObject;
         fabric.Object.prototype.toObject = function(additionalProperties) {
             return originalToObject.call(this, ['isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize'].concat(additionalProperties || []));
         };
 
-        // 한글(IME) 입력 시 커서 위치 보정
+        // ?쒓?(IME) ?낅젰 ??而ㅼ꽌 ?꾩튂 蹂댁젙
         const _originalRenderCursor = fabric.IText.prototype.renderCursor;
         fabric.IText.prototype.renderCursor = function(boundaries, ctx) {
             let offset = 0;
@@ -41,22 +686,21 @@
             boundaries.left = origLeft;
         };
 
-        // 글로벌 스크롤 방어
+        // 湲濡쒕쾶 ?ㅽ겕濡?諛⑹뼱
         window.addEventListener('scroll', () => { window.scrollTo(0, 0); });
         document.getElementById('workspace').addEventListener('scroll', function() { this.scrollLeft = 0; this.scrollTop = 0; });
 
         window.sysMosaicPx = 5;
 
-        // 선택 개체 컨트롤 커스터마이징
+        // ?좏깮 媛쒖껜 而⑦듃濡?而ㅼ뒪?곕쭏?댁쭠
         function initCustomControls() {
             const controls = fabric.Object.prototype.controls;
             
-            // 모든 개체에 대해 strokeUniform 설정 (크기 조절 시 선 굵기 유지)
+            // 紐⑤뱺 媛쒖껜?????strokeUniform ?ㅼ젙 (?ш린 議곗젅 ????援듦린 ?좎?)
             fabric.Object.prototype.strokeUniform = true;
             fabric.Object.prototype.noScaleCache = false;
             
-            // 기본 컨트롤 숨기기
-            fabric.Object.prototype.set({
+            // 湲곕낯 而⑦듃濡??④린湲?            fabric.Object.prototype.set({
                 centeredRotation: false,
                 transparentCorners: false,
                 cornerColor: '#3b82f6',
@@ -68,7 +712,7 @@
                 borderDashArray: [3, 3]
             });
 
-            // 화살표 커서 설정 (resize/move)
+            // ?붿궡??而ㅼ꽌 ?ㅼ젙 (resize/move)
             controls.ml.cursorStyle = 'ew-resize';
             controls.mr.cursorStyle = 'ew-resize';
             controls.mt.cursorStyle = 'ns-resize';
@@ -80,18 +724,18 @@
             controls.tr.cursorStyleHandler = function() { return rotateCursorUrl; };
             controls.bl.cursorStyle = 'nesw-resize';
             controls.br.cursorStyle = 'nwse-resize';
-            // 이동 커서
+            // ?대룞 而ㅼ꽌
             fabric.Object.prototype.moveCursor = 'move';
             fabric.Object.prototype.hoverCursor = 'move';
             fabric.IText.prototype.hoverCursor = 'text';
             fabric.Textbox.prototype.hoverCursor = 'text';
 
-            // 회전 핸들 숨김 (mtr은 사용 안 함)
+            // ?뚯쟾 ?몃뱾 ?④? (mtr? ?ъ슜 ????
             if (controls.mtr) controls.mtr.visible = false;
 
-            // 커서는 기본 Fabric.js 동작 사용 (Fabric 5.x 호환)
+            // 而ㅼ꽌??湲곕낯 Fabric.js ?숈옉 ?ъ슜 (Fabric 5.x ?명솚)
 
-            // 이미지 개체에 대한 특별 처리 (변 드래그 시 자르기, 꼭짓점 드래그 시 크기 조절)
+            // ?대?吏 媛쒖껜??????밸퀎 泥섎━ (蹂 ?쒕옒洹????먮Ⅴ湲? 瑗?쭞???쒕옒洹????ш린 議곗젅)
             function cropX(eventData, transform, x, y) {
                 const target = transform.target;
                 if (!target.isMediaImage && target.type !== 'image') {
@@ -108,7 +752,7 @@
                 if (transform.corner === 'ml') {
                     const diff = oldWidth - newWidth;
                     target.cropX += diff;
-                    target.left += diff * target.scaleX; // 위치 보정
+                    target.left += diff * target.scaleX; // ?꾩튂 蹂댁젙
                 }
                 target.width = newWidth;
                 return true;
@@ -130,7 +774,7 @@
                 if (transform.corner === 'mt') {
                     const diff = oldHeight - newHeight;
                     target.cropY += diff;
-                    target.top += diff * target.scaleY; // 위치 보정
+                    target.top += diff * target.scaleY; // ?꾩튂 蹂댁젙
                 }
                 target.height = newHeight;
                 return true;
@@ -141,8 +785,7 @@
             controls.mt.actionHandler = cropY;
             controls.mb.actionHandler = cropY;
 
-            // 크기 조절과 회전을 동시에 처리하는 핸들러
-            function scaleAndRotate(eventData, transform, x, y) {
+            // ?ш린 議곗젅怨??뚯쟾???숈떆??泥섎━?섎뒗 ?몃뱾??            function scaleAndRotate(eventData, transform, x, y) {
                 const target = transform.target;
                 
                 if (transform.fixedPivot === undefined) {
@@ -179,7 +822,7 @@
                 
                 target.setPositionByOrigin(pivot, 'left', 'top');
                 
-                // 툴팁 표시
+                // ?댄똻 ?쒖떆
                 let floating = document.getElementById('floating_angle_tooltip');
                 if (!floating) {
                     floating = document.createElement('div');
@@ -201,12 +844,12 @@
                 
                 let displayAngle = Math.round(newAngle) % 360;
                 if (displayAngle < 0) displayAngle += 360;
-                floating.innerText = displayAngle + '°';
+                floating.innerText = displayAngle + '째';
                 
                 return true;
             }
 
-            // 모서리 컨트롤 핸들러 변경 (우측 상단은 회전 전용)
+            // 紐⑥꽌由?而⑦듃濡??몃뱾??蹂寃?(?곗륫 ?곷떒? ?뚯쟾 ?꾩슜)
             controls.tl.actionHandler = fabric.controlsUtils.scalingEqually;
             controls.bl.actionHandler = fabric.controlsUtils.scalingEqually;
             controls.br.actionHandler = fabric.controlsUtils.scalingEqually;
@@ -228,7 +871,7 @@
             };
             controls.tr.cornerSize = 18;
 
-            // 좌우 반전 / 상하 반전 버튼 (플립) 추가
+            // 醫뚯슦 諛섏쟾 / ?곹븯 諛섏쟾 踰꾪듉 (?뚮┰) 異붽?
             const flipXIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><line x1='12' y1='5' x2='12' y2='19' stroke='%233b82f6' stroke-width='1.5'/><polygon points='10,12 5,8 5,16' fill='%233b82f6'/><polygon points='14,12 19,8 19,16' fill='%233b82f6'/></svg>";
             const flipYIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><line x1='5' y1='12' x2='19' y2='12' stroke='%233b82f6' stroke-width='1.5'/><polygon points='12,10 8,5 16,5' fill='%233b82f6'/><polygon points='12,14 8,19 16,19' fill='%233b82f6'/></svg>";
 
@@ -381,7 +1024,7 @@
                 sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
 
-            // Textbox 전용 컨트롤 오버라이드 (텍스트 크기 변동 방지, 너비만 조절)
+            // Textbox ?꾩슜 而⑦듃濡??ㅻ쾭?쇱씠??(?띿뒪???ш린 蹂€??諛⑹?, ?덈퉬留?議곗젅)
             fabric.Textbox.prototype.controls = fabric.util.object.clone(controls);
             fabric.Textbox.prototype.controls.ml.actionHandler = fabric.controlsUtils.changeWidth;
             fabric.Textbox.prototype.controls.mr.actionHandler = fabric.controlsUtils.changeWidth;
@@ -401,8 +1044,7 @@
 
 
 
-        const canvas = new fabric.Canvas('mainCanvas', {
-            uniformScaling: true, 
+        const canvas = new fabric.Canvas('mainCanvas', { 
             width: 800, height: 600, selection: true, 
             imageSmoothingEnabled: false,
             perPixelTargetFind: false,
@@ -411,7 +1053,7 @@
             enableRetinaScaling: false
         });
 
-        // 엣지 글로우 토글 핸들러 (선택 시 파란 테두리 및 컨트롤 표시)
+        // ?ｌ? 湲濡쒖슦 ?좉? ?몃뱾??(?좏깮 ???뚮? ?뚮몢由?諛?而⑦듃濡??쒖떆)
         function toggleEdgeGlow(e, isActive) {
             const objs = e.selected || e.deselected || [];
             objs.forEach(obj => {
@@ -422,18 +1064,17 @@
                     borderScaleFactor: 2
                 });
                 
-                // 이미지 개체의 경우 변(Side) 컨트롤 활성화
-                if(obj.isMediaImage) {
+                // ?대?吏 媛쒖껜??寃쎌슦 蹂(Side) 而⑦듃濡??쒖꽦??                if(obj.isMediaImage) {
                     obj.setControlsVisibility({
                         tl: true, tr: true, br: true, bl: true,
                         ml: true, mt: true, mr: true, mb: true,
-                        mtr: false, flipX: true, flipY: true, sendBack: true, bringFront: true
+                        mtr: false, flipX: true, flipY: true
                     });
                 } else {
                     obj.setControlsVisibility({
                         tl: true, tr: true, br: true, bl: true,
                         ml: true, mt: true, mr: true, mb: true,
-                        mtr: false, flipX: true, flipY: true, sendBack: true, bringFront: true
+                        mtr: false, flipX: true, flipY: true
                     });
                 }
                 obj.set('dirty', true);
@@ -462,7 +1103,7 @@
         });
         canvas.on('selection:cleared', (e) => { toggleEdgeGlow(e, false); canvas.requestRenderAll(); });
 
-        // 단축키 (Delete, Backspace 삭제 및 개별 Copy & Paste) - 모달 방어벽 추가
+        // ?⑥텞??(Delete, Backspace ??젣 諛?媛쒕퀎 Copy & Paste) - 紐⑤떖 諛⑹뼱踰?異붽?
         let myClipboard = null;
         let lastCanvasClick = { x: 100, y: 100 };
 
@@ -471,7 +1112,7 @@
             const activeEl = document.activeElement;
             const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
             
-            // 모달창이 열려있거나 인풋 창에 포커스 되어 있다면 캔버스 단축키 절대 작동 방지
+            // 紐⑤떖李쎌씠 ?대젮?덇굅???명뭼 李쎌뿉 ?ъ빱???섏뼱 ?덈떎硫?罹붾쾭???⑥텞???덈? ?묐룞 諛⑹?
             if (isInputFocused || isModalOpen) return; 
 
             const activeObj = canvas.getActiveObject();
@@ -520,7 +1161,7 @@
             }
         });
 
-        // 모달창 헤더 드래그 앤 드롭 이동 기능
+        // 紐⑤떖李??ㅻ뜑 ?쒕옒洹????쒕∼ ?대룞 湲곕뒫
         document.querySelectorAll('.modal').forEach(modal => {
             const header = modal.querySelector('.modal-header');
             if (!header) return;
@@ -568,13 +1209,12 @@
                     openModal('modal_guide');
                 });
             } else {
-                document.querySelector('#modal_guide .guide-content').innerHTML = '<p>백엔드에 연결되지 않았습니다.</p>';
+                document.querySelector('#modal_guide .guide-content').innerHTML = '<p>諛깆뿏?쒖뿉 ?곌껐?섏? ?딆븯?듬땲??</p>';
                 openModal('modal_guide');
             }
         };
 
-        // 모자이크 서브툴바 ↔ 설정 모달 동기화
-        document.getElementById('mosaic_intensity').addEventListener('input', (e) => { 
+        // 紐⑥옄?댄겕 ?쒕툕?대컮 ???ㅼ젙 紐⑤떖 ?숆린??        document.getElementById('mosaic_intensity').addEventListener('input', (e) => { 
             sysMosaicPx = parseInt(e.target.value) || 5; 
             document.getElementById('set_mosaic_px').value = sysMosaicPx; 
         });
@@ -590,14 +1230,13 @@
         });
 
         // ==========================================
-        // 커스텀 다이얼로그 시스템
-        // ==========================================
+        // 而ㅼ뒪? ?ㅼ씠?쇰줈洹??쒖뒪??        // ==========================================
         function customAlert(msg) {
             return new Promise(resolve => {
-                document.getElementById('dialog_title').innerText = '알림';
+                document.getElementById('dialog_title').innerText = '?뚮┝';
                 document.getElementById('dialog_msg').innerText = msg;
                 document.getElementById('dialog_btn_cancel').style.display = 'none';
-                document.getElementById('dialog_btn_ok').innerText = '확인';
+                document.getElementById('dialog_btn_ok').innerText = '?뺤씤';
                 openModal('modal_custom_dialog');
                 document.getElementById('dialog_btn_ok').onclick = () => { closeDialog(); resolve(true); };
             });
@@ -605,11 +1244,11 @@
 
         function customConfirm(msg) {
             return new Promise(resolve => {
-                document.getElementById('dialog_title').innerText = '확인 필요';
+                document.getElementById('dialog_title').innerText = '?뺤씤 ?꾩슂';
                 document.getElementById('dialog_msg').innerText = msg;
                 document.getElementById('dialog_btn_cancel').style.display = 'block';
-                document.getElementById('dialog_btn_ok').innerText = '예';
-                document.getElementById('dialog_btn_cancel').innerText = '아니오';
+                document.getElementById('dialog_btn_ok').innerText = '??;
+                document.getElementById('dialog_btn_cancel').innerText = '?꾨땲??;
                 openModal('modal_custom_dialog');
                 document.getElementById('dialog_btn_ok').onclick = () => { closeDialog(); resolve(true); };
                 document.getElementById('dialog_btn_cancel').onclick = () => { closeDialog(); resolve(false); };
@@ -624,8 +1263,7 @@
         }
 
         // ==========================================
-        // 1. 캔버스 뷰포트 초기화
-        // ==========================================
+        // 1. 罹붾쾭??酉고룷??珥덇린??        // ==========================================
         const wrapper = document.getElementById('canvas_container_wrapper');
         const canvasContainer = document.getElementById('canvas_container');
         const workspace = document.getElementById('workspace');
@@ -643,7 +1281,7 @@
             wrapper.style.setProperty('--pan-x', panX + 'px');
             wrapper.style.setProperty('--pan-y', panY + 'px');
             wrapper.style.setProperty('--zoom', currentZoom);
-            // calcOffset은 변환 완료 후 1회만 실행, 이중 rAF로 레이아웃 안정 후 호출
+            // calcOffset? 蹂???꾨즺 ??1?뚮쭔 ?ㅽ뻾, ?댁쨷 rAF濡??덉씠?꾩썐 ?덉젙 ???몄텧
             if (window._calcOffsetRaf) cancelAnimationFrame(window._calcOffsetRaf);
             window._calcOffsetRaf = requestAnimationFrame(() => {
                 requestAnimationFrame(() => { canvas.calcOffset(); });
@@ -653,12 +1291,12 @@
         function prepareCanvasDisplay() {
             if (canvasContainer.style.display !== 'block') {
                 canvasContainer.style.display = 'block';
-                // Reflow는 rAF 내에서 수행하여 현재 프레임의 레이아웃 스래싱 방지
+                // Reflow??rAF ?댁뿉???섑뻾?섏뿬 ?꾩옱 ?꾨젅?꾩쓽 ?덉씠?꾩썐 ?ㅻ옒??諛⑹?
                 requestAnimationFrame(() => { void canvasContainer.offsetWidth; });
             }
         }
 
-        // ★ Fabric.js 내부 canvas-container 높이를 동기화하여 하단 깜빡임 원천 차단
+        // ??Fabric.js ?대? canvas-container ?믪씠瑜??숆린?뷀븯???섎떒 源쒕묀???먯쿇 李⑤떒
         function syncFabricContainerSize() {
             const fabricWrapper = canvasContainer.querySelector('.canvas-container');
             if (fabricWrapper) {
@@ -699,7 +1337,7 @@
 
                 currentZoom = newZoom;
             } else {
-                // 수직/수평 스크롤 처리
+                // ?섏쭅/?섑룊 ?ㅽ겕濡?泥섎━
                 panY -= opt.deltaY;
                 let scaledH = canvas.height * currentZoom;
                 let wsRect = workspace.getBoundingClientRect();
@@ -736,78 +1374,57 @@
         window.addEventListener('mouseup', () => { isPanning = false; updateGlobalCursor(); });
 
         
-        function syncShapeToText(shape, transform) {
-            if (!shape || !shape.linkedText) return;
-            const textObj = shape.linkedText;
-            const padding = 20;
-            const minW = textObj.dynamicMinWidth || 50;
-            
-            let maxTextW = shape.width * shape.scaleX;
-            if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
-            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
-
-            let clampedX = false;
-            let newScaleX = shape.scaleX;
-            
-            if (maxTextW < minW + padding) {
-                newScaleX = (minW + padding) / (maxTextW / shape.scaleX);
-                clampedX = true;
-                maxTextW = shape.width * newScaleX;
-                if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
-            }
-
-            textObj.set({ width: Math.max(minW, maxTextW - padding) });
-            
-            let reqH = textObj.calcTextHeight() + padding;
-            let maxTextH = shape.originalHeight * shape.scaleY;
-            
-            if (shape.type === 'ellipse') reqH = reqH / Math.cos(Math.PI / 4);
-            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
-
-            let clampedY = false;
-            let newScaleY = shape.scaleY;
-
-            if (maxTextH < reqH) {
-                newScaleY = reqH / shape.originalHeight;
-                clampedY = true;
-            }
-
-            if (clampedX || clampedY) {
-                let dx = shape.width * (newScaleX - shape.scaleX);
-                let dy = shape.height * (newScaleY - shape.scaleY);
-                
-                shape.scaleX = newScaleX;
-                shape.scaleY = newScaleY;
-
-                if (transform) {
-                    let rad = shape.angle * Math.PI / 180;
-                    let localDx = 0; let localDy = 0;
-                    if (transform.originX === 'left') localDx = dx / 2;
-                    else if (transform.originX === 'right') localDx = -dx / 2;
-                    if (transform.originY === 'top') localDy = dy / 2;
-                    else if (transform.originY === 'bottom') localDy = -dy / 2;
-
-                    shape.left += localDx * Math.cos(rad) - localDy * Math.sin(rad);
-                    shape.top += localDx * Math.sin(rad) + localDy * Math.cos(rad);
-                }
-            }
-            
-            const center = shape.getCenterPoint();
-            textObj.set({ left: center.x, top: center.y, angle: shape.angle });
-            textObj.setCoords();
-        }
-
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
-                obj.originalScaleX = obj.scaleX;
-                obj.originalScaleY = obj.scaleY;
-                obj.originalWidth = obj.width;
-                obj.originalHeight = obj.height;
+                const textObj = obj.linkedText;
+                const minW = textObj.dynamicMinWidth || 50;
+                const minH = textObj.calcTextHeight() + 20;
+                const currentW = obj.width * obj.scaleX;
+                const currentH = obj.height * obj.scaleY;
                 
-                syncShapeToText(obj, e.transform);
-                if (obj.canvas) obj.canvas.renderAll();
+                let newScaleX = obj.scaleX;
+                let newScaleY = obj.scaleY;
+                let clamped = false;
+                
+                const minScaleX = minW / obj.width;
+                const minScaleY = minH / obj.height;
+                
+                const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
+                
+                if (isCorner) {
+                    if (currentW < minW || currentH < minH) {
+                        let requiredRatioX = minScaleX / newScaleX;
+                        let requiredRatioY = minScaleY / newScaleY;
+                        let maxRatio = Math.max(requiredRatioX, requiredRatioY);
+                        if (maxRatio > 1) {
+                            newScaleX *= maxRatio;
+                            newScaleY *= maxRatio;
+                            clamped = true;
+                        }
+                    }
+                } else {
+                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
+                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
+                }
+                
+                if (clamped && e.transform) {
+                    const originX = e.transform.originX;
+                    const originY = e.transform.originY;
+                    const fixedPoint = obj.getPointByOrigin(originX, originY);
+                    
+                    obj.set({ scaleX: newScaleX, scaleY: newScaleY });
+                    obj.setPositionByOrigin(fixedPoint, originX, originY);
+                }
+                
+                const center = obj.getCenterPoint();
+                textObj.set({ 
+                    width: Math.max(minW, (obj.width * obj.scaleX) - 20),
+                    left: center.x,
+                    top: center.y,
+                    angle: obj.angle
+                });
+                textObj.setCoords();
             }
         });
 
@@ -817,13 +1434,13 @@
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
-                canvas.renderAll(); // Use synchronous render to prevent 1-frame visual lag
+                canvas.requestRenderAll();
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
                 obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
                 obj.linkedShape.setCoords();
-                canvas.renderAll();
+                canvas.requestRenderAll();
             }
         });
         
@@ -865,7 +1482,6 @@
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
-                canvas.renderAll();
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
@@ -888,7 +1504,7 @@
                 applyCanvasClipping();
                 isHistoryAction = false;
                 saveHistory();
-                pushCurrentToRecent(); // ★ 즉시 최근 목록에 추가
+                pushCurrentToRecent(); // ??利됱떆 理쒓렐 紐⑸줉??異붽?
                 renderRecentList();
             }
 
@@ -927,19 +1543,18 @@
             const thumb = canvas.toDataURL({format:'png', multiplier: thumbMult});
             const json  = JSON.stringify(canvas);
             
-            // 배경 이미지 URL 및 배경색 추출
+            // 諛곌꼍 ?대?吏 URL 諛?諛곌꼍??異붿텧
             const bgImg = canvas.backgroundImage;
             let bgSrc = null;
             if (bgImg && bgImg.getSrc) bgSrc = bgImg.getSrc();
             const bgColor = canvas.backgroundColor;
             
-            // ★ 배경 이미지 HTMLImageElement 캐싱 (loadFromJSON 우회용)
+            // ??諛곌꼍 ?대?吏 HTMLImageElement 罹먯떛 (loadFromJSON ?고쉶??
             let bgImgCache = null;
             if (bgImg && bgImg._element) {
-                bgImgCache = bgImg._element; // 이미 디코딩된 Image 객체 재사용
-            }
+                bgImgCache = bgImg._element; // ?대? ?붿퐫?⑸맂 Image 媛앹껜 ?ъ궗??            }
             
-            // ★ 배경 제거된 경량 JSON 생성 (loadFromJSON 고속화)
+            // ??諛곌꼍 ?쒓굅??寃쎈웾 JSON ?앹꽦 (loadFromJSON 怨좎냽??
             let jsonLight = null;
             try {
                 const parsed = JSON.parse(json);
@@ -947,9 +1562,9 @@
                     delete parsed.backgroundImage;
                     jsonLight = JSON.stringify(parsed);
                 }
-            } catch(e) { /* fallback: jsonLight = null → 기존 json 사용 */ }
+            } catch(e) { /* fallback: jsonLight = null ??湲곗〈 json ?ъ슜 */ }
             
-            // ★ activeRecentIdx 항목 갱신 (복제 방지)
+            // ??activeRecentIdx ??ぉ 媛깆떊 (蹂듭젣 諛⑹?)
             if (activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
                 recentList[activeRecentIdx].thumb = thumb;
                 recentList[activeRecentIdx].json  = json;
@@ -963,7 +1578,7 @@
                 return;
             }
 
-            // 중복 방지: 앞 항목과 동일하면 무시
+            // 以묐났 諛⑹?: ????ぉ怨??숈씪?섎㈃ 臾댁떆
             if (recentList.length > 0 && recentList[0].json === json) return;
 
             recentList.unshift({ thumb, json, jsonLight, bgSrc, bgColor, bgImgCache, width: canvas.width, height: canvas.height, time: Date.now() });
@@ -974,10 +1589,10 @@
             renderRecentList();
         }
 
-        let recentSortOrder = 'desc'; // desc: 최신순, asc: 오래된순
+        let recentSortOrder = 'desc'; // desc: 理쒖떊?? asc: ?ㅻ옒?쒖닚
         document.getElementById('btn_recent_sort').addEventListener('click', function() {
             recentSortOrder = (recentSortOrder === 'desc' ? 'asc' : 'desc');
-            this.innerText = (recentSortOrder === 'desc' ? '최신순' : '과거순');
+            this.innerText = (recentSortOrder === 'desc' ? '理쒖떊?? : '怨쇨굅??);
             renderRecentList();
         });
 
@@ -990,21 +1605,19 @@
             if (recentSortOrder === 'asc') displayList.reverse();
 
             displayList.forEach((item, idx) => {
-                // displayList상의 idx → recentList에서의 실제 인덱스
-                const realIdx = recentSortOrder === 'desc' ? idx : recentList.length - 1 - idx;
+                // displayList?곸쓽 idx ??recentList?먯꽌???ㅼ젣 ?몃뜳??                const realIdx = recentSortOrder === 'desc' ? idx : recentList.length - 1 - idx;
                 
                 const div = document.createElement('div');
                 div.className = 'recent-item';
                 div.style.backgroundImage = `url(${item.thumb})`;
                 
-                // 생성 순서 번호 (recentList[0]이 가장 최신 → 번호 = 전체수 - realIdx)
+                // ?앹꽦 ?쒖꽌 踰덊샇 (recentList[0]??媛??理쒖떊 ??踰덊샇 = ?꾩껜??- realIdx)
                 const num = document.createElement('div');
                 num.className = 'recent-num';
                 num.innerText = recentList.length - realIdx;
                 div.appendChild(num);
 
-                // 현재 작업 중인 항목: 파란 테두리
-                if (realIdx === activeRecentIdx) div.classList.add('active');
+                // ?꾩옱 ?묒뾽 以묒씤 ??ぉ: ?뚮? ?뚮몢由?                if (realIdx === activeRecentIdx) div.classList.add('active');
                 
                 const delBtn = document.createElement('button');
                 delBtn.className = 'btn-delete-thumb';
@@ -1043,7 +1656,7 @@
                 container.appendChild(div);
             });
             
-            // 활성 아이템 스크롤 중앙 정렬 기능 제거 (수동 스크롤만 사용)
+            // ?쒖꽦 ?꾩씠???ㅽ겕濡?以묒븰 ?뺣젹 湲곕뒫 ?쒓굅 (?섎룞 ?ㅽ겕濡ㅻ쭔 ?ъ슜)
         }
 
         function flushThumbDebounce() {
@@ -1054,8 +1667,8 @@
             }
         }
 
-        // ── 썸네일 즉시 로드 (플래그/큐 방식 제거, 단순·고속) ─────────────
-        let _recentLoadSeq = 0; // 최신 요청만 반영 (이전 요청 무시)
+        // ?? ?몃꽕??利됱떆 濡쒕뱶 (?뚮옒洹???諛⑹떇 ?쒓굅, ?⑥닚쨌怨좎냽) ?????????????
+        let _recentLoadSeq = 0; // 理쒖떊 ?붿껌留?諛섏쁺 (?댁쟾 ?붿껌 臾댁떆)
 
         function loadRecentItem(idx) {
             const item = recentList[idx];
@@ -1064,8 +1677,7 @@
             
             prepareCanvasDisplay();
 
-            // ★ 떠나기 전에 현재 캔버스 상태를 무조건 저장
-            if (activeRecentIdx >= 0 && hasActiveCanvas) {
+            // ???좊굹湲??꾩뿉 ?꾩옱 罹붾쾭???곹깭瑜?臾댁“嫄????            if (activeRecentIdx >= 0 && hasActiveCanvas) {
                 pushCurrentToRecent();
             }
 
@@ -1076,7 +1688,7 @@
             isHistoryAction = true;
             canvas.renderOnAddRemove = false;
 
-            // ★ 고속 경로: 캐시된 배경 Image 객체가 있으면 경량 JSON 사용
+            // ??怨좎냽 寃쎈줈: 罹먯떆??諛곌꼍 Image 媛앹껜媛 ?덉쑝硫?寃쎈웾 JSON ?ъ슜
             const useFastPath = item.bgImgCache && item.jsonLight;
             const jsonToLoad = useFastPath ? item.jsonLight : item.json;
 
@@ -1101,7 +1713,7 @@
                 }
 
                 if (useFastPath) {
-                    // 캐시된 Image 객체로 즉시 배경 복원 (Base64 디코딩 불필요)
+                    // 罹먯떆??Image 媛앹껜濡?利됱떆 諛곌꼍 蹂듭썝 (Base64 ?붿퐫??遺덊븘??
                     const fabricBg = new fabric.Image(item.bgImgCache, {
                         originX: 'left', originY: 'top', left: 0, top: 0
                     });
@@ -1111,11 +1723,10 @@
                 }
             });
         }
-        // 현재 활성 항목 인덱스
-        let activeRecentIdx = -1;
+        // ?꾩옱 ?쒖꽦 ??ぉ ?몃뜳??        let activeRecentIdx = -1;
 
         function updateCurrentThumbnail() {
-            // no-op (호환성 유지)
+            // no-op (?명솚???좎?)
         }
 
         function updateUndoRedoUI() {
@@ -1157,7 +1768,7 @@
         function saveHistory() {
             if (isHistoryAction || !hasActiveCanvas) return;
             
-            // 성능 최적화: 수 MB의 배경 이미지를 제외하고 벡터 개체만 JSON으로 직렬화 (속도 10배 이상 향상)
+            // ?깅뒫 理쒖쟻?? ??MB??諛곌꼍 ?대?吏瑜??쒖쇅?섍퀬 踰≫꽣 媛쒖껜留?JSON?쇰줈 吏곷젹??(?띾룄 10諛??댁긽 ?μ긽)
             const bgImg = canvas.backgroundImage;
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
@@ -1182,10 +1793,10 @@
                 e.target.set('evented', false);
                 e.target.set('selectable', false);
             }
-            // 펜 브러시로 그린 선은 path:created에서 히스토리를 저장하므로 여기서 중복 저장 방지
+            // ??釉뚮윭?쒕줈 洹몃┛ ?좎? path:created?먯꽌 ?덉뒪?좊━瑜???ν븯誘濡??ш린??以묐났 ???諛⑹?
             const isPenBrushPath = (activeTool === 'pen' && e.target.type === 'path' && !e.target.isTemp && canvas.isDrawingMode);
             if(!isHistoryAction && !e.target.isTemp && !isPenBrushPath) saveHistory();
-            // ★ 개체 추가 시 Fabric 내부 래퍼 크기 동기화 (하단 깜빡임 방지)
+            // ??媛쒖껜 異붽? ??Fabric ?대? ?섑띁 ?ш린 ?숆린??(?섎떒 源쒕묀??諛⑹?)
             syncFabricContainerSize();
         });
         function normalizeScale(obj) {
@@ -1270,7 +1881,7 @@
             }
             if(!isHistoryAction) {
                 saveHistory();
-                // 썸네일 갱신 (디바운스 800ms)
+                // ?몃꽕??媛깆떊 (?붾컮?댁뒪 800ms)
                 clearTimeout(window._thumbDebounce);
                 window._thumbDebounce = setTimeout(() => {
                     if (activeRecentIdx >= 0) pushCurrentToRecent();
@@ -1308,8 +1919,7 @@
                 syncFabricContainerSize();
                 applyCanvasClipping(); 
 
-                // ★ 핵심: setTimeout으로 새 macrotask에서 렌더링하여
-                //    Chromium compositor가 프레임을 스케줄링할 기회를 확보
+                // ???듭떖: setTimeout?쇰줈 ??macrotask?먯꽌 ?뚮뜑留곹븯??                //    Chromium compositor媛 ?꾨젅?꾩쓣 ?ㅼ?以꾨쭅??湲고쉶瑜??뺣낫
                 setTimeout(() => {
                     canvas.renderAll(); 
                     isHistoryAction = false; 
@@ -1330,17 +1940,17 @@
         });
 
         // ==========================================
-        // 3. 도형 옵션 동적 전환 & 42색상 팔레트 연동 (형광색 및 오피스 색상 포함)
+        // 3. ?꾪삎 ?듭뀡 ?숈쟻 ?꾪솚 & 42?됱긽 ?붾젅???곕룞 (?뺢킅??諛??ㅽ뵾???됱긽 ?ы븿)
         // ==========================================
         const munsell35 = [
-            {n:"검정",h:"#000000"},{n:"하양",h:"#FFFFFF"},{n:"투명",h:"transparent"},{n:"진회색",h:"#4A4A4A"},{n:"회색",h:"#7D7D7D"},{n:"갈색",h:"#8F4B28"},{n:"살구",h:"#F8C3CD"},
-            {n:"빨강",h:"#E03C31"},{n:"주황빨강",h:"#E95513"},{n:"주황",h:"#F37121"},{n:"노랑주황",h:"#F9961B"},{n:"노랑",h:"#FFC408"},{n:"연두노랑",h:"#D1D22D"},{n:"연두",h:"#98CB4A"},
-            {n:"초록연두",h:"#41B34E"},{n:"초록",h:"#009959"},{n:"청록초록",h:"#009E8E"},{n:"청록",h:"#00A1AE"},{n:"파랑청록",h:"#0087BA"},{n:"파랑",h:"#0068B7"},{n:"남색파랑",h:"#2B4B9B"},
-            {n:"남색",h:"#3E318B"},{n:"보라남색",h:"#622D88"},{n:"보라",h:"#8E2382"},{n:"자주보라",h:"#B91B74"},{n:"자주",h:"#D61668"},{n:"빨강자주",h:"#E01D53"},{n:"연분홍",h:"#F4A7B9"},
-            {n:"오피스 빨강",h:"#FF0000"},{n:"오피스 주황",h:"#FF6600"},{n:"오피스 노랑",h:"#FFFF00"},{n:"오피스 연두",h:"#00FF00"},{n:"오피스 청록",h:"#00FFFF"},{n:"오피스 파랑",h:"#0055FF"},{n:"오피스 보라",h:"#CC00FF"},
-            {n:"형광노랑",h:"rgba(255, 255, 0, 0.6)"}, {n:"형광연두",h:"rgba(57, 255, 20, 0.6)"}, {n:"형광초록",h:"rgba(0, 255, 0, 0.6)"},
-            {n:"형광하늘",h:"rgba(0, 255, 255, 0.6)"}, {n:"형광파랑",h:"rgba(0, 100, 255, 0.6)"}, {n:"형광분홍",h:"rgba(255, 20, 147, 0.6)"},
-            {n:"형광빨강",h:"rgba(255, 50, 50, 0.6)"}
+            {n:"寃??,h:"#000000"},{n:"?섏뼇",h:"#FFFFFF"},{n:"?щ챸",h:"transparent"},{n:"吏꾪쉶??,h:"#4A4A4A"},{n:"?뚯깋",h:"#7D7D7D"},{n:"媛덉깋",h:"#8F4B28"},{n:"?닿뎄",h:"#F8C3CD"},
+            {n:"鍮④컯",h:"#E03C31"},{n:"二쇳솴鍮④컯",h:"#E95513"},{n:"二쇳솴",h:"#F37121"},{n:"?몃옉二쇳솴",h:"#F9961B"},{n:"?몃옉",h:"#FFC408"},{n:"?곕몢?몃옉",h:"#D1D22D"},{n:"?곕몢",h:"#98CB4A"},
+            {n:"珥덈줉?곕몢",h:"#41B34E"},{n:"珥덈줉",h:"#009959"},{n:"泥?줉珥덈줉",h:"#009E8E"},{n:"泥?줉",h:"#00A1AE"},{n:"?뚮옉泥?줉",h:"#0087BA"},{n:"?뚮옉",h:"#0068B7"},{n:"?⑥깋?뚮옉",h:"#2B4B9B"},
+            {n:"?⑥깋",h:"#3E318B"},{n:"蹂대씪?⑥깋",h:"#622D88"},{n:"蹂대씪",h:"#8E2382"},{n:"?먯＜蹂대씪",h:"#B91B74"},{n:"?먯＜",h:"#D61668"},{n:"鍮④컯?먯＜",h:"#E01D53"},{n:"?곕텇??,h:"#F4A7B9"},
+            {n:"?ㅽ뵾??鍮④컯",h:"#FF0000"},{n:"?ㅽ뵾??二쇳솴",h:"#FF6600"},{n:"?ㅽ뵾???몃옉",h:"#FFFF00"},{n:"?ㅽ뵾???곕몢",h:"#00FF00"},{n:"?ㅽ뵾??泥?줉",h:"#00FFFF"},{n:"?ㅽ뵾???뚮옉",h:"#0055FF"},{n:"?ㅽ뵾??蹂대씪",h:"#CC00FF"},
+            {n:"?뺢킅?몃옉",h:"rgba(255, 255, 0, 0.6)"}, {n:"?뺢킅?곕몢",h:"rgba(57, 255, 20, 0.6)"}, {n:"?뺢킅珥덈줉",h:"rgba(0, 255, 0, 0.6)"},
+            {n:"?뺢킅?섎뒛",h:"rgba(0, 255, 255, 0.6)"}, {n:"?뺢킅?뚮옉",h:"rgba(0, 100, 255, 0.6)"}, {n:"?뺢킅遺꾪솉",h:"rgba(255, 20, 147, 0.6)"},
+            {n:"?뺢킅鍮④컯",h:"rgba(255, 50, 50, 0.6)"}
         ]; 
         const paletteEl = document.getElementById('color_palette');
         let targetColorBtn = null;
@@ -1354,7 +1964,6 @@
             cell.className = 'palette-cell'; cell.style.backgroundColor = c.h;
             cell.setAttribute('data-name', c.n); 
             if (c.h === 'transparent') cell.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
-            cell.addEventListener('mousedown', e => e.preventDefault());
             cell.addEventListener('click', () => { 
                 const bgImg = c.h === 'transparent' ? cell.style.backgroundImage : 'none'; 
                 if (targetColorBtn === 'stroke' || targetColorBtn === 'edit_shape_stroke' || targetColorBtn === 'edit_line_stroke' || targetColorBtn === 'set_shape_stroke') { 
@@ -1388,12 +1997,7 @@
                         updatePenBrush();
                     }
                 }
-                paletteEl.style.display = 'none'; 
-                if (['text', 'set_text', 'edit_text_c'].includes(targetColorBtn)) {
-                    updateActiveText('fill', c.h);
-                } else if (['text_bg', 'set_text_bg', 'edit_text_b'].includes(targetColorBtn)) {
-                    updateActiveText('backgroundColor', getTextBgOpacity());
-                }
+                paletteEl.style.display = 'none'; if(activeTool==='text') updateActiveText();
                 if(targetColorBtn === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
                     // Update stroke color for straight line mode
                 }
@@ -1401,7 +2005,7 @@
             paletteEl.appendChild(cell); 
         });
 
-        // 바탕 클릭 시 팔레트 닫기
+        // 諛뷀깢 ?대┃ ???붾젅???リ린
         document.addEventListener('mousedown', e => { 
             if (!e.target.closest('#color_palette') && !e.target.closest('.color-btn')) paletteEl.style.display = 'none'; 
             if (!e.target.closest('#canvas_context_menu')) {
@@ -1410,7 +2014,7 @@
             }
         });
 
-        // 우클릭 방지 및 캔버스 컨텍스트 메뉴
+        // ?고겢由?諛⑹? 諛?罹붾쾭??而⑦뀓?ㅽ듃 硫붾돱
         document.addEventListener('contextmenu', function(e) {
             if (e.target.closest('#toolbar') || e.target.closest('#sidebar') || e.target.closest('#sub_toolbar')) {
                 e.preventDefault();
@@ -1432,11 +2036,11 @@
                     canvas.requestRenderAll();
                     
                     ctxMenu.innerHTML = `
-                        <div class="menu-item" id="ctx_edit"><span>수정하기</span></div>
+                        <div class="menu-item" id="ctx_edit"><span>?섏젙?섍린</span></div>
                         <div class="menu-divider"></div>
-                        <div class="menu-item" id="ctx_cut"><span>잘라내기</span><span class="menu-shortcut">Ctrl+X</span></div>
-                        <div class="menu-item" id="ctx_copy"><span>복사하기</span><span class="menu-shortcut">Ctrl+C</span></div>
-                        <div class="menu-item" id="ctx_del"><span>삭제하기</span><span class="menu-shortcut">Del</span></div>
+                        <div class="menu-item" id="ctx_cut"><span>?섎씪?닿린</span><span class="menu-shortcut">Ctrl+X</span></div>
+                        <div class="menu-item" id="ctx_copy"><span>蹂듭궗?섍린</span><span class="menu-shortcut">Ctrl+C</span></div>
+                        <div class="menu-item" id="ctx_del"><span>??젣?섍린</span><span class="menu-shortcut">Del</span></div>
                     `;
                     
                     document.getElementById('ctx_edit').onclick = () => { ctxMenu.style.display = 'none'; canvas.fire('mouse:dblclick', { target: target, e: e }); };
@@ -1453,11 +2057,11 @@
                     const canPaste = !!myClipboard;
                     
                     ctxMenu.innerHTML = `
-                        <div class="menu-item ${canUndo ? '' : 'disabled'}" id="ctx_undo"><span>뒤로</span></div>
-                        <div class="menu-item ${canRedo ? '' : 'disabled'}" id="ctx_redo"><span>앞으로</span></div>
+                        <div class="menu-item ${canUndo ? '' : 'disabled'}" id="ctx_undo"><span>?ㅻ줈</span></div>
+                        <div class="menu-item ${canRedo ? '' : 'disabled'}" id="ctx_redo"><span>?욎쑝濡?/span></div>
                         <div class="menu-divider"></div>
-                        <div class="menu-item ${canCopy ? '' : 'disabled'}" id="ctx_copy_img"><span>복사하기</span></div>
-                        <div class="menu-item ${canPaste ? '' : 'disabled'}" id="ctx_paste"><span>붙여넣기</span><span class="menu-shortcut">Ctrl+V</span></div>
+                        <div class="menu-item ${canCopy ? '' : 'disabled'}" id="ctx_copy_img"><span>蹂듭궗?섍린</span></div>
+                        <div class="menu-item ${canPaste ? '' : 'disabled'}" id="ctx_paste"><span>遺숈뿬?ｊ린</span><span class="menu-shortcut">Ctrl+V</span></div>
                     `;
                     
                     document.getElementById('ctx_undo').onclick = () => { ctxMenu.style.display = 'none'; document.getElementById('btn_undo').click(); };
@@ -1487,8 +2091,6 @@
         }
         
         bindCP('btn_stroke_color', 'stroke'); bindCP('btn_fill_color', 'fill');
-        document.getElementById('btn_text_color').addEventListener('mousedown', e => e.preventDefault());
-        document.getElementById('btn_text_bg').addEventListener('mousedown', e => e.preventDefault());
         bindCP('btn_text_color', 'text'); bindCP('btn_text_bg', 'text_bg');
         bindCP('new_bg_color', 'new_bg');
         bindCP('btn_pen_color', 'pen');
@@ -1508,12 +2110,12 @@
             document.getElementById('label_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
 
             if (['rect', 'ellipse', 'rhombus'].includes(type)) {
-                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>';
+                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> ?먯꽑</label>';
             } else {
-                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>' +
-                                      '<label><input type="radio" name="line_type" value="normal" checked> 일반</label>' +
-                                      '<label><input type="radio" name="line_type" value="poly"> 꺾은 선</label>' +
-                                      '<label><input type="radio" name="line_type" value="curve"> 곡선</label>';
+                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> ?먯꽑</label>' +
+                                      '<label><input type="radio" name="line_type" value="normal" checked> ?쇰컲</label>' +
+                                      '<label><input type="radio" name="line_type" value="poly"> 爰얠? ??/label>' +
+                                      '<label><input type="radio" name="line_type" value="curve"> 怨≪꽑</label>';
             }
         }
         document.getElementById('shape_type').addEventListener('change', updateShapeOptions);
@@ -1521,7 +2123,7 @@
 
         let activeTool = null; let isDrawing = false; let origX, origY;
         let currentShape = null; let liveEmojiImgObj = null; let arrowHead = null;
-        let selectedEmoji = '😀'; let selectedEmojiUrl = null; let uploadedImageSrc = null;
+        let selectedEmoji = '??'; let selectedEmojiUrl = null; let uploadedImageSrc = null;
         let customEmojiFolders = [];
         let txtB = false, txtI = false, txtU = false; let editingObject = null;
         let origShapeRatio = 1, origImageRatio = 1, origLineRatio = 1;
@@ -1641,23 +2243,22 @@
 
             updateEraserCursor();
 
-            // ── 테마 적용 ────────────────────────────────────────────
+            // ?? ?뚮쭏 ?곸슜 ????????????????????????????????????????????
             applyTheme(document.getElementById('set_theme').value);
 
-            // 백엔드에 설정 저장
-            if (window.pyBackend) {
+            // 諛깆뿏?쒖뿉 ?ㅼ젙 ???            if (window.pyBackend) {
                 window.pyBackend.save_settings(JSON.stringify(collectSettings()));
             }
         }
 
         window.addEmojiFolder = async function() {
             if (customEmojiFolders.length >= 5) {
-                return customAlert("사용자 정의 폴더는 최대 5개까지만 추가할 수 있습니다.");
+                return customAlert("?ъ슜???뺤쓽 ?대뜑??理쒕? 5媛쒓퉴吏留?異붽??????덉뒿?덈떎.");
             }
             if (typeof pyBackend !== 'undefined') {
                 const folder = await pyBackend.select_directory();
                 if (folder) {
-                    if (customEmojiFolders.includes(folder)) return customAlert("이미 추가된 폴더입니다.");
+                    if (customEmojiFolders.includes(folder)) return customAlert("?대? 異붽????대뜑?낅땲??");
                     customEmojiFolders.push(folder);
                     renderEmojiFolderList();
                     if (window.pyBackend) window.pyBackend.save_settings(JSON.stringify(collectSettings()));
@@ -1715,8 +2316,7 @@
             } else if (mode === 'light') {
                 document.body.classList.remove('dark-mode');
             } else {
-                // 시스템 설정 따르기
-                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                // ?쒖뒪???ㅼ젙 ?곕Ⅴ湲?                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                     document.body.classList.add('dark-mode');
                 } else {
                     document.body.classList.remove('dark-mode');
@@ -1724,9 +2324,9 @@
             }
         }
 
-        // 페이지 로드 시 시스템 테마 자동 감지
+        // ?섏씠吏 濡쒕뱶 ???쒖뒪???뚮쭏 ?먮룞 媛먯?
         applyTheme('system');
-        // 시스템 테마 변경 실시간 감지
+        // ?쒖뒪???뚮쭏 蹂寃??ㅼ떆媛?媛먯?
         if (window.matchMedia) {
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
                 if (document.getElementById('set_theme').value === 'system') applyTheme('system');
@@ -1751,7 +2351,7 @@
             const isCropTool    = activeTool === 'crop';
             
             canvas.getObjects().forEach(obj => {
-                if (obj.isTemp) return;  // 임시 개체는 건드리지 않음
+                if (obj.isTemp) return;  // ?꾩떆 媛쒖껜??嫄대뱶由ъ? ?딆쓬
                 if (isDrawingTool || isCropTool) {
                     obj.set({ evented: false, selectable: false });
                 } else if (activeTool === 'eraser') {
@@ -1769,7 +2369,7 @@
 
         const customEraserCursor = document.getElementById('custom_eraser_cursor');
         
-        let isEraserFatState = false; // 글로벌 DOM 연속 조작 방지 상태
+        let isEraserFatState = false; // 湲濡쒕쾶 DOM ?곗냽 議곗옉 諛⑹? ?곹깭
         
         
         function deactivateActiveTool() {
@@ -1791,8 +2391,7 @@
                 canvas.defaultCursor = 'none';
                 customEraserCursor.style.display = 'flex';
                 updateEraserCursor(); 
-                isEraserFatState = false; // 툴 전환 시 지우개 상태 동기화
-            } else if (activeTool) {
+                isEraserFatState = false; // ???꾪솚 ??吏?곌컻 ?곹깭 ?숆린??            } else if (activeTool) {
                 workspace.style.cursor = 'crosshair';
                 canvas.defaultCursor = 'crosshair';
                 customEraserCursor.style.display = 'none';
@@ -1835,10 +2434,10 @@
         }
 
         const toolbar = document.getElementById('toolbar');
-        // 상단 툴바가 상단 고정으로 변경되어 드래그 기능을 제거합니다.
+        // ?곷떒 ?대컮媛 ?곷떒 怨좎젙?쇰줈 蹂寃쎈릺???쒕옒洹?湲곕뒫???쒓굅?⑸땲??
 
         // ==========================================
-        // 4. 파이썬 백엔드 캡처 연동
+        // 4. ?뚯씠??諛깆뿏??罹≪쿂 ?곕룞
         // ==========================================
         let pyBackend = null;
         let historySaveTimer = null;
@@ -1846,7 +2445,7 @@
             clearTimeout(historySaveTimer);
             historySaveTimer = setTimeout(() => {
                 if (pyBackend) {
-                    // bgImgCache(HTMLImageElement)와 jsonLight는 직렬화 불가 → 제외
+                    // bgImgCache(HTMLImageElement)? jsonLight??吏곷젹??遺덇? ???쒖쇅
                     const cleanList = recentList.map(item => ({
                         thumb: item.thumb,
                         json: item.json,
@@ -1881,7 +2480,7 @@
                                         renderRecentList();
                                         loadRecentItem(0);
                                         
-                                        // ★ 백그라운드에서 bgImgCache/jsonLight 복원 (고속 전환 준비)
+                                        // ??諛깃렇?쇱슫?쒖뿉??bgImgCache/jsonLight 蹂듭썝 (怨좎냽 ?꾪솚 以鍮?
                                         setTimeout(() => {
                                             recentList.forEach(item => {
                                                 if (!item.bgImgCache && item.json) {
@@ -1922,7 +2521,7 @@
                 dropdownCapture.style.display = 'none';
                 
                 if (pyBackend) {
-                    // Python으로 캡처 명령 전송
+                    // Python?쇰줈 罹≪쿂 紐낅졊 ?꾩넚
                     const capQuality = document.getElementById('set_cap_quality')?.value || 'normal';
                     if (currentCapMode === 'size') {
                         const w = document.getElementById('set_cap_w')?.value || 800;
@@ -1932,7 +2531,7 @@
                         pyBackend.start_capture(currentCapMode, capQuality);
                     }
                 } else {
-                    showToast("파이썬 백엔드가 연결되지 않았습니다.");
+                    showToast("?뚯씠??諛깆뿏?쒓? ?곌껐?섏? ?딆븯?듬땲??");
                 }
             });
         });
@@ -1950,14 +2549,13 @@
             if (base64Data) {
                 isHistoryAction = true;
                 fabric.Image.fromURL("data:image/webp;base64," + base64Data, (img) => {
-                    pushCurrentToRecent(); // 이전 작업 보존
-                    activeRecentIdx = -1; // 새 항목 추가를 위해 인덱스 리셋
+                    pushCurrentToRecent(); // ?댁쟾 ?묒뾽 蹂댁〈
+                    activeRecentIdx = -1; // ????ぉ 異붽?瑜??꾪빐 ?몃뜳??由ъ뀑
                     stateHistory = []; historyIndex = -1;
                     canvas.clear(); 
                     img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
                     commitLoadToCanvas(img, img.width, img.height, null);
-                    // commitLoadToCanvas -> finalizeLoad -> saveHistory -> pushCurrentToRecent 자동 호출됨
-                });
+                    // commitLoadToCanvas -> finalizeLoad -> saveHistory -> pushCurrentToRecent ?먮룞 ?몄텧??                });
                     document.getElementById('btn_tool_shape').click();
                     const rectBtn = document.querySelector('#shape_type_group button[data-val="rect"]');
                     if (rectBtn) rectBtn.click();
@@ -1966,7 +2564,7 @@
 
 
         // ==========================================
-        // 5. 파일 열기, 저장, 복사, 인쇄
+        // 5. ?뚯씪 ?닿린, ??? 蹂듭궗, ?몄뇙
         // ==========================================
         const grpSave = document.getElementById('grp_save'); const dropdownSave = document.getElementById('dropdown_save');
         grpSave.addEventListener('mouseenter', () => { if(hasActiveCanvas) dropdownSave.style.display = 'block'; });
@@ -2004,9 +2602,8 @@
             } else {
                 reader.onload = f => fabric.Image.fromURL(f.target.result, img => {
                     isHistoryAction = true;
-                    pushCurrentToRecent();  // 이전 항목 보존 (새 항목으로 전환 전)
-                    activeRecentIdx = -1;   // 새 캔버스 로드 → 인덱스 초기화
-                    stateHistory = []; historyIndex = -1;
+                    pushCurrentToRecent();  // ?댁쟾 ??ぉ 蹂댁〈 (????ぉ?쇰줈 ?꾪솚 ??
+                    activeRecentIdx = -1;   // ??罹붾쾭??濡쒕뱶 ???몃뜳??珥덇린??                    stateHistory = []; historyIndex = -1;
                     const naturalW = img.naturalWidth  || img.width;
                     const naturalH = img.naturalHeight || img.height;
 
@@ -2080,13 +2677,13 @@
                     const writable = await handle.createWritable(); 
                     await writable.write(blob); 
                     await writable.close(); 
-                    showToast('성공적으로 저장되었습니다.');
+                    showToast('?깃났?곸쑝濡???λ릺?덉뒿?덈떎.');
                 } else {
                     const url = URL.createObjectURL(blob); 
                     const a = document.createElement('a'); a.href = url; a.download = suggestedName; a.click();
-                    showToast('저장되었습니다.');
+                    showToast('??λ릺?덉뒿?덈떎.');
                 }
-            } catch(e) { if (e.name !== 'AbortError') customAlert("저장 중 오류가 발생했습니다."); }
+            } catch(e) { if (e.name !== 'AbortError') customAlert("???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎."); }
         }
 
         document.getElementById('btn_action_save').addEventListener('click', (e) => {
@@ -2118,25 +2715,15 @@
             const textAlign = alignActive ? alignActive.getAttribute('data-align') : 'center';
 
             const center = obj.getCenterPoint();
-            
-            let padW = 20;
-            let startW = obj.width * obj.scaleX;
-            if (obj.type === 'ellipse') {
-                startW = startW * Math.cos(Math.PI / 4);
-            } else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) {
-                startW = startW * 0.5;
-            }
-            startW = Math.max(50, startW - padW);
-
-            const textObj = new fabric.Textbox('내용 입력', {
+            const textObj = new fabric.Textbox('?댁슜 ?낅젰', {
                 left: center.x,
                 top: center.y,
                 originX: 'center',
                 originY: 'center',
-                width: startW,
+                width: obj.width * obj.scaleX - 20,
                 fontSize: txtSize,
                 fill: txtColor,
-                backgroundColor: txtBgColor === 'transparent' ? '' : txtBgColor,
+                textBackgroundColor: txtBgColor === 'transparent' ? '' : txtBgColor,
                 fontWeight: isBold ? 'bold' : 'normal',
                 fontStyle: isItalic ? 'italic' : 'normal',
                 underline: isUnderline,
@@ -2145,53 +2732,50 @@
                 editable: true,
                 hasControls: false,
                 hasBorders: false,
-                selectable: true,
-                evented: true,     // 클릭 이벤트는 받아야 함
-                splitByGrapheme: true,
-                isWidthFixed: true,
-                hoverCursor: 'move'
+                selectable: true
             });
             
             obj.linkedText = textObj;
             textObj.linkedShape = obj;
             
-            textObj.on('editing:entered', function() {
-                this.set('hoverCursor', 'text');
-            });
-            textObj.on('editing:exited', function() {
-                this.set('hoverCursor', 'move');
-            });
-            
             canvas.add(textObj);
-            
+            // ?꾪삎 ?먮낯 ?ш린 諛깆뾽
             obj.originalScaleX = obj.scaleX;
             obj.originalScaleY = obj.scaleY;
             obj.originalWidth = obj.width;
             obj.originalHeight = obj.height;
-
-
 
             textObj.on('changed', function() {
                 const shape = this.linkedShape;
                 if (!shape) return;
                 
                 const padding = 20;
-                let maxTextW = shape.width * shape.scaleX;
-                if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
-                
-                this.set({ width: Math.max(50, maxTextW - padding) });
-                
-                let reqH = this.calcTextHeight() + padding;
-                if (shape.type === 'ellipse') reqH = reqH / Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
+                const reqW = this.width + padding;
+                const reqH = this.height + padding;
 
-                let targetScaleY = Math.max(shape.originalScaleY || 1, reqH / shape.originalHeight);
-                shape.set({ scaleY: targetScaleY });
+                const baseW = shape.originalWidth * shape.originalScaleX;
+                const baseH = shape.originalHeight * shape.originalScaleY;
+
+                let newW = Math.max(baseW, reqW);
+                let newH = Math.max(baseH, reqH);
+
+                if (shape.type === 'polygon' && shape.points && shape.points.length === 4) {
+                    const ratio = (this.width / newW) + (this.height / newH);
+                    if (ratio > 0.85) {
+                        const f = ratio / 0.85; newW *= f; newH *= f;
+                    }
+                } else if (shape.type === 'ellipse') {
+                    const ratioSq = Math.pow(this.width / newW, 2) + Math.pow(this.height / newH, 2);
+                    if (ratioSq > 0.8) {
+                        const f = Math.sqrt(ratioSq / 0.8); newW *= f; newH *= f;
+                    }
+                }
+
+                shape.set({
+                    scaleX: newW / shape.originalWidth,
+                    scaleY: newH / shape.originalHeight
+                });
                 
-                const center = shape.getCenterPoint();
-                this.set({ left: center.x, top: center.y });
-                this.setCoords();
                 shape.setCoords();
                 if (shape.canvas) {
                     shape.canvas.requestRenderAll();
@@ -2221,17 +2805,17 @@
             
             if (pyBackend) {
                 pyBackend.copy_to_clipboard(dataUrl);
-                showToast('클립보드에 복사되었습니다.');
+                showToast('?대┰蹂대뱶??蹂듭궗?섏뿀?듬땲??');
             } else {
                 try {
                     const res = await fetch(dataUrl); const blob = await res.blob();
                     await navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]);
-                    showToast('클립보드에 복사되었습니다.');
-                } catch(e) { showToast('복사 실패'); }
+                    showToast('?대┰蹂대뱶??蹂듭궗?섏뿀?듬땲??');
+                } catch(e) { showToast('蹂듭궗 ?ㅽ뙣'); }
             }
         });
 
-        // 완벽한 백그라운드 & 캔버스 인쇄 기능 (여백 완전 제거)
+        // ?꾨꼍??諛깃렇?쇱슫??& 罹붾쾭???몄뇙 湲곕뒫 (?щ갚 ?꾩쟾 ?쒓굅)
         document.getElementById('btn_action_print').addEventListener('click', () => { 
             if(!hasActiveCanvas) return;
             canvas.discardActiveObject();
@@ -2246,7 +2830,7 @@
             } else {
                 const printWindow = window.open('', '_blank');
                 printWindow.document.write(`
-                    <html><head><title>Capcraft 인쇄</title>
+                    <html><head><title>Capcraft ?몄뇙</title>
                     <style>
                         @page { size: ${canvas.width}px ${canvas.height}px; margin: 0; }
                         body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background: white; min-height: 100vh; }
@@ -2262,7 +2846,7 @@
         document.getElementById('btn_action_close').addEventListener('click', () => { window.close(); });
 
         // ==========================================
-        // 6. 버튼 활성/비활성 제어 및 도구 로직
+        // 6. 踰꾪듉 ?쒖꽦/鍮꾪솢???쒖뼱 諛??꾧뎄 濡쒖쭅
         // ==========================================
         const panels = { 'shape': 'panel_shape', 'pen': 'panel_pen', 'text': 'panel_text', 'eraser': 'panel_eraser', 'emoji': 'panel_emoji', 'image': 'panel_image', 'mosaic': 'panel_mosaic', 'crop': 'panel_crop' };
 
@@ -2345,10 +2929,10 @@
                 canvas.isDrawingMode = false;
                 updateSubToolbarPosition(btn);
 
-                if (toolName.includes('도형')) { activeTool = 'shape'; document.getElementById('panel_shape').classList.add('active'); }
-                else if (toolName.includes('펜')) { activeTool = 'pen'; document.getElementById('panel_pen').classList.add('active'); updatePenBrush(); }
-                else if (toolName.includes('텍스트')) { activeTool = 'text'; document.getElementById('panel_text').classList.add('active'); }
-                else if (toolName.includes('이모티콘')) { 
+                if (toolName.includes('?꾪삎')) { activeTool = 'shape'; document.getElementById('panel_shape').classList.add('active'); }
+                else if (toolName.includes('??)) { activeTool = 'pen'; document.getElementById('panel_pen').classList.add('active'); updatePenBrush(); }
+                else if (toolName.includes('?띿뒪??)) { activeTool = 'text'; document.getElementById('panel_text').classList.add('active'); }
+                else if (toolName.includes('?대え?곗퐯')) { 
                     activeTool = 'emoji'; 
                     document.getElementById('panel_emoji').classList.add('active'); 
                     document.getElementById('emoji_popup').style.display = 'block'; 
@@ -2362,10 +2946,10 @@
                         }, 2000);
                     }
                 }
-                else if (toolName.includes('이미지')) { activeTool = 'image'; document.getElementById('panel_image').classList.add('active'); }
-                else if (toolName.includes('지우개')) { activeTool = 'eraser'; document.getElementById('panel_eraser').classList.add('active'); }
-                else if (toolName.includes('모자이크')) { activeTool = 'mosaic'; document.getElementById('panel_mosaic').classList.add('active'); }
-                else if (toolName.includes('자르기')) { 
+                else if (toolName.includes('?대?吏')) { activeTool = 'image'; document.getElementById('panel_image').classList.add('active'); }
+                else if (toolName.includes('吏?곌컻')) { activeTool = 'eraser'; document.getElementById('panel_eraser').classList.add('active'); }
+                else if (toolName.includes('紐⑥옄?댄겕')) { activeTool = 'mosaic'; document.getElementById('panel_mosaic').classList.add('active'); }
+                else if (toolName.includes('?먮Ⅴ湲?)) { 
                     activeTool = 'crop'; document.getElementById('panel_crop').classList.add('active');
                     initCropOverlay();
                 }
@@ -2375,7 +2959,7 @@
         });
 
         // ==========================================
-        // 7. 새 배경 이미지 (색상농도 믹스 로직)
+        // 7. ??諛곌꼍 ?대?吏 (?됱긽?띾룄 誘뱀뒪 濡쒖쭅)
         // ==========================================
         window.createNewBackground = function() {
             const sizeArr = document.getElementById('new_bg_size').value.split('x'); 
@@ -2398,7 +2982,7 @@
 
         document.getElementById('btn_open_new_bg').addEventListener('click', () => openModal('modal_new_bg'));
 
-        // 비율 잠금 로직
+        // 鍮꾩쑉 ?좉툑 濡쒖쭅
         document.getElementById('edit_shape_w').addEventListener('input', e => { if(document.getElementById('edit_shape_lock_ratio').checked) document.getElementById('edit_shape_h').value = Math.round(e.target.value / origShapeRatio); });
         document.getElementById('edit_shape_h').addEventListener('input', e => { if(document.getElementById('edit_shape_lock_ratio').checked) document.getElementById('edit_shape_w').value = Math.round(e.target.value * origShapeRatio); });
         document.getElementById('edit_image_w').addEventListener('input', e => { if(document.getElementById('edit_image_lock_ratio').checked) document.getElementById('edit_image_h').value = Math.round(e.target.value / origImageRatio); });
@@ -2406,7 +2990,7 @@
         document.getElementById('edit_line_w').addEventListener('input', e => { if(document.getElementById('edit_line_lock_ratio').checked) document.getElementById('edit_line_h').value = Math.round(e.target.value / origLineRatio); });
         document.getElementById('edit_line_h').addEventListener('input', e => { if(document.getElementById('edit_line_lock_ratio').checked) document.getElementById('edit_line_w').value = Math.round(e.target.value * origLineRatio); });
 
-        // 개체 더블클릭 속성 수정창 (JSON 로드 개체 대응 완벽 동기화)
+        // 媛쒖껜 ?붾툝?대┃ ?띿꽦 ?섏젙李?(JSON 濡쒕뱶 媛쒖껜 ????꾨꼍 ?숆린??
         canvas.on('mouse:dblclick', function(o) {
             if(multiClickDrawing) { finalizeMultiClickDrawing(); return; } 
             if(activeTool) return; 
@@ -2416,7 +3000,7 @@
             editingObject = targetObj; 
             
             const isText = (editingObject.type === 'i-text' || editingObject.type === 'text');
-            const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/)); 
+            const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z媛-??-9]/)); 
             const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
             const isArrow = (editingObject.type === 'group'); 
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
@@ -2458,7 +3042,7 @@
                 document.querySelectorAll('#edit_text_align_group .btn-align').forEach(btn => {
                     btn.classList.toggle('active', btn.getAttribute('data-align') === (editingObject.textAlign || 'left'));
                 });
-                document.getElementById('edit_text_align').value = editingObject.textAlign || 'center';
+                document.getElementById('edit_text_align').value = editingObject.textAlign || 'left';
                 
                 document.getElementById('edit_text_color').style.backgroundColor = editingObject.fill || '#000';
                 let bCol = editingObject.backgroundColor;
@@ -2541,7 +3125,7 @@
         window.applyObjectEdit = function() {
             if (!editingObject) return;
             const isText = (editingObject.type === 'i-text' || editingObject.type === 'text');
-            const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/));
+            const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z媛-??-9]/));
             const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
             const isArrow = (editingObject.type === 'group'); 
             const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
@@ -2549,10 +3133,10 @@
 
             if (isEmoji) {
                 const size = parseInt(document.getElementById('edit_emoji_size').value);
-                if (editingObject.baseFontSize) { // Image로 변환된 새 이모티콘
+                if (editingObject.baseFontSize) { // Image濡?蹂?섎맂 ???대え?곗퐯
                     const scale = size / editingObject.baseFontSize;
                     editingObject.set({ scaleX: scale, scaleY: scale });
-                } else { // 예전 버전 호환성 (fabric.Text로 저장된 경우)
+                } else { // ?덉쟾 踰꾩쟾 ?명솚??(fabric.Text濡???λ맂 寃쎌슦)
                     editingObject.set({ fontSize: size });
                 }
                 editingObject.setCoords();
@@ -2704,107 +3288,40 @@
             closeModals();
         };
 
-        function updateActiveText(propName = null, propValue = null, skipSelection = false) {
-            if (propName && typeof propName === 'object') { propName = null; propValue = null; }
+        function updateActiveText(skipSelection = false) {
             const obj = canvas.getActiveObject();
-            if (!obj) return;
-            const targetText = obj.linkedText || (['i-text', 'textbox', 'text'].includes(obj.type) && !obj.isEmoji ? obj : null);
-            if (targetText) {
-                const hasSelection = targetText.isEditing && targetText.selectionStart !== targetText.selectionEnd;
+            if (obj && (obj.type === 'i-text' || obj.type === 'textbox') && !obj.isEmoji) {
+                const fw = txtB ? 'bold' : 'normal';
+                const fst = txtI ? 'italic' : 'normal';
+                const und = txtU;
+                const fs = parseInt(document.getElementById('text_size_input').value);
 
-                if (propName) {
-                    if (!skipSelection && hasSelection && propName !== 'textAlign' && propName !== 'backgroundColor') {
-                        const styleObj = {}; styleObj[propName] = propValue;
-                        targetText.setSelectionStyles(styleObj);
-                    } else {
-                        targetText.set(propName, propValue);
-                    }
+                if (!skipSelection && obj.isEditing && obj.selectionStart !== obj.selectionEnd) {
+                    obj.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und });
                 } else {
-                    const isB = document.getElementById('btn_txt_b') && document.getElementById('btn_txt_b').classList.contains('active');
-                    const isI = document.getElementById('btn_txt_i') && document.getElementById('btn_txt_i').classList.contains('active');
-                    const isU = document.getElementById('btn_txt_u') && document.getElementById('btn_txt_u').classList.contains('active');
-                    const fw = isB ? 'bold' : 'normal';
-                    const fst = isI ? 'italic' : 'normal';
-                    const und = !!isU;
-                    const fs = parseInt(document.getElementById('text_size_input').value) || 50;
-                    let alignVal = 'center';
-                    if (document.getElementById('text_align')) alignVal = document.getElementById('text_align').value;
-                    if (document.getElementById('edit_text_align')) alignVal = document.getElementById('edit_text_align').value;
-
-                    if (!skipSelection && hasSelection) {
-                        targetText.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor });
-                    } else {
-                        targetText.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity(), textAlign: alignVal });
-                    }
+                    obj.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity() });
                 }
-                targetText.dirty = true;
-                if (targetText.isEditing && targetText.initDimensions) {
-                    targetText.initDimensions();
-                }
-                if (targetText.linkedShape) targetText.fire('changed');
                 canvas.requestRenderAll();
             }
         }
         ['b','i','u'].forEach(type => { 
             const topBtn = document.getElementById('btn_txt_'+type);
             const editBtn = document.getElementById('edit_btn_'+type);
-            function onClick() {
-                this.classList.toggle('active'); 
-                const isActive = this.classList.contains('active');
-                if (editBtn && this === topBtn) editBtn.classList.toggle('active', isActive);
-                if (topBtn && this === editBtn) topBtn.classList.toggle('active', isActive);
-                
-                let pName, pVal;
-                if(type === 'b') { pName = 'fontWeight'; pVal = isActive ? 'bold' : 'normal'; }
-                if(type === 'i') { pName = 'fontStyle'; pVal = isActive ? 'italic' : 'normal'; }
-                if(type === 'u') { pName = 'underline'; pVal = isActive; }
-                updateActiveText(pName, pVal);
+            if (topBtn) {
+                topBtn.addEventListener('mousedown', e => e.preventDefault());
+                topBtn.addEventListener('click', function() { 
+                    window['txt'+type.toUpperCase()] = !window['txt'+type.toUpperCase()]; 
+                    this.classList.toggle('active'); 
+                    updateActiveText(); 
+                }); 
             }
-            if (topBtn) { topBtn.addEventListener('mousedown', e => e.preventDefault()); topBtn.addEventListener('click', onClick); }
-            if (editBtn) { editBtn.addEventListener('mousedown', e => e.preventDefault()); editBtn.addEventListener('click', onClick); }
+            if (editBtn) {
+                editBtn.addEventListener('mousedown', e => e.preventDefault());
+                editBtn.addEventListener('click', function() { 
+                    this.classList.toggle('active'); 
+                }); 
+            }
         });
-        
-        document.querySelectorAll('.btn-align').forEach(btn => {
-            btn.addEventListener('mousedown', e => e.preventDefault());
-            btn.addEventListener('click', function() {
-                const group = this.closest('.btn-group');
-                if (group) {
-                    group.querySelectorAll('.btn-align').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    const val = this.getAttribute('data-align');
-                    
-                    if (group.id === 'edit_text_align_group') {
-                        document.getElementById('edit_text_align').value = val;
-                        if (document.getElementById('text_align')) document.getElementById('text_align').value = val;
-                    } else {
-                        // main toolbar align group
-                        if (document.getElementById('text_align')) {
-                            document.getElementById('text_align').value = val;
-                            if (document.getElementById('edit_text_align')) document.getElementById('edit_text_align').value = val;
-                        }
-                    }
-                    updateActiveText('textAlign', val);
-                }
-            });
-        });
-
-        
-        const sizeInput = document.getElementById('text_size_input');
-        if (sizeInput) {
-            sizeInput.addEventListener('input', function() { updateActiveText('fontSize', parseInt(this.value) || 50); });
-            sizeInput.addEventListener('change', function() { updateActiveText('fontSize', parseInt(this.value) || 50); });
-        }
-        const editSizeInput = document.getElementById('edit_text_size');
-        if (editSizeInput) {
-            editSizeInput.addEventListener('input', function() {
-                const val = parseInt(this.value) || 50;
-                if(document.getElementById('text_size_input')) {
-                    document.getElementById('text_size_input').value = val;
-                }
-                updateActiveText('fontSize', val);
-            });
-        }
-
         document.querySelector('emoji-picker').addEventListener('emoji-click', event => { 
             const clickedUrl = event.detail.url || (event.detail.emoji && event.detail.emoji.url);
             if (clickedUrl) {
@@ -2814,7 +3331,7 @@
             } else {
                 selectedEmoji = event.detail.unicode || (event.detail.emoji && event.detail.emoji.unicode); 
                 selectedEmojiUrl = null;
-                document.getElementById('emoji_preview').innerText = selectedEmoji || "😀";
+                document.getElementById('emoji_preview').innerText = selectedEmoji || "??";
             }
             document.getElementById('emoji_popup').style.display = 'none'; 
         });
@@ -2827,13 +3344,11 @@
             const file = e.target.files[0]; if (!file) return; 
             const reader = new FileReader(); 
             reader.onload = function(f) {
-                uploadedImageSrc = f.target.result; // ★ 반드시 저장
-                const img = new Image();
+                uploadedImageSrc = f.target.result; // ??諛섎뱶?????                const img = new Image();
                 img.onload = () => {
                     insertImgOrigW = img.width; insertImgOrigH = img.height;
                     const container = document.getElementById('image_insert_preview_container');
-                    // 모달이 아직 닫혀있을 수 있으므로 먼저 열어야 clientWidth가 정확함
-                    openModal('modal_image_insert');
+                    // 紐⑤떖???꾩쭅 ?ロ??덉쓣 ???덉쑝誘濡?癒쇱? ?댁뼱??clientWidth媛 ?뺥솗??                    openModal('modal_image_insert');
                     
                     requestAnimationFrame(() => {
                         const cW = container.clientWidth || 460;
@@ -2843,7 +3358,7 @@
                         
                         const pImg = document.getElementById('image_insert_img');
                         pImg.src = f.target.result;
-                        pImg.style.display = 'block'; // ★ 보이게 설정
+                        pImg.style.display = 'block'; // ??蹂댁씠寃??ㅼ젙
                         pImg.style.width  = img.width  + 'px';
                         pImg.style.height = img.height + 'px';
                         pImg.style.transform = `scale(${insertScale})`;
@@ -2932,15 +3447,15 @@
             }
         });
         
-        // ★ 이미지 삽입 — 버튼 클릭 시 캔버스 중앙에 즉시 배치 (드래그 불필요)
+        // ???대?吏 ?쎌엯 ??踰꾪듉 ?대┃ ??罹붾쾭??以묒븰??利됱떆 諛곗튂 (?쒕옒洹?遺덊븘??
         function placeImageOnCanvas(src, cropX, cropY, cropW, cropH, frame) {
             if (!src || !hasActiveCanvas) return;
             closeModals();
             fabric.Image.fromURL(src, (img) => {
-                // crop 적용
+                // crop ?곸슜
                 img.set({ cropX: cropX, cropY: cropY, width: cropW, height: cropH });
 
-                // 클립 마스크 (원/타원)
+                // ?대┰ 留덉뒪??(?????
                 if (frame === 'circle' || frame === 'ellipse') {
                     img.set({ clipPath: new fabric.Ellipse({
                         originX: 'center', originY: 'center',
@@ -2948,7 +3463,7 @@
                     })});
                 }
 
-                // 캔버스 80% 안에 들어오도록 스케일 조정
+                // 罹붾쾭??80% ?덉뿉 ?ㅼ뼱?ㅻ룄濡??ㅼ???議곗젙
                 const maxScale = Math.min(
                     (canvas.width  * 0.8) / cropW,
                     (canvas.height * 0.8) / cropH,
@@ -2971,20 +3486,20 @@
                 canvas.bringToFront(img);
                 canvas.requestRenderAll();
                 saveHistory();
-                // 이미지 툴 비활성화 (선택 모드로 복귀)
+                // ?대?吏 ??鍮꾪솢?깊솕 (?좏깮 紐⑤뱶濡?蹂듦?)
                 const imgBtn = document.getElementById('btn_tool_image');
                 if (imgBtn && imgBtn.classList.contains('active')) imgBtn.click();
             });
         }
 
         document.getElementById('btn_insert_original').addEventListener('click', () => {
-            if (!uploadedImageSrc) { customAlert('이미지를 먼저 선택하세요.'); return; }
+            if (!uploadedImageSrc) { customAlert('?대?吏瑜?癒쇱? ?좏깮?섏꽭??'); return; }
             placeImageOnCanvas(uploadedImageSrc, 0, 0, insertImgOrigW, insertImgOrigH, 'rect');
         });
 
         document.getElementById('btn_confirm_image_insert').addEventListener('click', () => {
             if (!imageInsertData || !imageInsertData.src) {
-                customAlert('이미지를 먼저 선택하고 영역을 지정하세요.');
+                customAlert('?대?吏瑜?癒쇱? ?좏깮?섍퀬 ?곸뿭??吏?뺥븯?몄슂.');
                 return;
             }
             placeImageOnCanvas(
@@ -2996,7 +3511,7 @@
         });
         
         document.getElementById('btn_clear_all').addEventListener('click', async () => { 
-            const confirm = await customConfirm("그린 개체를 모두 지우시겠습니까?\n(배경/캡처 이미지는 삭제되지 않습니다.)");
+            const confirm = await customConfirm("洹몃┛ 媛쒖껜瑜?紐⑤몢 吏?곗떆寃좎뒿?덇퉴?\n(諛곌꼍/罹≪쿂 ?대?吏????젣?섏? ?딆뒿?덈떎.)");
             if (confirm) {
                 const objs = canvas.getObjects().slice(); 
                 objs.forEach(obj => canvas.remove(obj));
@@ -3006,14 +3521,14 @@
         });
 
         // ==========================================
-        // 화살표/도형 생성 도우미 (오차 없는 절대 좌표 변환 알고리즘 적용)
+        // ?붿궡???꾪삎 ?앹꽦 ?꾩슦誘?(?ㅼ감 ?녿뒗 ?덈? 醫뚰몴 蹂???뚭퀬由ъ쬁 ?곸슜)
         // ==========================================
         function createArrowHead(x2, y2, angle, type, size, color, weight) {
             const sizeMult = size === 'xs' ? 1.5 : size === 's' ? 2 : size === 'l' ? 4 : 3;
             const w = weight * sizeMult + 8; 
             const h = w / 2;
 
-            // 좌표를 삼각함수로 사전 회전시켜 바운딩 박스 오차 원천 차단
+            // 醫뚰몴瑜??쇨컖?⑥닔濡??ъ쟾 ?뚯쟾?쒖폒 諛붿슫??諛뺤뒪 ?ㅼ감 ?먯쿇 李⑤떒
             const rotatePoint = (px, py, ang) => {
                 return {
                     x: x2 + px * Math.cos(ang) - py * Math.sin(ang),
@@ -3072,7 +3587,7 @@
         }
 
         // ==========================================
-        // 8. 캔버스 마우스 조작 (정밀도 및 다중클릭 그리기 교정)
+        // 8. 罹붾쾭??留덉슦??議곗옉 (?뺣???諛??ㅼ쨷?대┃ 洹몃━湲?援먯젙)
         // ==========================================
         
         canvas.on('text:editing:entered', (e) => { 
@@ -3106,21 +3621,20 @@
         });
         
         // ==========================================
-        // ★ 펜 '일반' 모드 — 도형 자동 인식 엔진 (Shape Recognition)
+        // ????'?쇰컲' 紐⑤뱶 ???꾪삎 ?먮룞 ?몄떇 ?붿쭊 (Shape Recognition)
         // ==========================================
         let _shapeRecogTimer = null;
         let _lastPenMoveTime = 0;
         let _isAutoShapeTriggered = false;
 
-        // 마우스 정지 0.5초 감지: 드로잉 중 마우스가 멈추면 자동으로 mouseup 시뮬레이션
-        canvas.on('mouse:move', function _penPauseDetector(o) {
+        // 留덉슦???뺤? 0.5珥?媛먯?: ?쒕줈??以?留덉슦?ㅺ? 硫덉텛硫??먮룞?쇰줈 mouseup ?쒕??덉씠??        canvas.on('mouse:move', function _penPauseDetector(o) {
             if (activeTool !== 'pen' || !canvas.isDrawingMode || !canvas._isCurrentlyDrawing) return;
             _lastPenMoveTime = Date.now();
             if (_shapeRecogTimer) clearTimeout(_shapeRecogTimer);
             _shapeRecogTimer = setTimeout(() => {
                 if (!canvas._isCurrentlyDrawing || activeTool !== 'pen') return;
-                _isAutoShapeTriggered = true; // 0.5초 일시정지에 의한 자동 인식 플래그 설정
-                // 0.5초 동안 마우스가 움직이지 않았으므로 드로잉 자동 종료
+                _isAutoShapeTriggered = true; // 0.5珥??쇱떆?뺤????섑븳 ?먮룞 ?몄떇 ?뚮옒洹??ㅼ젙
+                // 0.5珥??숈븞 留덉슦?ㅺ? ?吏곸씠吏 ?딆븯?쇰?濡??쒕줈???먮룞 醫낅즺
                 const upperCanvas = canvas.upperCanvasEl;
                 if (upperCanvas) {
                     const lastEvt = new MouseEvent('mouseup', { bubbles: true, clientX: o.e.clientX, clientY: o.e.clientY });
@@ -3129,12 +3643,12 @@
             }, 500);
         });
 
-        // 마우스 뗄 때 타이머 정리
+        // 留덉슦????????대㉧ ?뺣━
         canvas.on('mouse:up', function() {
             if (_shapeRecogTimer) { clearTimeout(_shapeRecogTimer); _shapeRecogTimer = null; }
         });
 
-        // ── 도형 인식 핵심 알고리즘 ──
+        // ?? ?꾪삎 ?몄떇 ?듭떖 ?뚭퀬由ъ쬁 ??
         function _extractPathPoints(pathObj) {
             const points = [];
             const path = pathObj.path;
@@ -3182,10 +3696,10 @@
         }
 
         function _detectCorners(pts) {
-            // 점을 균등 간격으로 리샘플링한 후 급격한 방향 변화 감지
+            // ?먯쓣 洹좊벑 媛꾧꺽?쇰줈 由ъ깦?뚮쭅????湲됯꺽??諛⑺뼢 蹂??媛먯?
             const resampled = _resample(pts, 64);
             const corners = [0];
-            const threshold = Math.PI / 4; // 45도 이상 꺾이면 코너
+            const threshold = Math.PI / 4; // 45???댁긽 爰얠씠硫?肄붾꼫
             for (let i = 2; i < resampled.length - 2; i++) {
                 const v1x = resampled[i].x - resampled[i - 2].x;
                 const v1y = resampled[i].y - resampled[i - 2].y;
@@ -3199,7 +3713,7 @@
                 if (angle > threshold) corners.push(i);
             }
             corners.push(resampled.length - 1);
-            // 너무 가까운 코너 합침
+            // ?덈Т 媛源뚯슫 肄붾꼫 ?⑹묠
             const merged = [corners[0]];
             for (let i = 1; i < corners.length; i++) {
                 if (corners[i] - merged[merged.length - 1] > 3) merged.push(corners[i]);
@@ -3266,13 +3780,13 @@
             const diag = Math.hypot(bb.w, bb.h);
             if (diag < 15) return null;
 
-            // === 0. 한붓그리기 별(펜타그램) 인식 ===
+            // === 0. ?쒕텚洹몃━湲?蹂??쒗?洹몃옩) ?몄떇 ===
             const pentaResult = _pentagramScore(pts, bb);
             if (pentaResult && pentaResult.score > 0.55) {
                 return { type: 'star', cx: bb.cx, cy: bb.cy, outerR: pentaResult.outerR, innerR: pentaResult.outerR * 0.38, points: 5 };
             }
 
-            // === 1. 닫힌 도형 인식 ===
+            // === 1. ?ロ엺 ?꾪삎 ?몄떇 ===
             if (closed) {
                 const cx = bb.cx, cy = bb.cy;
                 const circ = _circularityScore(pts, cx, cy);
@@ -3282,7 +3796,7 @@
                     else return { type: 'ellipse', cx, cy, rx: bb.w / 2, ry: bb.h / 2 };
                 }
 
-                // DP 단순화로 사용자가 그린 형태 정확히 유지 (에러허용: 대각선의 4.5%)
+                // DP ?⑥닚?붾줈 ?ъ슜?먭? 洹몃┛ ?뺥깭 ?뺥솗???좎? (?먮윭?덉슜: ?媛곸꽑??4.5%)
                 let closedPts = pts.slice();
                 closedPts.push(pts[0]);
                 const dp = _simplifyDP(closedPts, diag * 0.045);
@@ -3293,7 +3807,7 @@
                 if (n === 5) return { type: 'pentagon', cx, cy, r: Math.max(bb.w, bb.h) / 2 };
                 if (n === 6) return { type: 'hexagon', cx, cy, r: Math.max(bb.w, bb.h) / 2 };
 
-                // 반원/부채꼴 감지 (DP 결과 선분 길이 분석)
+                // 諛섏썝/遺梨꾧섦 媛먯? (DP 寃곌낵 ?좊텇 湲몄씠 遺꾩꽍)
                 let segs = [];
                 let perimeter = 0;
                 for (let i = 0; i < n; i++) {
@@ -3304,7 +3818,7 @@
                 segs.sort((a, b) => b.len - a.len);
 
                 if (n >= 3) {
-                    // 부채꼴: 2개의 가장 긴 선분이 인접하고 전체 둘레의 40% 이상 차지
+                    // 遺梨꾧섦: 2媛쒖쓽 媛??湲??좊텇???몄젒?섍퀬 ?꾩껜 ?섎젅??40% ?댁긽 李⑥?
                     if (segs.length >= 2 && (segs[0].len + segs[1].len) / perimeter > 0.40) {
                         const i1 = segs[0].i, i2 = segs[1].i;
                         if (Math.abs(i1 - i2) === 1 || Math.abs(i1 - i2) === n - 1) {
@@ -3325,7 +3839,7 @@
                         }
                     }
                     
-                    // 반원: 1개의 가장 긴 선분(지름)이 전체 둘레의 28% 이상 차지
+                    // 諛섏썝: 1媛쒖쓽 媛??湲??좊텇(吏由????꾩껜 ?섎젅??28% ?댁긽 李⑥?
                     if (segs[0].len / perimeter > 0.28) {
                         const idx = segs[0].i;
                         const p1 = dp[idx], p2 = dp[idx+1];
@@ -3343,7 +3857,7 @@
                     }
                 }
 
-                // 하트는 코너 감지로 유지
+                // ?섑듃??肄붾꼫 媛먯?濡??좎?
                 const corners = _detectCorners(pts);
                 if (corners.length >= 3 && corners.length <= 6) {
                     if (_heartScore(pts, bb) > 0.7) return { type: 'heart', cx, cy, w: bb.w, h: bb.h };
@@ -3351,37 +3865,36 @@
                 
                 if (circ > 0.7) return { type: 'ellipse', cx, cy, rx: bb.w / 2, ry: bb.h / 2 };
 
-                // 매칭 안되면 초월/다항함수처럼 매끈한 곡선 생성 (DP 극단적 단순화 후 곡선화)
+                // 留ㅼ묶 ?덈릺硫?珥덉썡/?ㅽ빆?⑥닔泥섎읆 留ㅻ걟??怨≪꽑 ?앹꽦 (DP 洹밸떒???⑥닚????怨≪꽑??
                 const dpCurve = _simplifyDP(pts, diag * 0.08);
                 return { type: 'curve', points: dpCurve };
             }
 
-            // === 2. 열린 도형 ===
+            // === 2. ?대┛ ?꾪삎 ===
             if (!closed) {
-                // 열린 도형은 초월/다항함수처럼 매끈한 곡선(curve)으로 변환
-                const dpCurve = _simplifyDP(pts, diag * 0.08);
+                // ?대┛ ?꾪삎? 珥덉썡/?ㅽ빆?⑥닔泥섎읆 留ㅻ걟??怨≪꽑(curve)?쇰줈 蹂??                const dpCurve = _simplifyDP(pts, diag * 0.08);
                 return { type: 'curve', points: dpCurve };
             }
 
             return null;
         }
 
-        // ── 한붓그리기 별(펜타그램 ☆) 전용 인식 ──
+        // ?? ?쒕텚洹몃━湲?蹂??쒗?洹몃옩 ?? ?꾩슜 ?몄떇 ??
         function _pentagramScore(pts, bb) {
-            // 코너를 감지하고 정확히 5개의 뾰족한 꼭짓점이 있는지 확인
+            // 肄붾꼫瑜?媛먯??섍퀬 ?뺥솗??5媛쒖쓽 毓곗”??瑗?쭞?먯씠 ?덈뒗吏 ?뺤씤
             const corners = _detectCorners(pts);
             if (corners.length < 5 || corners.length > 12) return { score: 0 };
 
             const cx = bb.cx, cy = bb.cy;
-            // 중심에서 가장 먼 5개 점을 별의 꼭짓점 후보로 선택
+            // 以묒떖?먯꽌 媛??癒?5媛??먯쓣 蹂꾩쓽 瑗?쭞???꾨낫濡??좏깮
             const sorted = corners.slice().sort((a, b) => Math.hypot(b.x - cx, b.y - cy) - Math.hypot(a.x - cx, a.y - cy));
             const tips = sorted.slice(0, 5);
             if (tips.length < 5) return { score: 0 };
 
-            // 5개 꼭짓점의 각도를 계산하고 균등 분포(72°간격) 여부 확인
+            // 5媛?瑗?쭞?먯쓽 媛곷룄瑜?怨꾩궛?섍퀬 洹좊벑 遺꾪룷(72째媛꾧꺽) ?щ? ?뺤씤
             const angles = tips.map(p => Math.atan2(p.y - cy, p.x - cx)).sort((a, b) => a - b);
             let gapScore = 0;
-            const idealGap = (2 * Math.PI) / 5; // 72°
+            const idealGap = (2 * Math.PI) / 5; // 72째
             for (let i = 0; i < 5; i++) {
                 let gap = angles[(i + 1) % 5] - angles[i];
                 if (gap < 0) gap += 2 * Math.PI;
@@ -3389,24 +3902,21 @@
             }
             gapScore /= 5;
 
-            // 5개 꼭짓점의 중심 거리 균등성
-            const tipDists = tips.map(p => Math.hypot(p.x - cx, p.y - cy));
+            // 5媛?瑗?쭞?먯쓽 以묒떖 嫄곕━ 洹좊벑??            const tipDists = tips.map(p => Math.hypot(p.x - cx, p.y - cy));
             const avgR = tipDists.reduce((s, d) => s + d, 0) / tipDists.length;
             const distVariance = tipDists.reduce((s, d) => s + (d - avgR) ** 2, 0) / tipDists.length;
             const distScore = Math.max(0, 1 - Math.sqrt(distVariance) / avgR);
 
-            // 경로에 교차(self-intersection)가 있는지 확인 — 별 모양의 핵심 특징
+            // 寃쎈줈??援먯감(self-intersection)媛 ?덈뒗吏 ?뺤씤 ??蹂?紐⑥뼇???듭떖 ?뱀쭠
             const crossings = _countSelfIntersections(pts);
-            if (crossings < 1) return { score: 0 }; // 펜타그램(한붓그리기 별)은 반드시 교차점이 있어야 함
-            const crossScore = crossings >= 3 ? 1 : crossings >= 1 ? 0.5 : 0;
+            if (crossings < 1) return { score: 0 }; // ?쒗?洹몃옩(?쒕텚洹몃━湲?蹂?? 諛섎뱶??援먯감?먯씠 ?덉뼱????            const crossScore = crossings >= 3 ? 1 : crossings >= 1 ? 0.5 : 0;
 
             const score = gapScore * 0.4 + distScore * 0.3 + crossScore * 0.3;
             return { score, outerR: avgR };
         }
 
         function _countSelfIntersections(pts) {
-            // 선분 교차 횟수를 세기 위해 간격을 두고 샘플링
-            const step = Math.max(1, Math.floor(pts.length / 30));
+            // ?좊텇 援먯감 ?잛닔瑜??멸린 ?꾪빐 媛꾧꺽???먭퀬 ?섑뵆留?            const step = Math.max(1, Math.floor(pts.length / 30));
             const segs = [];
             for (let i = 0; i < pts.length - step; i += step) {
                 segs.push([pts[i], pts[Math.min(i + step, pts.length - 1)]]);
@@ -3430,8 +3940,7 @@
 
         function _heartScore(pts, bb) {
             const cx = bb.cx, cy = bb.cy;
-            // 하트는 위쪽 절반에 좌우 대칭적인 2개의 볼록한 영역, 아래쪽에 뾰족한 꼭짓점
-            let bottomPt = pts[0], topLeftPt = null, topRightPt = null;
+            // ?섑듃???꾩そ ?덈컲??醫뚯슦 ?移?쟻??2媛쒖쓽 蹂쇰줉???곸뿭, ?꾨옒履쎌뿉 毓곗”??瑗?쭞??            let bottomPt = pts[0], topLeftPt = null, topRightPt = null;
             pts.forEach(p => { if (p.y > bottomPt.y) bottomPt = p; });
 
             const topHalf = pts.filter(p => p.y < cy);
@@ -3443,13 +3952,10 @@
             topLeftPt = leftTop.reduce((best, p) => p.y < best.y ? p : best, leftTop[0]);
             topRightPt = rightTop.reduce((best, p) => p.y < best.y ? p : best, rightTop[0]);
 
-            // 아래 꼭짓점이 중앙 하단에 있어야 함
-            const bottomCentered = Math.abs(bottomPt.x - cx) < bb.w * 0.25;
+            // ?꾨옒 瑗?쭞?먯씠 以묒븰 ?섎떒???덉뼱????            const bottomCentered = Math.abs(bottomPt.x - cx) < bb.w * 0.25;
             const bottomIsLowest = bottomPt.y > cy + bb.h * 0.2;
-            // 위쪽에 2개의 봉우리가 있어야 함
-            const hasTwoBumps = topLeftPt.y < cy - bb.h * 0.1 && topRightPt.y < cy - bb.h * 0.1;
-            // 상단 중앙에 오목한 부분이 있어야 함
-            const midTopPts = topHalf.filter(p => Math.abs(p.x - cx) < bb.w * 0.15);
+            // ?꾩そ??2媛쒖쓽 遊됱슦由ш? ?덉뼱????            const hasTwoBumps = topLeftPt.y < cy - bb.h * 0.1 && topRightPt.y < cy - bb.h * 0.1;
+            // ?곷떒 以묒븰???ㅻぉ??遺遺꾩씠 ?덉뼱????            const midTopPts = topHalf.filter(p => Math.abs(p.x - cx) < bb.w * 0.15);
             const midTopY = midTopPts.length > 0 ? Math.min(...midTopPts.map(p => p.y)) : bb.minY;
             const hasIndent = midTopY > Math.min(topLeftPt.y, topRightPt.y) + bb.h * 0.05;
 
@@ -3466,7 +3972,7 @@
 
         function _simplifyToN(corners, n) {
             if (corners.length <= n) return corners;
-            // 가장 먼 n개 코너 선택
+            // 媛??癒?n媛?肄붾꼫 ?좏깮
             while (corners.length > n) {
                 let minDist = Infinity, minIdx = 1;
                 for (let i = 1; i < corners.length - 1; i++) {
@@ -3480,7 +3986,7 @@
 
         function _rectangularityScore(corners4, bb) {
             if (corners4.length !== 4) return 0;
-            // 4개 코너가 bb의 꼭짓점에 가까운 정도 측정
+            // 4媛?肄붾꼫媛 bb??瑗?쭞?먯뿉 媛源뚯슫 ?뺣룄 痢≪젙
             const bbCorners = [
                 { x: bb.minX, y: bb.minY }, { x: bb.maxX, y: bb.minY },
                 { x: bb.maxX, y: bb.maxY }, { x: bb.minX, y: bb.maxY }
@@ -3495,7 +4001,7 @@
         }
 
         function _arcScore(pts) {
-            // 3점 원 피팅으로 호 인식
+            // 3?????쇳똿?쇰줈 ???몄떇
             const p1 = pts[0], p2 = pts[Math.floor(pts.length / 2)], p3 = pts[pts.length - 1];
             const ax = p1.x, ay = p1.y, bx = p2.x, by = p2.y, ex = p3.x, ey = p3.y;
             const D = 2 * (ax * (by - ey) + bx * (ey - ay) + ex * (ay - by));
@@ -3512,7 +4018,7 @@
             return { score, cx, cy, r, startAngle, endAngle };
         }
 
-        // ── 인식된 도형을 Fabric 개체로 변환 ──
+        // ?? ?몄떇???꾪삎??Fabric 媛쒖껜濡?蹂????
         function _createRecognizedShape(shape, strokeColor, strokeWidth, strokeDashArray) {
             const opts = { stroke: strokeColor, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray, fill: 'transparent', selectable: true, isTemp: false, strokeLineJoin: 'round', strokeLineCap: 'round' };
 
@@ -3602,7 +4108,7 @@
             }
         }
 
-        // ── 인식 성공 시 화면에 간단한 알림 표시 ──
+        // ?? ?몄떇 ?깃났 ???붾㈃??媛꾨떒???뚮┝ ?쒖떆 ??
         function _showShapeRecogNotice(typeName) {
             let notice = document.getElementById('shape_recog_notice');
             if (!notice) {
@@ -3611,8 +4117,8 @@
                 notice.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.85);color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.3s;font-family:Pretendard,sans-serif;';
                 document.body.appendChild(notice);
             }
-            const names = { circle: '원', ellipse: '타원', rect: '사각형', polygon: '다각형', star: '별', heart: '하트', pentagon: '오각형', hexagon: '육각형', semicircle: '반원', sector: '부채꼴', triangle: '삼각형', curve: '부드러운 곡선' };
-            notice.textContent = `✨ ${names[typeName] || typeName} 도형으로 변환됨`;
+            const names = { circle: '??, ellipse: '???, rect: '?ш컖??, polygon: '?ㅺ컖??, star: '蹂?, heart: '?섑듃', pentagon: '?ㅺ컖??, hexagon: '?↔컖??, semicircle: '諛섏썝', sector: '遺梨꾧섦', triangle: '?쇨컖??, curve: '遺?쒕윭??怨≪꽑' };
+            notice.textContent = `??${names[typeName] || typeName} ?꾪삎?쇰줈 蹂?섎맖`;
             notice.style.opacity = '1';
             clearTimeout(notice._timer);
             notice._timer = setTimeout(() => { notice.style.opacity = '0'; }, 1500);
@@ -3621,11 +4127,9 @@
         canvas.on('path:created', (e) => {
             if (activeTool === 'pen') {
                 const isAuto = _isAutoShapeTriggered;
-                _isAutoShapeTriggered = false; // 플래그 초기화
-                
+                _isAutoShapeTriggered = false; // ?뚮옒洹?珥덇린??                
                 if (!isAuto) {
-                    // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
-                    e.path.set({ selectable: true, isTemp: false, objectCaching: true });
+                    // ?쇰컲 ???좎씤 寃쎌슦 媛쒕퀎 媛쒖껜濡??몄떇 諛??덉뒪?좊━ ???                    e.path.set({ selectable: true, isTemp: false, objectCaching: true });
                     updateObjectSelectability();
                     saveHistory();
                     return; 
@@ -3636,12 +4140,12 @@
                 const recognized = _recognizeShape(pts);
 
                 if (recognized) {
-                    // 원래 path의 스타일 정보 추출
+                    // ?먮옒 path???ㅽ????뺣낫 異붿텧
                     const sColor = pathObj.stroke;
                     const sWidth = pathObj.strokeWidth;
                     const sDash = pathObj.strokeDashArray;
 
-                    // 인식된 도형 생성
+                    // ?몄떇???꾪삎 ?앹꽦
                     const newObj = _createRecognizedShape(recognized, sColor, sWidth, sDash);
                     if (newObj) {
                         canvas.remove(pathObj);
@@ -3655,7 +4159,7 @@
                     }
                 }
 
-                // 인식 실패 시 기존 동작 유지
+                // ?몄떇 ?ㅽ뙣 ??湲곗〈 ?숈옉 ?좎?
                 pathObj.set({ selectable: true, isTemp: false });
                 updateObjectSelectability();
                 saveHistory();
@@ -3671,7 +4175,7 @@
             multiClickDrawing = false;
             floatingTooltip.style.display = 'none';
             
-            // 종료점(ESC/더블클릭) 마우스 오프셋 보정 및 확정
+            // 醫낅즺??ESC/?붾툝?대┃) 留덉슦???ㅽ봽??蹂댁젙 諛??뺤젙
             let uniquePoints = [clickPoints[0]];
             for(let i=1; i<clickPoints.length - 1; i++) {
                 if(Math.hypot(clickPoints[i].x - uniquePoints[uniquePoints.length-1].x, clickPoints[i].y - uniquePoints[uniquePoints.length-1].y) > 2) {
@@ -3682,7 +4186,7 @@
             if (Math.hypot(lastPt.x - uniquePoints[uniquePoints.length-1].x, lastPt.y - uniquePoints[uniquePoints.length-1].y) > 2) {
                 uniquePoints.push(lastPt);
             } else {
-                uniquePoints[uniquePoints.length-1] = lastPt; // 현재 커서 위치로 덮어씌움
+                uniquePoints[uniquePoints.length-1] = lastPt; // ?꾩옱 而ㅼ꽌 ?꾩튂濡???뼱?뚯?
             }
             clickPoints = uniquePoints;
             
@@ -3752,40 +4256,15 @@
             const pointer = canvas.getPointer(o.e);
             lastMouseDownPoint = pointer;
             
-            // 붙여넣기 좌표 갱신
+            // 遺숈뿬?ｊ린 醫뚰몴 媛깆떊
             lastCanvasClick = { x: pointer.x, y: pointer.y };
 
-            // === 텍스트 편집 모드 보호 및 드래그 선택 강화 ===
-            if (!activeTool && o.target) {
-                let editingText = null;
-                if (o.target.isEditing) editingText = o.target;
-                else if (o.target.linkedText && o.target.linkedText.isEditing) editingText = o.target.linkedText;
-                
-                if (editingText) {
-                    canvas._currentTransform = null; // 이동 방지 (4방향 커서 방지)
-                    if (canvas.getActiveObject() !== editingText) {
-                        canvas.setActiveObject(editingText);
-                    }
-                    if (o.target !== editingText) {
-                        // 도형의 빈 공간을 클릭한 경우, 텍스트 객체에 직접 마우스 이벤트를 전달한 효과를 줌
-                        if (typeof editingText.setCursorByClick === 'function') {
-                            try { editingText.setCursorByClick(o.e); } catch(e) {}
-                        }
-                        if (typeof editingText.initMouseMoveHandler === 'function') {
-                            try { editingText.initMouseMoveHandler(o.e); } catch(e) {}
-                        }
-                    }
-                    return;
-                }
-            }
-            
-            // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
-            const isControl = canvas._currentTransform && canvas._currentTransform.action && canvas._currentTransform.action !== 'drag';
-            if (!activeTool && o.target && o.target.linkedShape && !isControl) {
-                // 클릭 대상이 텍스트 오브젝트인 경우
+            // ?꾪삎 ??湲?곸옄: 泥??대┃? ?꾪삎 ?좏깮, ??踰덉㎏ ?대┃? ?띿뒪???몄쭛
+            if (!activeTool && o.target && o.target.linkedShape) {
+                // ?대┃ ??곸씠 ?띿뒪???ㅻ툕?앺듃??寃쎌슦
                 const shape = o.target.linkedShape;
                 if (_lastActiveShapeForLinkedText === shape) {
-                    // 두 번째 클릭: 텍스트 편집 모드 직접 진입
+                    // ??踰덉㎏ ?대┃: ?띿뒪???몄쭛 紐⑤뱶 吏곸젒 吏꾩엯
                     _lastActiveShapeForLinkedText = null;
                     const textTarget = o.target;
                     canvas.setActiveObject(textTarget);
@@ -3794,19 +4273,18 @@
                     canvas.requestRenderAll();
                     return;
                 } else {
-                    // 첫 번째 클릭: 도형 선택으로 리다이렉트
-                    o.target.__shapeJustSelected = true;
+                    // 泥?踰덉㎏ ?대┃: ?꾪삎 ?좏깮?쇰줈 由щ떎?대젆??                    o.target.__shapeJustSelected = true;
                     _lastActiveShapeForLinkedText = shape;
                     canvas.setActiveObject(shape);
                     canvas.requestRenderAll();
                     return;
                 }
-            } else if (!activeTool && o.target && o.target.linkedText && !isControl) {
-                // 클릭 대상이 도형 자체인 경우 (선택 핸들이 텍스트를 덮어서 도형이 타겟이 됨)
+            } else if (!activeTool && o.target && o.target.linkedText) {
+                // ?대┃ ??곸씠 ?꾪삎 ?먯껜??寃쎌슦 (?좏깮 ?몃뱾???띿뒪?몃? ??뼱???꾪삎???寃잛씠 ??
                 const shape = o.target;
                 const textTarget = shape.linkedText;
                 if (_lastActiveShapeForLinkedText === shape) {
-                    // 두 번째 클릭: 텍스트 편집 모드 진입
+                    // ??踰덉㎏ ?대┃: ?띿뒪???몄쭛 紐⑤뱶 吏꾩엯
                     _lastActiveShapeForLinkedText = null;
                     canvas.setActiveObject(textTarget);
                     textTarget.enterEditing();
@@ -3814,11 +4292,11 @@
                     canvas.requestRenderAll();
                     return;
                 } else {
-                    // 첫 번째 클릭 또는 일반 도형 클릭
+                    // 泥?踰덉㎏ ?대┃ ?먮뒗 ?쇰컲 ?꾪삎 ?대┃
                     _lastActiveShapeForLinkedText = shape;
                 }
             } else {
-                // 다른 곳 클릭 시 리셋
+                // ?ㅻⅨ 怨??대┃ ??由ъ뀑
                 _lastActiveShapeForLinkedText = null;
             }
 
@@ -3877,9 +4355,9 @@
                 return;
             }
 
-            // 도구가 활성화되어 있지 않고 대상이 있다면 (선택 이동 & 맨 앞으로 가져오기)
+            // ?꾧뎄媛 ?쒖꽦?붾릺???덉? ?딄퀬 ??곸씠 ?덈떎硫?(?좏깮 ?대룞 & 留??욎쑝濡?媛?몄삤湲?
             if (!activeTool && o.target && o.target.selectable) {
-                // 텍스트 편집 중에는 Fabric.js 내장 IText 핸들러에 완전히 위임 (드래그 블록지정, 커서 이동 등)
+                // ?띿뒪???몄쭛 以묒뿉??Fabric.js ?댁옣 IText ?몃뱾?ъ뿉 ?꾩쟾???꾩엫 (?쒕옒洹?釉붾줉吏?? 而ㅼ꽌 ?대룞 ??
                 if (o.target.isEditing) return;
                 
                 if (o.target._skipBringToFront) {
@@ -3939,7 +4417,7 @@
                 } else if (activeTool === 'mosaic') {
                     currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(0,0,0,0.0)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true }); canvas.add(currentShape);
                 } else if (activeTool === 'emoji') {
-                    if (!selectedEmoji && !selectedEmojiUrl) return customAlert("이모티콘을 먼저 선택해주세요.");
+                    if (!selectedEmoji && !selectedEmojiUrl) return customAlert("?대え?곗퐯??癒쇱? ?좏깮?댁＜?몄슂.");
                     const scaledSize = parseInt(document.getElementById('text_size_input').value) || 36;
                     
                     if (selectedEmojiUrl) {
@@ -4009,10 +4487,10 @@
                         return;
                     }
                     
-                    // 캔버스를 이용해 이모티콘을 이미지로 렌더링 (가장 완벽하고 타이트한 픽셀 단위 외곽선)
+                    // 罹붾쾭?ㅻ? ?댁슜???대え?곗퐯???대?吏濡??뚮뜑留?(媛???꾨꼍?섍퀬 ??댄듃???쎌? ?⑥쐞 ?멸낸??
                     const tempCanvas = document.createElement('canvas');
                     const tCtx = tempCanvas.getContext('2d');
-                    const renderSize = 128; // 고해상도 렌더링 기준 크기
+                    const renderSize = 128; // 怨좏빐?곷룄 ?뚮뜑留?湲곗? ?ш린
                     tCtx.font = `${renderSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
                     const metrics = tCtx.measureText(selectedEmoji);
                     
@@ -4043,7 +4521,7 @@
                             evented: false,
                             isTemp: true,
                             isEmoji: true,
-                            baseFontSize: renderSize, // 편집 시 기준 크기
+                            baseFontSize: renderSize, // ?몄쭛 ??湲곗? ?ш린
                             scaleX: scaledSize / renderSize,
                             scaleY: scaledSize / renderSize,
                             hasBorders: true,
@@ -4056,7 +4534,7 @@
                         liveEmojiImgObj.setCoords();
                         canvas.requestRenderAll();
                         
-                        // 비동기 이미지 로드 중 마우스가 이미 올라간 경우(드래그 없이 클릭만) 즉시 확정
+                        // 鍮꾨룞湲??대?吏 濡쒕뱶 以?留덉슦?ㅺ? ?대? ?щ씪媛?寃쎌슦(?쒕옒洹??놁씠 ?대┃留? 利됱떆 ?뺤젙
                         if (!isDrawing) {
                             liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
                             liveEmojiImgObj.setCoords();
@@ -4068,7 +4546,7 @@
                     };
                     emojiHtmlImg.src = emojiDataUrl;
                 } else if (activeTool === 'image') {
-                    if (!uploadedImageSrc) return customAlert("이미지 파일을 먼저 선택해주세요.");
+                    if (!uploadedImageSrc) return customAlert("?대?吏 ?뚯씪??癒쇱? ?좏깮?댁＜?몄슂.");
                     fabric.Image.fromURL(uploadedImageSrc, img => {
                         const frame = imageInsertData.frame;
                         img.set({ cropX: imageInsertData.sx, cropY: imageInsertData.sy, width: imageInsertData.sw, height: imageInsertData.sh });
@@ -4105,13 +4583,13 @@
             if (!activeTool && !isDrawing && !multiClickDrawing) return;
             if (activeTool === 'crop') { document.getElementById('guide_x').style.top = o.e.clientY + 'px'; document.getElementById('guide_y').style.left = o.e.clientX + 'px'; }
 
-            // 지우개 애니메이션 연동 처리 (부드러운 최적화)
+            // 吏?곌컻 ?좊땲硫붿씠???곕룞 泥섎━ (遺?쒕윭??理쒖쟻??
             if (activeTool === 'eraser') {
                 const target = canvas.findTarget(o.e, false);
 
                 if (target && target.evented) {
                     if (!isEraserFatState) { updateEraserCursor(true); isEraserFatState = true; }
-                    // 마우스 누른 채 이동 시 지우기
+                    // 留덉슦???꾨Ⅸ 梨??대룞 ??吏?곌린
                     if (isDrawing) {
                         if (lastEraserTarget && lastEraserTarget !== target) {
                             lastEraserTarget.set('opacity', 1);
@@ -4275,7 +4753,7 @@
                     }
                 } 
                 else if (isNormalLine) { 
-                    // 일반 화살표도 곡선/다중 클릭과 100% 동일한 알고리즘을 사용하도록 수학적 위치 갱신 도입
+                    // ?쇰컲 ?붿궡?쒕룄 怨≪꽑/?ㅼ쨷 ?대┃怨?100% ?숈씪???뚭퀬由ъ쬁???ъ슜?섎룄濡??섑븰???꾩튂 媛깆떊 ?꾩엯
                     let angle = Math.atan2(pointer.y - origY, pointer.x - origX);
                     const weight = parseInt(document.getElementById('shape_weight').value);
                     const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
@@ -4314,7 +4792,7 @@
             if (!isDrawing) return;
             isDrawing = false;
             
-            // 자르기 도구는 엣지 드래그 오버레이로 처리됨 (mouse:up에서 제외)
+            // ?먮Ⅴ湲??꾧뎄???ｌ? ?쒕옒洹??ㅻ쾭?덉씠濡?泥섎━??(mouse:up?먯꽌 ?쒖쇅)
             if (activeTool === 'crop') { isDrawing = false; return; }
 
             if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
@@ -4469,8 +4947,7 @@
             }
         });
 
-        // 커스텀 버튼 그룹 이벤트 바인딩
-        document.querySelectorAll('.custom-select-group').forEach(group => {
+        // 而ㅼ뒪? 踰꾪듉 洹몃９ ?대깽??諛붿씤??        document.querySelectorAll('.custom-select-group').forEach(group => {
             const hiddenInput = document.getElementById(group.id.replace('_group', ''));
             group.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -4482,8 +4959,7 @@
             });
         });
         // ==========================================
-        // ★ 자르기 네 변 조절 시스템
-        // ==========================================
+        // ???먮Ⅴ湲???蹂 議곗젅 ?쒖뒪??        // ==========================================
         let cropL = 0, cropT = 0, cropR = 0, cropB = 0;
         let cropAdjusted = false;
 
@@ -4493,27 +4969,25 @@
             ov.style.width = cw + 'px';
             ov.style.height = ch + 'px';
 
-            // 마스크 (외부 어둡게)
+            // 留덉뒪??(?몃? ?대몼寃?
             document.getElementById('crop_mask_top').style.cssText    = `left:0;right:0;top:0;height:${cropT}px;`;
             document.getElementById('crop_mask_bottom').style.cssText = `left:0;right:0;bottom:0;height:${ch-cropB}px;`;
             document.getElementById('crop_mask_left').style.cssText   = `left:0;top:${cropT}px;width:${cropL}px;height:${cropB-cropT}px;`;
             document.getElementById('crop_mask_right').style.cssText  = `right:0;top:${cropT}px;width:${cw-cropR}px;height:${cropB-cropT}px;`;
 
-            // 엣지 라인
+            // ?ｌ? ?쇱씤
             document.getElementById('crop_line_top').style.cssText    = `left:${cropL}px;right:${cw-cropR}px;top:${cropT-2}px;`;
             document.getElementById('crop_line_bottom').style.cssText = `left:${cropL}px;right:${cw-cropR}px;top:${cropB-2}px;`;
             document.getElementById('crop_line_left').style.cssText   = `left:${cropL-2}px;top:${cropT}px;bottom:${ch-cropB}px;`;
             document.getElementById('crop_line_right').style.cssText  = `left:${cropR-2}px;top:${cropT}px;bottom:${ch-cropB}px;`;
 
-            // 코너 핸들
-            const c = 6; // 오프셋
-            document.getElementById('crop_corner_tl').style.cssText = `left:${cropL-c}px;top:${cropT-c}px;`;
+            // 肄붾꼫 ?몃뱾
+            const c = 6; // ?ㅽ봽??            document.getElementById('crop_corner_tl').style.cssText = `left:${cropL-c}px;top:${cropT-c}px;`;
             document.getElementById('crop_corner_tr').style.cssText = `left:${cropR-c}px;top:${cropT-c}px;`;
             document.getElementById('crop_corner_bl').style.cssText = `left:${cropL-c}px;top:${cropB-c}px;`;
             document.getElementById('crop_corner_br').style.cssText = `left:${cropR-c}px;top:${cropB-c}px;`;
 
-            // 자르기 버튼 활성화
-            const btn = document.getElementById('btn_do_crop');
+            // ?먮Ⅴ湲?踰꾪듉 ?쒖꽦??            const btn = document.getElementById('btn_do_crop');
             if (cropAdjusted) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
             else              { btn.disabled = true;  btn.style.opacity = '0.4'; btn.style.cursor = 'default'; }
         }
@@ -4534,7 +5008,7 @@
             btn.disabled = true; btn.style.opacity = '0.4';
         }
 
-        // ── 엣지 드래그 이벤트 ──────────────────────────────────────
+        // ?? ?ｌ? ?쒕옒洹??대깽????????????????????????????????????????
         (function setupCropDrag() {
             const edges = [
                 { id: 'crop_line_top',    axis: 'y', target: 'T' },
@@ -4572,7 +5046,7 @@
             });
         })();
 
-        // ── 자르기 실행 버튼 ──────────────────────────────────────────
+        // ?? ?먮Ⅴ湲??ㅽ뻾 踰꾪듉 ??????????????????????????????????????????
         document.getElementById('btn_do_crop').addEventListener('click', performEdgeCrop);
 
         async function performEdgeCrop() {
@@ -4584,30 +5058,30 @@
             hideCropOverlay();
             canvas.discardActiveObject();
 
-            // 1. 개체 목록 복사 후 캔버스에서 일시 제거 (배경만 남김)
+            // 1. 媛쒖껜 紐⑸줉 蹂듭궗 ??罹붾쾭?ㅼ뿉???쇱떆 ?쒓굅 (諛곌꼍留??④?)
             const objects = canvas.getObjects().slice();
             objects.forEach(o => canvas.remove(o));
             canvas.renderAll();
 
-            // 2. 배경 영역만 toDataURL로 추출
+            // 2. 諛곌꼍 ?곸뿭留?toDataURL濡?異붿텧
             const bgData = canvas.toDataURL({
                 left: cLeft, top: cTop, width: newW, height: newH,
                 format: 'png', multiplier: 1
             });
 
-            // 3. 배경 이미지 교체
+            // 3. 諛곌꼍 ?대?吏 援먯껜
             fabric.Image.fromURL(bgData, (img) => {
                 isHistoryAction = true;
                 img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
                 canvas.setWidth(newW);
                 canvas.setHeight(newH);
                 canvas.setBackgroundImage(img, () => {
-                    // 4. 개체 위치 보정 후 재추가 (경계 걸치거나 내부 개체만)
+                    // 4. 媛쒖껜 ?꾩튂 蹂댁젙 ???ъ텛媛 (寃쎄퀎 嫄몄튂嫄곕굹 ?대? 媛쒖껜留?
                     objects.forEach(o => {
                         o.set({ left: o.left - cLeft, top: o.top - cTop });
                         o.setCoords();
                         const br = o.getBoundingRect();
-                        // 완전히 바깥인 개체만 제외, 나머지 모두 유지
+                        // ?꾩쟾??諛붽묑??媛쒖껜留??쒖쇅, ?섎㉧吏 紐⑤몢 ?좎?
                         if (br.left + br.width > 0 && br.left < newW &&
                             br.top + br.height > 0 && br.top < newH) {
                             o.set({ selectable: true, evented: true });
@@ -4618,10 +5092,12 @@
                     applyFitZoom(); applyCanvasClipping();
                     canvas.renderAll();
                     isHistoryAction = false; saveHistory();
-                    // 자르기 도구 비활성화
+                    // ?먮Ⅴ湲??꾧뎄 鍮꾪솢?깊솕
                     document.getElementById('btn_tool_crop').click();
                 });
             });
         }
 
-    
+    </script>
+</body>
+</html>

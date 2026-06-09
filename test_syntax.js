@@ -94,7 +94,7 @@
             // 이미지 개체에 대한 특별 처리 (변 드래그 시 자르기, 꼭짓점 드래그 시 크기 조절)
             function cropX(eventData, transform, x, y) {
                 const target = transform.target;
-                if (!target.isMediaImage && target.type !== 'image') {
+                if (!target.isMediaImage) {
                     return fabric.controlsUtils.scalingX(eventData, transform, x, y);
                 }
                 const localPoint = fabric.controlsUtils.getLocalPoint(transform, transform.originX, transform.originY, x, y);
@@ -116,7 +116,7 @@
 
             function cropY(eventData, transform, x, y) {
                 const target = transform.target;
-                if (!target.isMediaImage && target.type !== 'image') {
+                if (!target.isMediaImage) {
                     return fabric.controlsUtils.scalingY(eventData, transform, x, y);
                 }
                 const localPoint = fabric.controlsUtils.getLocalPoint(transform, transform.originX, transform.originY, x, y);
@@ -382,7 +382,12 @@
             });
 
             // Textbox 전용 컨트롤 오버라이드 (텍스트 크기 변동 방지, 너비만 조절)
-            fabric.Textbox.prototype.controls = fabric.util.object.clone(controls);
+            // 각 컨트롤 객체도 개별 복사해야 원본 prototype controls를 오염시키지 않음
+            const textboxControls = {};
+            Object.keys(controls).forEach(key => {
+                textboxControls[key] = new fabric.Control(Object.assign({}, controls[key]));
+            });
+            fabric.Textbox.prototype.controls = textboxControls;
             fabric.Textbox.prototype.controls.ml.actionHandler = fabric.controlsUtils.changeWidth;
             fabric.Textbox.prototype.controls.mr.actionHandler = fabric.controlsUtils.changeWidth;
             fabric.Textbox.prototype.controls.tl.actionHandler = fabric.controlsUtils.changeWidth;
@@ -402,7 +407,7 @@
 
 
         const canvas = new fabric.Canvas('mainCanvas', {
-            uniformScaling: true, 
+            uniformScaling: false, 
             width: 800, height: 600, selection: true, 
             imageSmoothingEnabled: false,
             perPixelTargetFind: false,
@@ -742,57 +747,36 @@
             const padding = 20;
             const minW = textObj.dynamicMinWidth || 50;
             
-            let maxTextW = shape.width * shape.scaleX;
-            if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
-            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
-
-            let clampedX = false;
-            let newScaleX = shape.scaleX;
+            // Calculate available text width inside the shape
+            let shapeVisualW = shape.width * shape.scaleX;
+            let textAreaFactor = 1;
+            if (shape.type === 'ellipse') textAreaFactor = Math.cos(Math.PI / 4);
+            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) textAreaFactor = 0.5;
+            let availTextW = shapeVisualW * textAreaFactor - padding;
             
-            if (maxTextW < minW + padding) {
-                newScaleX = (minW + padding) / (maxTextW / shape.scaleX);
-                clampedX = true;
-                maxTextW = shape.width * newScaleX;
-                if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
-            }
-
-            textObj.set({ width: Math.max(minW, maxTextW - padding) });
-            
-            let reqH = textObj.calcTextHeight() + padding;
-            let maxTextH = shape.originalHeight * shape.scaleY;
-            
-            if (shape.type === 'ellipse') reqH = reqH / Math.cos(Math.PI / 4);
-            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
-
-            let clampedY = false;
-            let newScaleY = shape.scaleY;
-
-            if (maxTextH < reqH) {
-                newScaleY = reqH / shape.originalHeight;
-                clampedY = true;
-            }
-
-            if (clampedX || clampedY) {
-                let dx = shape.width * (newScaleX - shape.scaleX);
-                let dy = shape.height * (newScaleY - shape.scaleY);
-                
-                shape.scaleX = newScaleX;
-                shape.scaleY = newScaleY;
-
-                if (transform) {
-                    let rad = shape.angle * Math.PI / 180;
-                    let localDx = 0; let localDy = 0;
-                    if (transform.originX === 'left') localDx = dx / 2;
-                    else if (transform.originX === 'right') localDx = -dx / 2;
-                    if (transform.originY === 'top') localDy = dy / 2;
-                    else if (transform.originY === 'bottom') localDy = -dy / 2;
-
-                    shape.left += localDx * Math.cos(rad) - localDy * Math.sin(rad);
-                    shape.top += localDx * Math.sin(rad) + localDy * Math.cos(rad);
-                }
+            // Clamp minimum width: prevent shape from being smaller than text needs
+            let minShapeW = (minW + padding) / textAreaFactor;
+            if (shapeVisualW < minShapeW) {
+                shape.scaleX = minShapeW / shape.width;
+                shapeVisualW = minShapeW;
+                availTextW = minW;
             }
             
+            textObj.set({ width: Math.max(minW, availTextW) });
+            
+            // Calculate required height for text and clamp shape height
+            let reqTextH = textObj.calcTextHeight() + padding;
+            let heightFactor = 1;
+            if (shape.type === 'ellipse') heightFactor = Math.cos(Math.PI / 4);
+            else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) heightFactor = 0.5;
+            let minShapeH = reqTextH / heightFactor;
+            let shapeVisualH = shape.height * shape.scaleY;
+            
+            if (shapeVisualH < minShapeH) {
+                shape.scaleY = minShapeH / shape.height;
+            }
+            
+            // Sync text position and angle to shape center
             const center = shape.getCenterPoint();
             textObj.set({ left: center.x, top: center.y, angle: shape.angle });
             textObj.setCoords();
@@ -801,11 +785,6 @@
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
-                obj.originalScaleX = obj.scaleX;
-                obj.originalScaleY = obj.scaleY;
-                obj.originalWidth = obj.width;
-                obj.originalHeight = obj.height;
-                
                 syncShapeToText(obj, e.transform);
                 if (obj.canvas) obj.canvas.renderAll();
             }
@@ -1266,7 +1245,32 @@
 
         canvas.on('object:modified', (e) => { 
             if(e.target && (e.target.scaleX !== 1 || e.target.scaleY !== 1)) {
-                normalizeScale(e.target);
+                // Skip normalizeScale for shapes with linked text (rect/ellipse/polygon)
+                // because normalizeScale recreates the object and breaks the linkedText binding
+                const t = e.target;
+                if (t.linkedText && ['rect', 'ellipse', 'polygon'].includes(t.type)) {
+                    // Bake scale into width/height without recreating the object
+                    if (t.type === 'rect') {
+                        t.set({ width: t.width * t.scaleX, height: t.height * t.scaleY, scaleX: 1, scaleY: 1 });
+                    } else if (t.type === 'ellipse') {
+                        t.set({ rx: t.rx * t.scaleX, ry: t.ry * t.scaleY, scaleX: 1, scaleY: 1 });
+                        t.set({ width: t.rx * 2, height: t.ry * 2 });
+                    } else if (t.type === 'polygon') {
+                        const sx = t.scaleX, sy = t.scaleY;
+                        const newPoints = t.points.map(p => ({ x: p.x * sx, y: p.y * sy }));
+                        t.set({ points: newPoints, scaleX: 1, scaleY: 1 });
+                        t._calcDimensions();
+                        t.setCoords();
+                    }
+                    // Update stored original dimensions for future clamping
+                    t.originalWidth = t.width;
+                    t.originalHeight = t.height;
+                    t.originalScaleX = 1;
+                    t.originalScaleY = 1;
+                    t.setCoords();
+                } else {
+                    normalizeScale(e.target);
+                }
             }
             if(!isHistoryAction) {
                 saveHistory();
@@ -2168,26 +2172,36 @@
             obj.originalScaleY = obj.scaleY;
             obj.originalWidth = obj.width;
             obj.originalHeight = obj.height;
-
-
+            obj._initHeight = obj.height * obj.scaleY; // Store initial visual height for shrink-back
 
             textObj.on('changed', function() {
                 const shape = this.linkedShape;
                 if (!shape) return;
                 
                 const padding = 20;
-                let maxTextW = shape.width * shape.scaleX;
-                if (shape.type === 'ellipse') maxTextW *= Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) maxTextW *= 0.5;
+                // Calculate text area width from current shape dimensions
+                let shapeVisualW = shape.width * shape.scaleX;
+                let textAreaFactor = 1;
+                if (shape.type === 'ellipse') textAreaFactor = Math.cos(Math.PI / 4);
+                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) textAreaFactor = 0.5;
                 
-                this.set({ width: Math.max(50, maxTextW - padding) });
+                this.set({ width: Math.max(50, shapeVisualW * textAreaFactor - padding) });
                 
-                let reqH = this.calcTextHeight() + padding;
-                if (shape.type === 'ellipse') reqH = reqH / Math.cos(Math.PI / 4);
-                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) reqH = reqH / 0.5;
-
-                let targetScaleY = Math.max(shape.originalScaleY || 1, reqH / shape.originalHeight);
-                shape.set({ scaleY: targetScaleY });
+                // Calculate required shape height for the text content
+                let reqTextH = this.calcTextHeight() + padding;
+                let heightFactor = 1;
+                if (shape.type === 'ellipse') heightFactor = Math.cos(Math.PI / 4);
+                else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) heightFactor = 0.5;
+                let reqShapeH = reqTextH / heightFactor;
+                
+                // Minimum height is the initial creation height
+                let minH = shape._initHeight || (shape.originalHeight * (shape.originalScaleY || 1));
+                let currentH = shape.height * shape.scaleY;
+                let targetH = Math.max(minH, reqShapeH);
+                
+                if (Math.abs(currentH - targetH) > 1) {
+                    shape.scaleY = targetH / shape.height;
+                }
                 
                 const center = shape.getCenterPoint();
                 this.set({ left: center.x, top: center.y });
