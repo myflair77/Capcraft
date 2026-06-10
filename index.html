@@ -270,7 +270,8 @@
             
             <span>선굵기:</span><input type="number" id="shape_weight" value="3" min="1" style="width: 40px; padding: 4px;">
             <span>선:</span><div id="btn_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
-            <span id="label_fill_color">배경:</span><div id="btn_fill_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+            <span id="label_fill_color">배경 색상:</span><div id="btn_fill_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+            <span style="margin-left:8px;">배경 투명도:</span><input type="number" id="shape_bg_opacity_input" value="20" min="0" max="100" style="width: 40px; padding: 4px;">
         </div>
         <div id="panel_text" class="sub-panel">
             <span>크기:</span><input type="number" id="text_size_input" value="50" min="10" style="width: 40px; padding: 4px;">
@@ -301,8 +302,11 @@
                 <label><input type="radio" name="pen_mode" value="straight"> 줄긋기</label>
             </div>
             
-            <span style="margin-left:8px;">선굵기:</span><input type="number" id="pen_weight" value="3" min="1" style="width: 40px; padding: 4px;">
-            <span>선색상:</span><div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
+            <span style="margin-left:8px;">선 굵기:</span><input type="number" id="pen_weight" value="3" min="1" style="width: 40px; padding: 4px;">
+            <span>선 색상:</span><div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
+            <span style="margin-left:8px;">배경 색상:</span><div id="btn_pen_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+            <span style="margin-left:8px;">배경 투명도:</span><input type="number" id="pen_bg_opacity_input" value="0" min="0" max="100" style="width: 40px; padding: 4px;">
+            <span id="label_pen_highlighter_intensity" style="margin-left:8px; display:none;">형광펜 농도:</span><input type="number" id="pen_highlighter_intensity_input" value="30" min="0" max="100" style="width: 40px; padding: 4px; display:none;">
         </div>
         <div id="panel_emoji" class="sub-panel">
             <span style="color: var(--accent-blue); font-weight: bold;">팝업에서 선택 후, 캔버스를 드래그하세요.</span>
@@ -384,13 +388,14 @@
             <div id="form_edit_shape" style="display:none;">
                 <div class="row">
                     <span>크기:</span> <input type="number" id="edit_shape_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_shape_h" style="width: 60px;">
-                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_shape_lock_ratio"> 비율유지</label>
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_shape_lock_ratio"> 비율 유지</label>
                 </div>
                 <div class="row">
                     <label style="font-size:12px; margin-right:5px;"><input type="checkbox" id="edit_shape_dashed"> 점선</label>
                     <span>선굵기:</span> <input type="number" id="edit_shape_weight" style="width: 45px;">
                     <span style="margin-left:10px;">선색:</span><div id="edit_shape_stroke" class="color-btn" style="background-color: #000;"></div>
                     <span style="margin-left:10px;">배경색:</span><div id="edit_shape_fill" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+<span style="margin-left:10px;">배경 투명도:</span><input type="number" id="edit_shape_bg_opacity" value="50" min="0" max="100" style="width: 40px; padding: 4px;">
                 </div>
                 <div style="font-size:11px; color:#64748b; margin-top:5px;">* 배경색 지정 시 '환경설정'의 투명도가 자동 적용됩니다.</div>
             </div>
@@ -399,29 +404,25 @@
             <div id="form_edit_line" style="display:none;">
                 <div class="row">
                     <span>크기:</span> <input type="number" id="edit_line_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_line_h" style="width: 60px;">
-                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_line_lock_ratio"> 비율유지</label>
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_line_lock_ratio"> 비율 유지</label>
                 </div>
                 <div class="row">
                     <label style="font-size:12px; margin-right:5px;"><input type="checkbox" id="edit_line_dashed"> 점선</label>
                     <span>선굵기:</span> <input type="number" id="edit_line_weight" style="width: 45px;">
                     <span style="margin-left:10px;">선색:</span><div id="edit_line_stroke" class="color-btn" style="background-color: #000;"></div>
                     <span style="margin-left:10px;">배경색:</span><div id="edit_line_fill" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+<span style="margin-left:10px;">배경 투명도:</span><input type="number" id="edit_line_bg_opacity" value="50" min="0" max="100" style="width: 40px; padding: 4px;">
                 </div>
                 <div style="font-size:11px; color:#64748b; margin-top:5px;">* 선이 폐곡선을 이룰 경우 배경색(내부 채우기)이 적용됩니다.</div>
             </div>
 
-            <!-- 이모티콘 전용 폼 -->
-            <div id="form_edit_emoji" style="display:none;">
-                <div class="row">
-                    <span>크기:</span> <input type="number" id="edit_emoji_size" style="width: 60px;">
-                </div>
-            </div>
+            
 
             <!-- 이미지 전용 폼 -->
             <div id="form_edit_image" style="display:none;">
                 <div class="row">
                     <span>크기:</span> <input type="number" id="edit_image_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_image_h" style="width: 60px;">
-                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_image_lock_ratio"> 가로세로 비율 유지</label>
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_image_lock_ratio"> 비율 유지</label>
                 </div>
             </div>
         </div>
@@ -515,10 +516,14 @@
                 <span>볼펜 선 굵기:</span> <input type="number" id="set_pen_ballpoint_weight" value="3" min="1" max="50" style="width:50px;">
                 <span>볼펜 색상:</span> <div id="set_pen_ballpoint_color" class="color-btn" style="background-color: #E03C31;"></div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                 <span>형광펜 선 굵기:</span> <input type="number" id="set_pen_highlighter_weight" value="20" min="1" max="100" style="width:50px;">
                 <span>형광펜 색상:</span> <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.3);"></div>
                 <span style="margin-left:3px;">형광펜 색상 농도:</span> <input type="number" id="set_pen_highlighter_opacity" value="30" min="0" max="100" style="width:45px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>배경 색상:</span> <div id="set_pen_bg_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+                <span>배경 투명도:</span> <input type="number" id="set_pen_bg_opacity" value="0" min="0" max="100" style="width:50px;">
             </div>
         </div>
 
@@ -2195,6 +2200,8 @@
         let strokeColor = '#E03C31'; let fillColor = 'transparent'; let textColor = '#E03C31'; let textBg = 'transparent';
         let sysPenBallpointWeight = 3; let sysPenBallpointColor = '#E03C31';
         let sysPenHighlighterWeight = 20; let sysPenHighlighterColor = 'rgba(255, 255, 0, 0.3)';
+        let sysPenBgColor = 'transparent';
+        let sysPenBgOpacity = 0;
         let penCurrentColor = sysPenBallpointColor;
 
         munsell35.forEach(c => { 
@@ -2221,6 +2228,13 @@
                     if(targetColorBtn === 'text' || targetColorBtn === 'set_text') textColor = c.h; else if(targetColorBtn === 'text_bg' || targetColorBtn === 'set_text_bg') textBg = c.h; 
                 } else if (targetColorBtn === 'new_bg') {
                     document.getElementById('new_bg_color').style.backgroundColor = c.h; 
+
+            } else if (targetColorBtn === 'set_pen_bg' || targetColorBtn === 'btn_pen_bg') {
+                const elId = targetColorBtn === 'set_pen_bg' ? 'set_pen_bg_color' : 'btn_pen_bg';
+                document.getElementById(elId).style.backgroundColor = c.h;
+                if(targetColorBtn === 'set_pen_bg') document.getElementById('btn_pen_bg').style.backgroundColor = c.h;
+                else document.getElementById('set_pen_bg_color').style.backgroundColor = c.h;
+                sysPenBgColor = c.h;
                 } else if (targetColorBtn === 'pen' || targetColorBtn === 'set_pen_ballpoint' || targetColorBtn === 'set_pen_highlighter') {
                     const elId = targetColorBtn === 'pen' ? 'btn_pen_color' : targetColorBtn === 'set_pen_ballpoint' ? 'set_pen_ballpoint_color' : 'set_pen_highlighter_color';
                     let finalColor = c.h;
@@ -2340,6 +2354,7 @@
         bindCP('btn_text_color', 'text'); bindCP('btn_text_bg', 'text_bg');
         bindCP('new_bg_color', 'new_bg');
         bindCP('btn_pen_color', 'pen');
+            bindCP('btn_pen_bg', 'set_pen_bg');
         bindCP('set_pen_ballpoint_color', 'set_pen_ballpoint'); bindCP('set_pen_highlighter_color', 'set_pen_highlighter');
         bindCP('edit_shape_stroke', 'edit_shape_stroke'); bindCP('edit_shape_fill', 'edit_shape_fill'); 
         bindCP('edit_line_stroke', 'edit_line_stroke'); bindCP('edit_line_fill', 'edit_line_fill'); 
@@ -2381,7 +2396,7 @@
                 'set_theme', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
                 'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
-                'set_pen_highlighter_weight', 'set_pen_highlighter_opacity',
+                'set_pen_highlighter_weight', 'set_pen_highlighter_opacity', 'set_pen_bg_opacity',
                 'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size',
                 'set_eraser_fat', 'set_mosaic_px', 'setting_save_format', 'set_recent_max', 'set_recent_max_action'
             ];
@@ -3141,6 +3156,17 @@
         const panels = { 'shape': 'panel_shape', 'pen': 'panel_pen', 'text': 'panel_text', 'eraser': 'panel_eraser', 'emoji': 'panel_emoji', 'image': 'panel_image', 'mosaic': 'panel_mosaic', 'crop': 'panel_crop' };
 
         function updatePenBrush() {
+
+        if (document.getElementById('pen_type') && document.getElementById('label_pen_highlighter_intensity')) {
+            if (document.getElementById('pen_type').value === 'ballpoint') {
+                document.getElementById('label_pen_highlighter_intensity').style.display = 'none';
+                document.getElementById('pen_highlighter_intensity_input').style.display = 'none';
+            } else {
+                document.getElementById('label_pen_highlighter_intensity').style.display = 'inline';
+                document.getElementById('pen_highlighter_intensity_input').style.display = 'inline';
+            }
+        }
+
             if (activeTool !== 'pen') {
                 canvas.isDrawingMode = false;
                 return;
@@ -3169,11 +3195,15 @@
                 document.getElementById('pen_weight').value = sysPenBallpointWeight;
                 document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
                 penCurrentColor = sysPenBallpointColor;
+                document.getElementById('label_pen_highlighter_intensity').style.display = 'none';
+                document.getElementById('pen_highlighter_intensity_input').style.display = 'none';
             } else {
                 document.getElementById('pen_weight').value = sysPenHighlighterWeight;
                 document.getElementById('btn_pen_color').style.backgroundColor = sysPenHighlighterColor;
                 penCurrentColor = sysPenHighlighterColor;
             }
+                document.getElementById('label_pen_highlighter_intensity').style.display = 'inline';
+                document.getElementById('pen_highlighter_intensity_input').style.display = 'inline';
             updatePenBrush();
         });
 
@@ -3292,7 +3322,7 @@
             const isText = (editingObject.type === 'i-text' || editingObject.type === 'text' || editingObject.type === 'textbox');
             const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/)); 
             if (isText && !isEmoji) return;
-            const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
+            const isImage = (editingObject.type === 'image') || editingObject.isMediaImage || editingObject.isEmoji || editingObject.isMosaic;
             const isArrow = (editingObject.type === 'group'); 
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
             const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
@@ -3300,15 +3330,10 @@
             document.getElementById('form_edit_text').style.display = 'none';
             document.getElementById('form_edit_shape').style.display = 'none';
             document.getElementById('form_edit_line').style.display = 'none';
-            document.getElementById('form_edit_emoji').style.display = 'none';
+            
             document.getElementById('form_edit_image').style.display = 'none';
 
-            if (isEmoji) {
-                document.getElementById('form_edit_emoji').style.display = 'block';
-                const currentSize = editingObject.baseFontSize ? Math.round(editingObject.baseFontSize * editingObject.scaleX) : (editingObject.fontSize || 36);
-                document.getElementById('edit_emoji_size').value = currentSize;
-            } 
-            else if (isImage) {
+            if (isImage) {
                 document.getElementById('form_edit_image').style.display = 'block';
                 let imgW, imgH;
                 if (editingObject.type === 'group') {
@@ -3417,21 +3442,12 @@
             if (!editingObject) return;
             const isText = (editingObject.type === 'i-text' || editingObject.type === 'text' || editingObject.type === 'textbox');
             const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/));
-            const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
+            const isImage = (editingObject.type === 'image') || editingObject.isMediaImage || editingObject.isEmoji || editingObject.isMosaic;
             const isArrow = (editingObject.type === 'group'); 
             const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
 
-            if (isEmoji) {
-                const size = parseInt(document.getElementById('edit_emoji_size').value);
-                if (editingObject.baseFontSize) { // Image로 변환된 새 이모티콘
-                    const scale = size / editingObject.baseFontSize;
-                    editingObject.set({ scaleX: scale, scaleY: scale });
-                } else { // 예전 버전 호환성 (fabric.Text로 저장된 경우)
-                    editingObject.set({ fontSize: size });
-                }
-                editingObject.setCoords();
-            } else if (isImage) {
+            if (isImage) {
                 const newW = parseInt(document.getElementById('edit_image_w').value);
                 const newH = parseInt(document.getElementById('edit_image_h').value);
                 let baseW = editingObject.type === 'group' ? editingObject.getObjects()[0].width : editingObject.width;
