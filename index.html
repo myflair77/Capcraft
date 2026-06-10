@@ -285,6 +285,7 @@
             <input type="hidden" id="text_align" value="left">
             <span style="margin-left:8px;">색상:</span><div id="btn_text_color" class="color-btn" style="background-color: #E03C31;"></div>
             <span>배경:</span><div id="btn_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+            <span style="margin-left:8px;">투명도:</span><input type="number" id="text_bg_opacity_input" value="50" min="0" max="100" style="width: 40px; padding: 4px;">
         </div>
         <div id="panel_pen" class="sub-panel">
             <div class="custom-select-group" id="pen_type_group">
@@ -2441,6 +2442,9 @@
             if(document.getElementById('text_size_input') && document.getElementById('set_txt_size')) {
                 document.getElementById('text_size_input').value = document.getElementById('set_txt_size').value;
             }
+            if(document.getElementById('text_bg_opacity_input') && document.getElementById('set_txt_bg_opacity')) {
+                document.getElementById('text_bg_opacity_input').value = document.getElementById('set_txt_bg_opacity').value;
+            }
             if(document.getElementById('text_align') && document.getElementById('set_text_align')) {
                 const alignVal = document.getElementById('set_text_align').value || 'center';
                 document.getElementById('text_align').value = alignVal;
@@ -2633,15 +2637,16 @@
                 if (pin && pin.classList.contains('active')) return;
                 
                 activeBtn.classList.remove('active');
-                activeTool = null;
-                const emojiPopup = document.getElementById('emoji_popup');
-                if (emojiPopup) emojiPopup.style.display = 'none';
-                canvas.isDrawingMode = false;
-                const capOverlay = document.getElementById('capture_overlay');
-                if (capOverlay) capOverlay.style.display = 'none';
-                if (typeof hideCropOverlay === 'function') hideCropOverlay();
-                updateGlobalCursor();
             }
+            
+            activeTool = null;
+            const emojiPopup = document.getElementById('emoji_popup');
+            if (emojiPopup) emojiPopup.style.display = 'none';
+            canvas.isDrawingMode = false;
+            const capOverlay = document.getElementById('capture_overlay');
+            if (capOverlay) capOverlay.style.display = 'none';
+            if (typeof hideCropOverlay === 'function') hideCropOverlay();
+            updateGlobalCursor();
         }
 
         document.getElementById('sub_toolbar').addEventListener('click', function(e) {
@@ -3284,8 +3289,9 @@
             if (!targetObj) return;
             editingObject = targetObj; 
             
-            const isText = (editingObject.type === 'i-text' || editingObject.type === 'text');
+            const isText = (editingObject.type === 'i-text' || editingObject.type === 'text' || editingObject.type === 'textbox');
             const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/)); 
+            if (isText && !isEmoji) return;
             const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
             const isArrow = (editingObject.type === 'group'); 
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
@@ -3409,7 +3415,7 @@
 
         window.applyObjectEdit = function() {
             if (!editingObject) return;
-            const isText = (editingObject.type === 'i-text' || editingObject.type === 'text');
+            const isText = (editingObject.type === 'i-text' || editingObject.type === 'text' || editingObject.type === 'textbox');
             const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/));
             const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
             const isArrow = (editingObject.type === 'group'); 
@@ -3662,6 +3668,23 @@
         if (sizeInput) {
             sizeInput.addEventListener('input', function() { updateActiveText('fontSize', parseInt(this.value) || 50); });
             sizeInput.addEventListener('change', function() { updateActiveText('fontSize', parseInt(this.value) || 50); });
+        }
+        const bgOpacityInput = document.getElementById('text_bg_opacity_input');
+        if (bgOpacityInput) {
+            bgOpacityInput.addEventListener('input', function() { 
+                const val = parseInt(this.value) || 50;
+                if(document.getElementById('set_txt_bg_opacity')) {
+                    document.getElementById('set_txt_bg_opacity').value = val;
+                }
+                updateActiveText('backgroundColor', getTextBgOpacity());
+            });
+            bgOpacityInput.addEventListener('change', function() { 
+                const val = parseInt(this.value) || 50;
+                if(document.getElementById('set_txt_bg_opacity')) {
+                    document.getElementById('set_txt_bg_opacity').value = val;
+                }
+                updateActiveText('backgroundColor', getTextBgOpacity());
+            });
         }
         const editSizeInput = document.getElementById('edit_text_size');
         if (editSizeInput) {
@@ -3968,6 +3991,22 @@
             if (obj && obj.linkedShape && activeTool === 'shape') {
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
                 document.getElementById('panel_shape').classList.add('active');
+            } else if (activeTool === 'text') {
+                const activeBtn = document.querySelector('#btn_tool_text');
+                if (activeBtn) {
+                    const pin = activeBtn.querySelector('.pin-icon');
+                    if (!pin || !pin.classList.contains('active')) {
+                        if (currentShape) {
+                            currentShape.isTemp = false;
+                            updateObjectSelectability();
+                            saveHistory();
+                            currentShape = null;
+                        }
+                        deactivateActiveTool();
+                        document.getElementById('sub_toolbar').style.display = 'none';
+                        document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                    }
+                }
             } else if (!activeTool) {
                 document.getElementById('sub_toolbar').style.display = 'none';
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
