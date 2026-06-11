@@ -2994,6 +2994,11 @@
                 blob = pdf.output('blob');
                 suggestedName = `${baseName}.pdf`;
                 mime = 'application/pdf';
+            } else if (format === 'svg') {
+                const svgStr = canvas.toSVG();
+                blob = new Blob([svgStr], {type: "image/svg+xml"});
+                suggestedName = `${baseName}.svg`;
+                mime = 'image/svg+xml';
             } else {
                 const f = format === 'jpg' ? 'jpeg' : 'png';
                 const dataUrl = canvas.toDataURL({ format: f, quality: 1, multiplier: 1, left: 0, top: 0, width: canvas.width, height: canvas.height });
@@ -3015,6 +3020,11 @@
             dropdownSave.style.display = 'none';
             const { blob, suggestedName, mime } = getSaveBlobAndName(format);
             
+            if (window.pyBackend) {
+                window.pyBackend.request_save(format, suggestedName);
+                return;
+            }
+            
             try {
                 if (window.showSaveFilePicker) {
                     let ext = '.' + format;
@@ -3033,6 +3043,22 @@
                 }
             } catch(e) { if (e.name !== 'AbortError') customAlert("저장 중 오류가 발생했습니다."); }
         }
+
+        window.execute_save_to_path = async function(path, ext) {
+            if(!hasActiveCanvas || !window.pyBackend) return;
+            try {
+                const { blob } = getSaveBlobAndName(ext);
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    const base64data = reader.result;
+                    window.pyBackend.write_file_data(path, base64data);
+                };
+                reader.readAsDataURL(blob);
+            } catch (e) {
+                console.error("Save error:", e);
+                customAlert("파일 저장 중 오류가 발생했습니다.");
+            }
+        };
 
         document.getElementById('btn_action_save').addEventListener('click', (e) => {
             if (e.target.closest('.dropdown-menu')) return;
