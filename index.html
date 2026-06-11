@@ -6,6 +6,7 @@
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
     <style>
+        emoji-picker::part(skintone-picker) { display: none; }
         :root {
             --bg-main: #f8fafc; --bg-panel: #ffffff; --text-main: #0f172a;
             --accent-blue: #3b82f6; --accent-red: #ef4444; --border-color: #e2e8f0;
@@ -167,7 +168,7 @@
         /* 지우개 전용 커스텀 그래픽 커서 */
         #custom_eraser_cursor {
             display: none; position: fixed; pointer-events: none; z-index: 9999; left: 0; top: 0;
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>");
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21'/><path d='M22 21H7'/><path d='m5 11 9 9'/></svg>");
             background-size: contain; background-repeat: no-repeat; background-position: center;
             transition: width 0.15s ease-out, height 0.15s ease-out;
             transform: translate(-50%, -50%);
@@ -205,7 +206,7 @@
         /* Enhanced Pin Icon */
         .pin-icon { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; stroke: #fca5a5; opacity: 0.8; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; fill: none; }
         .pin-icon:hover { stroke: #ef4444; opacity: 1; transform: scale(1.1); }
-        .pin-icon.active { stroke: #ef4444; opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6)); }
+        .pin-icon.active { stroke: #ef4444; fill: #ef4444; opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6)); }
 
         /* Lucide Vector Icons UI CSS */
         .btn-tool i[data-lucide] { width: 22px; height: 22px; pointer-events: none; }
@@ -621,7 +622,15 @@
         </div>
     </div>
 
-    <div id="emoji_popup" style="display: none; position: fixed; top: 120px; left: 50%; transform: translateX(-50%); z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 10px; background: white;"><emoji-picker id="ep_main"></emoji-picker></div>
+    <div id="emoji_popup" style="display: none; position: fixed; top: 120px; left: 50%; transform: translateX(-50%); z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 10px; background: white;">
+        <emoji-picker id="ep_main"></emoji-picker>
+        <div id="recent_emojis_container" style="display: flex; flex-direction: column; border-top: 1px solid #e2e8f0; padding: 10px; background: #f8fafc; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; width: 330px; box-sizing: border-box;">
+            <div style="font-size: 11px; color: #64748b; margin-bottom: 5px; font-weight: bold; padding-left: 5px;">최근 선택</div>
+            <div id="recent_emojis_list" style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;">
+                <!-- Emojis will be injected here -->
+            </div>
+        </div>
+    </div>
     <div id="toast_emoji_notice" style="position:fixed; top:20px; right:20px; background:rgba(0,0,0,0.8); color:white; padding:12px 20px; border-radius:8px; font-size:13px; z-index:9999; display:none; opacity:0; transition:opacity 0.3s; font-weight:bold;">
         환경설정에서 나만의 이모티콘을 추가로 지정할 수 있습니다.
     </div>
@@ -758,6 +767,8 @@
             // 모든 개체에 대해 strokeUniform 설정 (크기 조절 시 선 굵기 유지)
             fabric.Object.prototype.strokeUniform = true;
             fabric.Object.prototype.noScaleCache = false;
+            // 줌 및 크기 조절 시 선명도 유지를 위해 글로벌 개체 캐싱 해제
+            fabric.Object.prototype.objectCaching = false;
             
             // 기본 컨트롤 숨기기
             fabric.Object.prototype.set({
@@ -1046,13 +1057,13 @@
                     if (target.canvas) {
                         target._skipBringToFront = true;
                         if (target.linkedText) {
-                            target.canvas.sendToBack(target.linkedText);
-                            target.canvas.sendToBack(target);
+                            target.canvas.sendBackwards(target);
+                            target.canvas.sendBackwards(target.linkedText);
                         } else if (target.linkedShape) {
-                            target.canvas.sendToBack(target);
-                            target.canvas.sendToBack(target.linkedShape);
+                            target.canvas.sendBackwards(target.linkedShape);
+                            target.canvas.sendBackwards(target);
                         } else {
-                            target.canvas.sendToBack(target);
+                            target.canvas.sendBackwards(target);
                         }
                         target.canvas.requestRenderAll();
                     }
@@ -1075,13 +1086,13 @@
                     const target = transform.target;
                     if (target.canvas) {
                         if (target.linkedText) {
-                            target.canvas.bringToFront(target);
-                            target.canvas.bringToFront(target.linkedText);
+                            target.canvas.bringForward(target.linkedText);
+                            target.canvas.bringForward(target);
                         } else if (target.linkedShape) {
-                            target.canvas.bringToFront(target.linkedShape);
-                            target.canvas.bringToFront(target);
+                            target.canvas.bringForward(target);
+                            target.canvas.bringForward(target.linkedShape);
                         } else {
-                            target.canvas.bringToFront(target);
+                            target.canvas.bringForward(target);
                         }
                         target.canvas.requestRenderAll();
                     }
@@ -3744,6 +3755,89 @@
                 document.getElementById('emoji_preview').innerText = selectedEmoji || "😀";
             }
             document.getElementById('emoji_popup').style.display = 'none'; 
+            pushRecentEmoji({ url: selectedEmojiUrl, unicode: selectedEmoji });
+        });
+        
+        let recentEmojis = JSON.parse(localStorage.getItem('capcraft_recent_emojis') || '[]');
+        function renderRecentEmojis() {
+            const list = document.getElementById('recent_emojis_list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (recentEmojis.length === 0) {
+                list.innerHTML = '<div style="color:#aaa; font-size:12px; font-style:italic; padding:5px 0; margin-left: 5px;">최근 사용 내역이 없습니다.</div>';
+                return;
+            }
+            recentEmojis.forEach(em => {
+                const item = document.createElement('div');
+                item.style.cursor = 'pointer';
+                item.style.fontSize = '24px';
+                item.style.padding = '4px 6px';
+                item.style.borderRadius = '6px';
+                item.style.transition = 'background 0.2s';
+                item.style.flexShrink = '0';
+                item.onmouseover = () => item.style.background = '#e2e8f0';
+                item.onmouseout = () => item.style.background = 'transparent';
+                
+                if (em.url) {
+                    item.innerHTML = `<img src="${em.url}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle;">`;
+                } else {
+                    item.innerText = em.unicode;
+                }
+                
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    selectedEmojiUrl = em.url || null;
+                    selectedEmoji = em.unicode || null;
+                    document.getElementById('emoji_preview').innerHTML = em.url ? 
+                        `<img src="${em.url}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle;">` : 
+                        (selectedEmoji || "??");
+                    document.getElementById('emoji_popup').style.display = 'none';
+                    pushRecentEmoji(em);
+                };
+                list.appendChild(item);
+            });
+        }
+        function pushRecentEmoji(em) {
+            recentEmojis = recentEmojis.filter(e => {
+                if (em.url && e.url) return e.url !== em.url;
+                if (!em.url && !e.url) return e.unicode !== em.unicode;
+                return true;
+            });
+            recentEmojis.unshift(em);
+            if (recentEmojis.length > 30) recentEmojis.pop();
+            localStorage.setItem('capcraft_recent_emojis', JSON.stringify(recentEmojis));
+            renderRecentEmojis();
+        }
+        renderRecentEmojis();
+        
+        // 강제로 하단 불필요한 행(skin-tone picker 등) 숨김 처리 (Shadow DOM 내부 주입)
+        customElements.whenDefined('emoji-picker').then(() => {
+            const picker = document.getElementById('ep_main');
+            if (picker) {
+                const hideSkintone = () => {
+                    if (picker.shadowRoot) {
+                        const style = document.createElement('style');
+                        style.textContent = `
+                            .skintone-picker, 
+                            .preview,
+                            .favorites,
+                            [class*="skintone"],
+                            .skintone-button {
+                                display: none !important;
+                                opacity: 0 !important;
+                                visibility: hidden !important;
+                                height: 0 !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                pointer-events: none !important;
+                            }
+                        `;
+                        picker.shadowRoot.appendChild(style);
+                    }
+                };
+                setTimeout(hideSkintone, 50);
+                setTimeout(hideSkintone, 500); // 렌더링 지연에 대비한 2차 주입
+            }
         });
         document.getElementById('emoji_preview').addEventListener('click', () => document.getElementById('emoji_popup').style.display = 'block');
         
@@ -4952,11 +5046,12 @@
                         return;
                     }
                     
-                    // 캔버스를 이용해 이모티콘을 이미지로 렌더링 (가장 완벽하고 타이트한 픽셀 단위 외곽선)
+                    // 캔버스를 이용해 이모티콘의 정확한 경계(Bounding Box)를 측정하여 SVG 벡터로 삽입 (픽셀화 방지 및 타이트한 외곽선 유지)
                     const tempCanvas = document.createElement('canvas');
                     const tCtx = tempCanvas.getContext('2d');
-                    const renderSize = 128; // 고해상도 렌더링 기준 크기
-                    tCtx.font = `${renderSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+                    const renderSize = 128; // 측정 기준 크기
+                    const fontFamilyStr = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+                    tCtx.font = `${renderSize}px ${fontFamilyStr}`;
                     const metrics = tCtx.measureText(selectedEmoji);
                     
                     let w = Math.ceil(metrics.actualBoundingBoxRight + metrics.actualBoundingBoxLeft);
@@ -4965,16 +5060,14 @@
                     let h = Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
                     if (isNaN(h) || h <= 0) h = renderSize;
                     
-                    tempCanvas.width = w;
-                    tempCanvas.height = h;
-                    tCtx.font = `${renderSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
-                    tCtx.textBaseline = 'alphabetic';
-                    
                     const drawX = metrics.actualBoundingBoxLeft || 0;
                     const drawY = metrics.actualBoundingBoxAscent || (renderSize * 0.8);
-                    tCtx.fillText(selectedEmoji, drawX, drawY);
                     
-                    const emojiDataUrl = tempCanvas.toDataURL('image/png');
+                    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+                        <text x="${drawX}" y="${drawY}" font-size="${renderSize}px" font-family='${fontFamilyStr}' dominant-baseline="alphabetic">${selectedEmoji}</text>
+                    </svg>`;
+                    
+                    const emojiDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
                     const emojiHtmlImg = new Image();
                     emojiHtmlImg.onload = function() {
                         liveEmojiImgObj = new fabric.Image(emojiHtmlImg, {
@@ -4999,7 +5092,7 @@
                         liveEmojiImgObj.setCoords();
                         canvas.requestRenderAll();
                         
-                        // 비동기 이미지 로드 중 마우스가 이미 올라간 경우(드래그 없이 클릭만) 즉시 확정
+                        // 비동기 이미지 로드 중 마우스가 이미 올라간 경우(드래그 없이 클릭만) 즉시 확정 대응
                         if (!isDrawing) {
                             liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
                             liveEmojiImgObj.setCoords();
