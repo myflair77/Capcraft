@@ -298,7 +298,24 @@
             font-size: 0.78rem;
             font-weight: 500;
         }
+            .icon-small { width: 16px; height: 16px; display: inline-block; vertical-align: text-bottom; margin-right: 4px; fill: none; }
+    
+        /* Lucide Vector Icons Color Coding */
+        .lucide-camera { stroke: #3b82f6; } /* Blue - Capture */
+        .lucide-type, .lucide-pen-tool, .lucide-shapes { stroke: #8b5cf6; } /* Purple - Editing */
+        .lucide-smile, .lucide-image { stroke: #f59e0b; } /* Orange - Insert */
+        .lucide-droplets { stroke: #10b981; }
+        .lucide-crop { stroke: #3b82f6; } /* Green - Transform/Adjust */
+        .lucide-eraser, .lucide-trash-2, .lucide-x { stroke: #ef4444; } /* Red - Delete/Close */
+        .lucide-undo-2, .lucide-redo-2, .lucide-copy, .lucide-folder-open, .lucide-save, .lucide-printer, .lucide-settings, .lucide-info, .lucide-book-open, .lucide-lightbulb, .lucide-keyboard { stroke: #64748b; } /* Slate - System/Utility */
+
+        /* Enhanced Pin Icon */
+        .pin-icon { stroke: #fca5a5; opacity: 0.8; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+        .pin-icon:hover { stroke: #ef4444; opacity: 1; transform: scale(1.1); }
+        .pin-icon.active { stroke: #ef4444; opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6)); }
+
     </style>
+    
 </head>
 
 <body>
@@ -323,7 +340,21 @@
 
             <div class="button-card">
                 <div class="button-header">
-                    <span class="button-icon">📸</span> 새캡처 기능 그룹
+                    <span class="button-icon"><svg class="lucide lucide-camera icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" />
+  <circle cx="12" cy="13" r="3" />
+</svg></span>
+ 새캡처 기능 그룹
                 </div>
                 <div class="feature-list">
                     <div class="feature-item">
@@ -366,7 +397,22 @@
 
             <div class="button-card">
                 <div class="button-header"><span class="button-icon"
-                        style="font-size: 0.9rem; font-family: sans-serif; font-weight: 800;">Abc</span> 텍스트 도구 (Text)
+                        style="font-size: 0.9rem; font-family: sans-serif; font-weight: 800;"><svg class="lucide lucide-type icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M12 4v16" />
+  <path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" />
+  <path d="M9 20h6" />
+</svg></span>
+ 텍스트 도구 (Text)
                 </div>
                 <div class="feature-desc">캔버스의 빈 영역을 마우스로 클릭하여 간편하게 다국어 텍스트를 입력 및 편집합니다.</div>
                 <div class="sub-panel-box">
@@ -379,11 +425,23 @@
             </div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18"
-                            height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                            stroke-linecap="round" style="vertical-align: middle;">
-                            <path d="M3 12c3-8 9-8 12 0s9 8 9 0" />
-                        </svg></span> 펜 도구 (Pen)</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-pen-tool icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z" />
+  <path d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18" />
+  <path d="m2.3 2.3 7.286 7.286" />
+  <circle cx="11" cy="11" r="2" />
+</svg></span>
+ 펜 도구 (Pen)</div>
                 <div class="feature-desc">자유로운 브러시 형태의 필기를 하거나, 반투명 자석 기능이 포함된 직선 긋기 도구입니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">옵션 상세</span>
@@ -394,11 +452,22 @@
             </div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18"
-                            height="18" viewBox="0 0 24 24" fill="none" stroke="#E03C31" stroke-width="3.5"
-                            style="vertical-align: middle;">
-                            <rect x="3" y="3" width="18" height="18" />
-                        </svg></span> 도형 도구 (Shapes)</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-shapes icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z" />
+  <rect x="3" y="14" width="7" height="7" rx="1" />
+  <circle cx="17.5" cy="17.5" r="3.5" />
+</svg></span>
+ 도형 도구 (Shapes)</div>
                 <div class="feature-desc">캔버스에 완벽한 비율과 크기를 자랑하는 다양한 기본 기하학 도형을 그립니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">옵션 상세</span>
@@ -409,7 +478,22 @@
             </div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon">🖼️</span> 이미지 삽입 (Insert Image)</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-image icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+  <circle cx="9" cy="9" r="2" />
+  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+</svg></span>
+ 이미지 삽입 (Insert Image)</div>
                 <div class="feature-desc">로컬에 저장된 이미지나 스크롤 캡처 결과를 현재의 작업 화면 위에 얹어 결합시킵니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">전용 스마트 자르기</span>
@@ -419,7 +503,21 @@
             </div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon">💧</span> 모자이크 도구 (Mosaic)</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-droplets icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z" />
+  <path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97" />
+</svg></span>
+ 모자이크 도구 (Mosaic)</div>
                 <div class="feature-desc">개인정보나 민감한 영역을 간편하게 드래그하여 감각적인 픽셀 조각으로 가려줍니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">강도 조절</span>
@@ -428,7 +526,21 @@
             </div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon">✂️</span> 자르기 도구 (Crop Canvas)</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-crop icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+  <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+</svg></span>
+ 자르기 도구 (Crop Canvas)</div>
                 <div class="feature-desc">전체 캔버스 영역 중 필요한 핵심 부분만 선별하여 전체 크기를 변경합니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">캔버스 재정의</span>
@@ -443,7 +555,22 @@
             <div class="section-title">3. 시스템 및 파일 (System & File)</div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon">💾</span> 저장 옵션 (Save Options)</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-save icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+  <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+  <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+</svg></span>
+ 저장 옵션 (Save Options)</div>
                 <div class="feature-list">
                     <div class="feature-item">
                         <span class="feature-item-icon">✓</span>
@@ -465,7 +592,20 @@
             </div>
 
             <div class="button-card">
-                <div class="button-header"><span class="button-icon">📂</span> 프로젝트 열기 & 클립보드 복사</div>
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-folder-open icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
+</svg></span>
+ 프로젝트 열기 & 클립보드 복사</div>
                 <div class="feature-list">
                     <div class="feature-item">
                         <span class="feature-item-icon">✓</span>
@@ -483,7 +623,23 @@
 
         <!-- 4. 조작 팁 -->
         <div class="section tip">
-            <div class="section-title">4. 조작 팁 & 핵심 노하우</div>
+            <div class="section-title">4. <!-- @license lucide-static v1.17.0 - ISC -->
+<svg class="lucide lucide-lightbulb icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+  <path d="M9 18h6" />
+  <path d="M10 22h4" />
+</svg>
+ 조작 팁 & 핵심 노하우</div>
             <div class="button-card"
                 style="font-size: 0.88rem; color: #475569; display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; gap: 6px; align-items: flex-start;">
@@ -522,6 +678,8 @@
             &copy; 2026 Capcraft Professional Edition. All rights reserved.
         </footer>
     </div>
+        
+    
 </body>
 
 </html>
