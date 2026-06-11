@@ -1,1 +1,18 @@
-<html><body><canvas id='c' width='400' height='400'></canvas><script src='https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js'></script><script>const canvas = new fabric.Canvas('c'); const rect = new fabric.Rect({left: 100, top: 100, width: 50, height: 50, fill: 'red'}); canvas.add(rect); rect.set('flipX', true); canvas.renderAll(); console.log(rect.left, rect.top);</script></body></html>
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <i data-lucide="pin" class="pin-icon" id="mypin"></i>
+    <script>
+        lucide.createIcons();
+        document.querySelectorAll('.pin-icon').forEach(pin => {
+            console.log("Found pin:", pin.tagName);
+            pin.addEventListener('click', function(e) {
+                console.log("Pin clicked!");
+            });
+        });
+    </script>
+</body>
+</html>

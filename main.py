@@ -103,7 +103,7 @@ class Backend(QObject):
             
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
             date_str = time.strftime("%Y%m%d_%H%M%S")
-            printer.setOutputFileName(f"Capcraft_{date_str}.pdf")
+            printer.setDocName(f"Capcraft_{date_str}")
             
             dialog = QPrintPreviewDialog(printer, self.view.window())
             dialog.paintRequested.connect(self._handle_print_preview)
@@ -313,18 +313,24 @@ def main():
     main_window.setWindowTitle("Capcraft v1.2")
     main_window.setWindowIcon(create_camera_icon())
     
-    # 모니터 화면 크기의 70%로 창 크기 설정
+    # 모니터 화면 크기의 70%로 창 크기 설정 및 중앙 배치
     screen = app.primaryScreen()
     if screen:
         screen_geometry = screen.availableGeometry()
         width = int(screen_geometry.width() * 0.7)
         height = int(screen_geometry.height() * 0.7)
         main_window.resize(width, height)
-        # 화면 크기에 비례해 UI(상단바, 사이드바 등) 줌 비율 조절
-        zoom_factor = max(0.8, (width / 1800.0) * 1.35)
+        
+        # 창을 화면 정중앙에 배치
+        x = int((screen_geometry.width() - width) / 2) + screen_geometry.x()
+        y = int((screen_geometry.height() - height) / 2) + screen_geometry.y()
+        main_window.move(x, y)
+        
+        # 해상도 비례 줌 로직 제거 (고해상도 데스크톱에서 버튼이 너무 커지는 현상 방지)
+        zoom_factor = 1.0
     else:
-        main_window.resize(1800, 1100)
-        zoom_factor = 1.35
+        main_window.resize(1200, 800)
+        zoom_factor = 1.0
     
     view = QWebEngineView()
     view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
