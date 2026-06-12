@@ -6133,8 +6133,9 @@
             const shapeType = document.getElementById('shape_type').value;
             const lineRadio = document.querySelector('input[name="line_type"]:checked');
             const isLineShape = (shapeType === 'line' || shapeType === 'arrow');
+            const isNormalLine = isLineShape && lineRadio && lineRadio.value === 'normal';
 
-            if (isLineShape && activeTool === 'shape') {
+            if (isLineShape && !isNormalLine && activeTool === 'shape') {
                 floatingTooltip.style.display = 'block';
 
                 let snapPt = null;
@@ -6162,10 +6163,8 @@
                         canvas.add(arrowHead);
                     }
                 } else {
-                    if (!lineRadio || lineRadio.value !== 'normal') {
-                        clickPoints[clickPoints.length - 1] = { x: pointer.x, y: pointer.y };
-                        clickPoints.push({ x: pointer.x, y: pointer.y });
-                    }
+                    clickPoints[clickPoints.length - 1] = { x: pointer.x, y: pointer.y };
+                    clickPoints.push({ x: pointer.x, y: pointer.y });
                 }
                 return;
             }
@@ -6333,6 +6332,13 @@
                             { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }
                         ], { left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true, objectCaching: false });
                         canvas.add(currentShape);
+                    } else if (shapeType === 'line' || shapeType === 'arrow') {
+                        currentShape = new fabric.Path(`M ${origX} ${origY} L ${origX} ${origY}`, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
+                        canvas.add(currentShape);
+                        if (shapeType === 'arrow') {
+                            arrowHead = createArrowHead(origX, origY, 0, sysArrowType, sysArrowSize, strokeColor, weight);
+                            canvas.add(arrowHead);
+                        }
                     }
                 }
             }
