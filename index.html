@@ -1465,7 +1465,7 @@
                 <div id="set_txt_bg_color" class="color-btn"
                     style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;">
                 </div>
-                <span style="margin-left:3px;">입력창 투명도:</span> <input type="number" id="set_txt_bg_opacity" value="50"
+                <span style="margin-left:3px;">입력창 투명도:</span> <input type="number" id="set_txt_bg_opacity" value="15"
                     min="0" max="100" style="width:45px;">
             </div>
         </div>
@@ -1493,7 +1493,7 @@
                 <div id="set_pen_bg_color" class="color-btn"
                     style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;">
                 </div>
-                <span>배경 투명도:</span> <input type="number" id="set_pen_bg_opacity" value="0" min="0" max="100"
+                <span>배경 투명도:</span> <input type="number" id="set_pen_bg_opacity" value="15" min="0" max="100"
                     style="width:50px;">
             </div>
         </div>
@@ -2313,7 +2313,8 @@
         });
 
         document.getElementById('set_pen_highlighter_opacity').addEventListener('input', (e) => {
-            let opacity = parseInt(e.target.value) || 30;
+            let parsed = parseInt(e.target.value);
+            let opacity = isNaN(parsed) ? 30 : parsed;
             let hlColor = document.getElementById('set_pen_highlighter_color').style.backgroundColor;
             document.getElementById('set_pen_highlighter_color').style.backgroundColor = new fabric.Color(hlColor).setAlpha(opacity / 100).toRgba();
         });
@@ -3218,7 +3219,7 @@
         let sysPenBallpointWeight = 3; let sysPenBallpointColor = '#E03C31';
         let sysPenHighlighterWeight = 20; let sysPenHighlighterColor = 'rgba(255, 255, 0, 0.3)';
         let sysPenBgColor = 'transparent';
-        let sysPenBgOpacity = 0;
+        let sysPenBgOpacity = 15;
         let penCurrentColor = sysPenBallpointColor;
 
         munsell35.forEach(c => {
@@ -3249,14 +3250,26 @@
                 } else if (targetColorBtn === 'set_pen_bg' || targetColorBtn === 'btn_pen_bg') {
                     const elId = targetColorBtn === 'set_pen_bg' ? 'set_pen_bg_color' : 'btn_pen_bg';
                     document.getElementById(elId).style.backgroundColor = c.h;
-                    if (targetColorBtn === 'set_pen_bg') document.getElementById('btn_pen_bg').style.backgroundColor = c.h;
-                    else document.getElementById('set_pen_bg_color').style.backgroundColor = c.h;
+                    document.getElementById(elId).style.backgroundImage = bgImg;
+                    if (targetColorBtn === 'set_pen_bg') {
+                        if(document.getElementById('btn_pen_bg')) {
+                            document.getElementById('btn_pen_bg').style.backgroundColor = c.h;
+                            document.getElementById('btn_pen_bg').style.backgroundImage = bgImg;
+                        }
+                    } else {
+                        if(document.getElementById('set_pen_bg_color')) {
+                            document.getElementById('set_pen_bg_color').style.backgroundColor = c.h;
+                            document.getElementById('set_pen_bg_color').style.backgroundImage = bgImg;
+                        }
+                    }
                     sysPenBgColor = c.h;
                 } else if (targetColorBtn === 'pen' || targetColorBtn === 'set_pen_ballpoint' || targetColorBtn === 'set_pen_highlighter') {
                     const elId = targetColorBtn === 'pen' ? 'btn_pen_color' : targetColorBtn === 'set_pen_ballpoint' ? 'set_pen_ballpoint_color' : 'set_pen_highlighter_color';
                     let finalColor = c.h;
                     if (targetColorBtn === 'set_pen_highlighter' || (targetColorBtn === 'pen' && document.getElementById('pen_type').value === 'highlighter')) {
-                        let opacity = parseInt(document.getElementById('set_pen_highlighter_opacity').value) || 30;
+                        let opInput = targetColorBtn === 'pen' ? 'pen_highlighter_intensity_input' : 'set_pen_highlighter_opacity';
+                        let parsed = parseInt(document.getElementById(opInput).value);
+                        let opacity = isNaN(parsed) ? 30 : parsed;
                         finalColor = new fabric.Color(c.h).setAlpha(opacity / 100).toRgba();
                     }
                     document.getElementById(elId).style.backgroundColor = finalColor;
@@ -3371,7 +3384,7 @@
         bindCP('btn_text_color', 'text'); bindCP('btn_text_bg', 'text_bg');
         bindCP('new_bg_color', 'new_bg');
         bindCP('btn_pen_color', 'pen');
-        bindCP('btn_pen_bg', 'set_pen_bg');
+        bindCP('btn_pen_bg', 'set_pen_bg'); bindCP('set_pen_bg_color', 'set_pen_bg');
         bindCP('set_pen_ballpoint_color', 'set_pen_ballpoint'); bindCP('set_pen_highlighter_color', 'set_pen_highlighter');
         bindCP('edit_shape_stroke', 'edit_shape_stroke'); bindCP('edit_shape_fill', 'edit_shape_fill');
         bindCP('edit_line_stroke', 'edit_line_stroke'); bindCP('edit_line_fill', 'edit_line_fill');
@@ -3419,7 +3432,7 @@
             ];
             const colorIds = [
                 'set_txt_color', 'set_txt_bg_color', 'set_pen_ballpoint_color',
-                'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color'
+                'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color', 'set_pen_bg_color'
             ];
             let data = {};
             settingsIds.forEach(id => {
@@ -3510,7 +3523,17 @@
             if (document.getElementById('shape_weight') && document.getElementById('set_shape_weight')) {
                 document.getElementById('shape_weight').value = document.getElementById('set_shape_weight').value;
             }
+            if (document.getElementById('shape_bg_opacity_input') && document.getElementById('set_shape_opacity_val')) {
+                document.getElementById('shape_bg_opacity_input').value = document.getElementById('set_shape_opacity_val').value;
+            }
+            if (document.getElementById('pen_bg_opacity_input') && document.getElementById('set_pen_bg_opacity')) {
+                document.getElementById('pen_bg_opacity_input').value = document.getElementById('set_pen_bg_opacity').value;
+            }
+            if (document.getElementById('pen_highlighter_intensity_input') && document.getElementById('set_pen_highlighter_opacity')) {
+                document.getElementById('pen_highlighter_intensity_input').value = document.getElementById('set_pen_highlighter_opacity').value;
+            }
             sysShapeOpacity = (parseFloat(document.getElementById('set_shape_opacity_val')?.value) || 20) / 100;
+            sysPenBgOpacity = parseFloat(document.getElementById('set_pen_bg_opacity')?.value) || 15;
             sysArrowType = document.getElementById('set_arrow_type')?.value || 'triangle';
             sysArrowSize = document.getElementById('set_arrow_size')?.value || 'm';
             sysEraserFat = parseFloat(document.getElementById('set_eraser_fat')?.value) || 1.5;
@@ -3523,10 +3546,31 @@
             textColor = document.getElementById('set_txt_color')?.style.backgroundColor || '#E03C31';
             if (document.getElementById('btn_text_color')) document.getElementById('btn_text_color').style.backgroundColor = textColor;
 
+            textBg = document.getElementById('set_txt_bg_color')?.style.backgroundColor || 'transparent';
+            let txtBgImg = document.getElementById('set_txt_bg_color')?.style.backgroundImage || '';
+            if (textBg !== 'transparent' && textBg !== 'rgba(0, 0, 0, 0)') txtBgImg = 'none';
+            if (document.getElementById('set_txt_bg_color')) document.getElementById('set_txt_bg_color').style.backgroundImage = txtBgImg;
+            if (document.getElementById('btn_text_bg')) {
+                document.getElementById('btn_text_bg').style.backgroundColor = textBg;
+                document.getElementById('btn_text_bg').style.backgroundImage = txtBgImg;
+            }
+
             fillColor = document.getElementById('set_shape_fill_color')?.style.backgroundColor || 'transparent';
+            let fillBgImg = document.getElementById('set_shape_fill_color')?.style.backgroundImage || '';
+            if (fillColor !== 'transparent' && fillColor !== 'rgba(0, 0, 0, 0)') fillBgImg = 'none';
+            if (document.getElementById('set_shape_fill_color')) document.getElementById('set_shape_fill_color').style.backgroundImage = fillBgImg;
             if (document.getElementById('btn_fill_color')) {
                 document.getElementById('btn_fill_color').style.backgroundColor = fillColor;
-                document.getElementById('btn_fill_color').style.backgroundImage = document.getElementById('set_shape_fill_color')?.style.backgroundImage || '';
+                document.getElementById('btn_fill_color').style.backgroundImage = fillBgImg;
+            }
+
+            sysPenBgColor = document.getElementById('set_pen_bg_color')?.style.backgroundColor || 'transparent';
+            let penBgImg = document.getElementById('set_pen_bg_color')?.style.backgroundImage || '';
+            if (sysPenBgColor !== 'transparent' && sysPenBgColor !== 'rgba(0, 0, 0, 0)') penBgImg = 'none';
+            if (document.getElementById('set_pen_bg_color')) document.getElementById('set_pen_bg_color').style.backgroundImage = penBgImg;
+            if (document.getElementById('btn_pen_bg')) {
+                document.getElementById('btn_pen_bg').style.backgroundColor = sysPenBgColor;
+                document.getElementById('btn_pen_bg').style.backgroundImage = penBgImg;
             }
 
             updateEraserCursor();
@@ -3626,11 +3670,14 @@
 
         function getFillOpacity() {
             if (fillColor === 'transparent') return 'rgba(0,0,0,0)';
-            return new fabric.Color(fillColor).setAlpha(sysShapeOpacity).toRgba();
+            let parsedShapeBg = parseInt(document.getElementById('shape_bg_opacity_input')?.value);
+            let oShapeBg = isNaN(parsedShapeBg) ? sysShapeOpacity : parsedShapeBg / 100;
+            return new fabric.Color(fillColor).setAlpha(oShapeBg).toRgba();
         }
 
         function getTextBgOpacity() {
-            let o = parseInt(document.getElementById('set_txt_bg_opacity').value) / 100;
+            let parsed = parseInt(document.getElementById('set_txt_bg_opacity').value);
+            let o = isNaN(parsed) ? 0.5 : parsed / 100;
             if (textBg === 'transparent') return 'rgba(0,0,0,0)';
             if (textBg.startsWith('rgba')) return textBg;
             return new fabric.Color(textBg).setAlpha(o).toRgba();
@@ -4067,7 +4114,7 @@
             const obj = canvas.getActiveObject();
             if (!obj || !['rect', 'ellipse', 'polygon'].includes(obj.type) || obj.linkedText) return;
 
-            const txtColor = window.textColor || '#000000';
+            const txtColor = typeof textColor !== 'undefined' ? textColor : '#E03C31';
             const txtBgColor = typeof getTextBgOpacity === 'function' ? getTextBgOpacity() : '';
             const txtSize = parseInt(document.getElementById('text_size_input') ? document.getElementById('text_size_input').value : 50) || 50;
             const isBold = (document.getElementById('btn_txt_b') || { classList: { contains: () => false } }).classList.contains('active');
@@ -4246,9 +4293,9 @@
                 document.getElementById('pen_weight').value = sysPenHighlighterWeight;
                 document.getElementById('btn_pen_color').style.backgroundColor = sysPenHighlighterColor;
                 penCurrentColor = sysPenHighlighterColor;
+                document.getElementById('label_pen_highlighter_intensity').style.display = 'inline';
+                document.getElementById('pen_highlighter_intensity_input').style.display = 'inline';
             }
-            document.getElementById('label_pen_highlighter_intensity').style.display = 'inline';
-            document.getElementById('pen_highlighter_intensity_input').style.display = 'inline';
             updatePenBrush();
         });
 
@@ -4261,6 +4308,19 @@
                 sysPenHighlighterWeight = val;
                 document.getElementById('set_pen_highlighter_weight').value = val;
             }
+            updatePenBrush();
+        });
+
+        document.getElementById('pen_highlighter_intensity_input').addEventListener('input', (e) => {
+            let parsed = parseInt(e.target.value);
+            let intensity = isNaN(parsed) ? 30 : parsed;
+            let hlColor = document.getElementById('btn_pen_color').style.backgroundColor;
+            penCurrentColor = new fabric.Color(hlColor).setAlpha(intensity / 100).toRgba();
+            document.getElementById('btn_pen_color').style.backgroundColor = penCurrentColor;
+            sysPenHighlighterColor = penCurrentColor;
+            
+            document.getElementById('set_pen_highlighter_opacity').value = intensity;
+            document.getElementById('set_pen_highlighter_color').style.backgroundColor = penCurrentColor;
             updatePenBrush();
         });
 
@@ -4436,7 +4496,13 @@
                 document.getElementById('edit_shape_dashed').checked = !!(editingObject.strokeDashArray && editingObject.strokeDashArray.length > 0);
 
                 let fCol = editingObject.fill;
-                if (fCol && fCol.indexOf('rgba') > -1) { fCol = fCol.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); }
+                let bgOpacity = document.getElementById('set_shape_opacity_val') ? document.getElementById('set_shape_opacity_val').value : 20;
+                if (fCol && fCol.indexOf('rgba') > -1) { 
+                    const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
+                    if (m && m[1]) bgOpacity = Math.round(parseFloat(m[1]) * 100);
+                    fCol = fCol.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
+                }
+                document.getElementById('edit_shape_bg_opacity').value = bgOpacity;
                 document.getElementById('edit_shape_fill').style.backgroundColor = fCol || 'transparent';
                 document.getElementById('edit_shape_fill').style.backgroundImage = (!fCol || fCol === 'transparent') ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none';
             }
@@ -4475,7 +4541,13 @@
                 document.getElementById('edit_line_stroke').style.backgroundColor = sCol || '#000';
                 document.getElementById('edit_line_dashed').checked = isDashed;
 
-                if (fCol && fCol.indexOf('rgba') > -1) { fCol = fCol.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); }
+                let bgOpacity = document.getElementById('set_pen_bg_opacity') ? document.getElementById('set_pen_bg_opacity').value : 0;
+                if (fCol && fCol.indexOf('rgba') > -1) { 
+                    const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
+                    if (m && m[1]) bgOpacity = Math.round(parseFloat(m[1]) * 100);
+                    fCol = fCol.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
+                }
+                document.getElementById('edit_line_bg_opacity').value = bgOpacity;
                 document.getElementById('edit_line_fill').style.backgroundColor = fCol || 'transparent';
                 document.getElementById('edit_line_fill').style.backgroundImage = (!fCol || fCol === 'transparent') ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none';
             }
@@ -4525,7 +4597,8 @@
                 let rawFColor = document.getElementById('edit_shape_fill').style.backgroundColor;
                 let finalFill = 'transparent';
                 if (rawFColor !== 'rgba(0, 0, 0, 0)' && rawFColor !== 'transparent' && rawFColor !== '') {
-                    finalFill = new fabric.Color(rawFColor).setAlpha(sysShapeOpacity).toRgba();
+                    let customOpacity = (parseFloat(document.getElementById('edit_shape_bg_opacity').value) || 0) / 100;
+                    finalFill = new fabric.Color(rawFColor).setAlpha(customOpacity).toRgba();
                 }
 
                 if (editingObject.type === 'rect') {
@@ -4555,7 +4628,8 @@
                 let rawLineFColor = document.getElementById('edit_line_fill').style.backgroundColor;
                 let finalLineFill = 'transparent';
                 if (rawLineFColor !== 'rgba(0, 0, 0, 0)' && rawLineFColor !== 'transparent' && rawLineFColor !== '') {
-                    finalLineFill = new fabric.Color(rawLineFColor).setAlpha(sysShapeOpacity).toRgba();
+                    let customOpacity = (parseFloat(document.getElementById('edit_line_bg_opacity').value) || 0) / 100;
+                    finalLineFill = new fabric.Color(rawLineFColor).setAlpha(customOpacity).toRgba();
                 }
 
                 const newW = parseInt(document.getElementById('edit_line_w').value);
@@ -4733,14 +4807,16 @@
         const bgOpacityInput = document.getElementById('text_bg_opacity_input');
         if (bgOpacityInput) {
             bgOpacityInput.addEventListener('input', function () {
-                const val = parseInt(this.value) || 50;
+                const parsed = parseInt(this.value);
+                const val = isNaN(parsed) ? 50 : parsed;
                 if (document.getElementById('set_txt_bg_opacity')) {
                     document.getElementById('set_txt_bg_opacity').value = val;
                 }
                 updateActiveText('backgroundColor', getTextBgOpacity());
             });
             bgOpacityInput.addEventListener('change', function () {
-                const val = parseInt(this.value) || 50;
+                const parsed = parseInt(this.value);
+                const val = isNaN(parsed) ? 50 : parsed;
                 if (document.getElementById('set_txt_bg_opacity')) {
                     document.getElementById('set_txt_bg_opacity').value = val;
                 }
@@ -5567,8 +5643,8 @@
         }
 
         // ── 인식된 도형을 Fabric 개체로 변환 ──
-        function _createRecognizedShape(shape, strokeColor, strokeWidth, strokeDashArray) {
-            const opts = { stroke: strokeColor, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray, fill: 'transparent', selectable: true, isTemp: false, strokeLineJoin: 'round', strokeLineCap: 'round' };
+        function _createRecognizedShape(shape, strokeColor, strokeWidth, strokeDashArray, fillColor = 'transparent') {
+            const opts = { stroke: strokeColor, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray, fill: fillColor, selectable: true, isTemp: false, strokeLineJoin: 'round', strokeLineCap: 'round' };
 
             switch (shape.type) {
                 case 'circle':
@@ -5677,15 +5753,22 @@
                 const isAuto = _isAutoShapeTriggered;
                 _isAutoShapeTriggered = false; // 플래그 초기화
 
+                const pathObj = e.path;
+                let finalBg = 'transparent';
+                if (sysPenBgColor && sysPenBgColor !== 'transparent') {
+                    let parsedPenBg = parseInt(document.getElementById('pen_bg_opacity_input')?.value);
+                    let openBg = isNaN(parsedPenBg) ? sysPenBgOpacity : parsedPenBg;
+                    finalBg = new fabric.Color(sysPenBgColor).setAlpha(openBg / 100).toRgba();
+                }
+
                 if (!isAuto) {
                     // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
-                    e.path.set({ selectable: true, isTemp: false, objectCaching: true });
+                    pathObj.set({ fill: finalBg, selectable: true, isTemp: false, objectCaching: true });
                     updateObjectSelectability();
                     saveHistory(); deactivateActiveTool();
                     return;
                 }
 
-                const pathObj = e.path;
                 const pts = _extractPathPoints(pathObj);
                 const recognized = _recognizeShape(pts);
 
@@ -5696,7 +5779,7 @@
                     const sDash = pathObj.strokeDashArray;
 
                     // 인식된 도형 생성
-                    const newObj = _createRecognizedShape(recognized, sColor, sWidth, sDash);
+                    const newObj = _createRecognizedShape(recognized, sColor, sWidth, sDash, finalBg);
                     if (newObj) {
                         canvas.remove(pathObj);
                         canvas.add(newObj);
@@ -5800,6 +5883,94 @@
         let _lastActiveShapeForLinkedText = null;
         canvas.on('selection:created', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
         canvas.on('selection:updated', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
+
+        
+        let snapMarkerObj = null;
+        function updateSnapMarker(canvas, point) {
+            if (!point) {
+                if (snapMarkerObj) { snapMarkerObj.set('opacity', 0); canvas.requestRenderAll(); }
+                return;
+            }
+            if (!snapMarkerObj) {
+                snapMarkerObj = new fabric.Circle({
+                    left: point.x, top: point.y, radius: 4, originX: 'center', originY: 'center',
+                    fill: 'rgba(59, 130, 246, 0.8)', stroke: 'white', strokeWidth: 1.5,
+                    selectable: false, evented: false, isTemp: true, objectCaching: false
+                });
+                canvas.add(snapMarkerObj);
+            } else {
+                snapMarkerObj.set({ left: point.x, top: point.y, opacity: 1 });
+                canvas.bringToFront(snapMarkerObj);
+            }
+            canvas.requestRenderAll();
+        }
+
+        function calculateBoundarySnap(pointer, canvas, currentShapeToIgnore) {
+            const snapRadius = 15;
+            let closestPoint = null;
+            let minDist = snapRadius;
+            const objects = canvas.getObjects();
+            
+            function distToSegment(px, py, x1, y1, x2, y2) {
+                let l2 = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+                if (l2 === 0) return Math.hypot(px - x1, py - y1);
+                let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+            }
+            function closestPointOnSegment(px, py, x1, y1, x2, y2) {
+                let l2 = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+                if (l2 === 0) return {x: x1, y: y1};
+                let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return {x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1)};
+            }
+
+            for (let i = objects.length - 1; i >= 0; i--) {
+                const obj = objects[i];
+                if (obj === currentShapeToIgnore || obj === snapMarkerObj || obj.isArrowBody || obj.type === 'path' && obj.isTemp) continue;
+                if (obj.linkedShape) continue; 
+                if (obj.opacity === 0 || !obj.visible) continue;
+
+                let matrix = obj.calcTransformMatrix();
+
+                if (obj.type === 'ellipse') {
+                    let invMatrix = fabric.util.invertTransform(matrix);
+                    let localP = fabric.util.transformPoint(pointer, invMatrix);
+                    let rx = obj.rx; let ry = obj.ry;
+                    if (rx > 0 && ry > 0) {
+                        let angle = Math.atan2(localP.y * rx, localP.x * ry);
+                        let edgeLocalX = rx * Math.cos(angle);
+                        let edgeLocalY = ry * Math.sin(angle);
+                        let edgeGlobal = fabric.util.transformPoint({x: edgeLocalX, y: edgeLocalY}, matrix);
+                        let dist = Math.hypot(pointer.x - edgeGlobal.x, pointer.y - edgeGlobal.y);
+                        if (dist < minDist) { minDist = dist; closestPoint = edgeGlobal; }
+                    }
+                } else if (obj.type === 'polygon' && obj.points) {
+                    let pts = obj.points.map(p => {
+                        let localX = p.x - obj.pathOffset.x;
+                        let localY = p.y - obj.pathOffset.y;
+                        return fabric.util.transformPoint({x: localX, y: localY}, matrix);
+                    });
+                    for(let j=0; j<pts.length; j++) {
+                        let p1 = pts[j]; let p2 = pts[(j+1)%pts.length];
+                        let dist = distToSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y);
+                        if (dist < minDist) { minDist = dist; closestPoint = closestPointOnSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y); }
+                    }
+                } else {
+                    let w = obj.width; let h = obj.height;
+                    let hw = w/2; let hh = h/2;
+                    let ptsLocal = [ {x: -hw, y: -hh}, {x: hw, y: -hh}, {x: hw, y: hh}, {x: -hw, y: hh} ];
+                    let pts = ptsLocal.map(p => fabric.util.transformPoint(p, matrix));
+                    for(let j=0; j<pts.length; j++) {
+                        let p1 = pts[j]; let p2 = pts[(j+1)%pts.length];
+                        let dist = distToSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y);
+                        if (dist < minDist) { minDist = dist; closestPoint = closestPointOnSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y); }
+                    }
+                }
+            }
+            return closestPoint;
+        }
 
         canvas.on('mouse:down', o => {
             if (document.getElementById('emoji_popup').style.display === 'block') { document.getElementById('emoji_popup').style.display = 'none'; return; }
@@ -5917,6 +6088,12 @@
             }
 
             if (activeTool === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                let snapPt = null;
+                if (!o.e.altKey) {
+                    snapPt = calculateBoundarySnap(pointer, canvas, null);
+                    if (snapPt) { pointer.x = snapPt.x; pointer.y = snapPt.y; }
+                }
+
                 isDrawing = true; origX = pointer.x; origY = pointer.y;
                 const weight = parseInt(document.getElementById('pen_weight').value) || 5;
                 const isDashed = document.getElementById('pen_dashed').checked;
@@ -5959,6 +6136,13 @@
 
             if (isLineShape && activeTool === 'shape') {
                 floatingTooltip.style.display = 'block';
+
+                let snapPt = null;
+                if (!o.e.altKey) {
+                    snapPt = calculateBoundarySnap(pointer, canvas, null);
+                    if (snapPt) { pointer.x = snapPt.x; pointer.y = snapPt.y; }
+                }
+
                 if (!multiClickDrawing) {
                     multiClickDrawing = true;
                     clickPoints = [{ x: pointer.x, y: pointer.y }, { x: pointer.x, y: pointer.y }];
@@ -6193,16 +6377,26 @@
             const pointer = canvas.getPointer(o.e);
 
             if (activeTool === 'pen' && isDrawing && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
-                let endX = pointer.x; let endY = pointer.y;
+                let snapPt = null;
+                let snapX = pointer.x; let snapY = pointer.y;
+                if (!o.e.altKey) {
+                    snapPt = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
+                    if (snapPt) { snapX = snapPt.x; snapY = snapPt.y; }
+                }
+                updateSnapMarker(canvas, snapPt);
+
+                let endX = snapX; let endY = snapY;
 
                 let angleDeg = Math.atan2(endY - origY, endX - origX) * 180 / Math.PI;
                 let normAngle = (angleDeg + 360) % 360;
 
                 const snapTolerance = 2;
-                if (Math.abs(normAngle - 0) <= snapTolerance || Math.abs(normAngle - 360) <= snapTolerance) { endY = origY; }
-                else if (Math.abs(normAngle - 90) <= snapTolerance) { endX = origX; }
-                else if (Math.abs(normAngle - 180) <= snapTolerance) { endY = origY; }
-                else if (Math.abs(normAngle - 270) <= snapTolerance) { endX = origX; }
+                if (!snapPt) {
+                    if (Math.abs(normAngle - 0) <= snapTolerance || Math.abs(normAngle - 360) <= snapTolerance) { endY = origY; }
+                    else if (Math.abs(normAngle - 90) <= snapTolerance) { endX = origX; }
+                    else if (Math.abs(normAngle - 180) <= snapTolerance) { endY = origY; }
+                    else if (Math.abs(normAngle - 270) <= snapTolerance) { endX = origX; }
+                }
 
                 const weight = parseInt(document.getElementById('pen_weight').value) || 5;
                 const isDashed = document.getElementById('pen_dashed').checked;
@@ -6224,7 +6418,14 @@
                 floatingTooltip.style.top = o.e.clientY + 'px';
 
                 let snapX = pointer.x; let snapY = pointer.y;
-                if (clickPoints.length > 2) {
+                let snapPt = null;
+                if (!o.e.altKey) {
+                    snapPt = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
+                    if (snapPt) { snapX = snapPt.x; snapY = snapPt.y; }
+                }
+                updateSnapMarker(canvas, snapPt);
+
+                if (!snapPt && clickPoints.length > 2) {
                     const dist = Math.hypot(pointer.x - clickPoints[0].x, pointer.y - clickPoints[0].y);
                     if (dist < 15) { snapX = clickPoints[0].x; snapY = clickPoints[0].y; }
                 }
@@ -6290,18 +6491,12 @@
                         liveEmojiImgObj.scaleToWidth(newSize);
                     }
                 } else if (imageInsertData) {
-                    const frame = imageInsertData.frame;
                     const sw = imageInsertData.sw || 1;
                     const sh = imageInsertData.sh || 1;
-                    if (frame === 'square' || frame === 'circle') {
-                        let scale = Math.max(size / sw, size / sh);
-                        liveEmojiImgObj.set({ scaleX: scale, scaleY: scale });
-                    } else {
-                        liveEmojiImgObj.set({
-                            scaleX: sizeW > 0 ? sizeW / sw : 0.01,
-                            scaleY: sizeH > 0 ? sizeH / sh : 0.01
-                        });
-                    }
+                    // 마우스 드래그 각도에 상관없이 원본 비율을 유지하도록 동일한 scale 적용
+                    let scale = Math.max(sizeW / sw, sizeH / sh);
+                    if (scale < 0.01) scale = 0.01;
+                    liveEmojiImgObj.set({ scaleX: scale, scaleY: scale });
                 }
                 canvas.requestRenderAll();
             }
@@ -6330,14 +6525,22 @@
                 }
                 else if (isNormalLine) {
                     // 일반 화살표도 곡선/다중 클릭과 100% 동일한 알고리즘을 사용하도록 수학적 위치 갱신 도입
-                    let angle = Math.atan2(pointer.y - origY, pointer.x - origX);
+                    let snapX = pointer.x; let snapY = pointer.y;
+                    let snapPt = null;
+                    if (!o.e.altKey) {
+                        snapPt = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
+                        if (snapPt) { snapX = snapPt.x; snapY = snapPt.y; }
+                    }
+                    updateSnapMarker(canvas, snapPt);
+
+                    let angle = Math.atan2(snapY - origY, snapX - origX);
                     const weight = parseInt(document.getElementById('shape_weight').value);
                     const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
                     const w = weight * sizeMult + 8;
                     let pullBack = (shapeType === 'arrow') ? ((sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w) : 0;
 
-                    let endX = pointer.x - Math.cos(angle) * pullBack;
-                    let endY = pointer.y - Math.sin(angle) * pullBack;
+                    let endX = snapX - Math.cos(angle) * pullBack;
+                    let endY = snapY - Math.sin(angle) * pullBack;
 
                     let pathStr = `M ${origX} ${origY} L ${endX} ${endY}`;
                     const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
@@ -6349,7 +6552,7 @@
 
                     if (shapeType === 'arrow' && arrowHead) {
                         canvas.remove(arrowHead);
-                        arrowHead = createArrowHead(pointer.x, pointer.y, angle, sysArrowType, sysArrowSize, strokeColor, weight);
+                        arrowHead = createArrowHead(snapX, snapY, angle, sysArrowType, sysArrowSize, strokeColor, weight);
                         canvas.add(arrowHead);
                     }
                 }
@@ -6358,6 +6561,7 @@
         });
 
         canvas.on('mouse:up', async o => {
+            updateSnapMarker(canvas, null);
             if (o.target) { o.target.__selectedThisClick = false; o.target.__shapeJustSelected = false; }
 
             if (multiClickDrawing) return;
