@@ -915,6 +915,9 @@
 
         .crop-edge-line.h {
             height: 4px;
+            padding: 5px 0;
+            background-clip: content-box;
+            box-sizing: content-box;
             left: 0;
             right: 0;
             cursor: ns-resize;
@@ -922,6 +925,9 @@
 
         .crop-edge-line.v {
             width: 4px;
+            padding: 0 5px;
+            background-clip: content-box;
+            box-sizing: content-box;
             top: 0;
             bottom: 0;
             cursor: ew-resize;
@@ -1221,10 +1227,9 @@
             <input type="number" id="mosaic_intensity" min="1" max="20" value="3" style="width: 50px;">
         </div>
         <div id="panel_crop" class="sub-panel" style="gap:10px;">
-            <span style="color: var(--accent-blue); font-weight: bold;">이미지의 네 변을 조절하여 자를 수 있습니다.</span>
+            <span style="color: var(--accent-blue); font-weight: bold;">이미지의 네 변을 조절하여 영역을 축소 또는 확장할 수 있습니다.</span>
             <button id="btn_do_crop" disabled
-                style="padding: 4px 12px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; opacity:0.4; transition:opacity 0.2s;">이
-                모양대로 자르기</button>
+                style="padding: 4px 12px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; opacity:0.4; transition:opacity 0.2s;">확인</button>
         </div>
     </div>
 
@@ -6758,16 +6763,16 @@
             ov.style.height = ch + 'px';
 
             // 마스크 (외부 어둡게)
-            document.getElementById('crop_mask_top').style.cssText = `left:0;right:0;top:0;height:${cropT}px;`;
-            document.getElementById('crop_mask_bottom').style.cssText = `left:0;right:0;bottom:0;height:${ch - cropB}px;`;
-            document.getElementById('crop_mask_left').style.cssText = `left:0;top:${cropT}px;width:${cropL}px;height:${cropB - cropT}px;`;
-            document.getElementById('crop_mask_right').style.cssText = `right:0;top:${cropT}px;width:${cw - cropR}px;height:${cropB - cropT}px;`;
+            document.getElementById('crop_mask_top').style.cssText = `left:0;right:0;top:0;height:${Math.max(0, Math.min(ch, cropT))}px;`;
+            document.getElementById('crop_mask_bottom').style.cssText = `left:0;right:0;bottom:0;height:${Math.max(0, ch - Math.max(0, cropB))}px;`;
+            document.getElementById('crop_mask_left').style.cssText = `left:0;top:${Math.max(0, cropT)}px;width:${Math.max(0, Math.min(cw, cropL))}px;height:${Math.max(0, Math.min(ch, cropB) - Math.max(0, cropT))}px;`;
+            document.getElementById('crop_mask_right').style.cssText = `right:0;top:${Math.max(0, cropT)}px;width:${Math.max(0, cw - Math.max(0, cropR))}px;height:${Math.max(0, Math.min(ch, cropB) - Math.max(0, cropT))}px;`;
 
             // 엣지 라인
-            document.getElementById('crop_line_top').style.cssText = `left:${cropL}px;right:${cw - cropR}px;top:${cropT - 2}px;`;
-            document.getElementById('crop_line_bottom').style.cssText = `left:${cropL}px;right:${cw - cropR}px;top:${cropB - 2}px;`;
-            document.getElementById('crop_line_left').style.cssText = `left:${cropL - 2}px;top:${cropT}px;bottom:${ch - cropB}px;`;
-            document.getElementById('crop_line_right').style.cssText = `left:${cropR - 2}px;top:${cropT}px;bottom:${ch - cropB}px;`;
+            document.getElementById('crop_line_top').style.cssText = `left:${cropL}px;right:${cw - cropR}px;top:${cropT - 7}px;`;
+            document.getElementById('crop_line_bottom').style.cssText = `left:${cropL}px;right:${cw - cropR}px;top:${cropB - 7}px;`;
+            document.getElementById('crop_line_left').style.cssText = `left:${cropL - 7}px;top:${cropT}px;bottom:${ch - cropB}px;`;
+            document.getElementById('crop_line_right').style.cssText = `left:${cropR - 7}px;top:${cropT}px;bottom:${ch - cropB}px;`;
 
             // 코너 핸들
             const c = 6; // 오프셋
@@ -6798,6 +6803,68 @@
             btn.disabled = true; btn.style.opacity = '0.4';
         }
 
+        function findSnapEdge(axis, cursorX, cursorY, canvasEl, logicalW, logicalH) {
+            const ratio = canvasEl.width / logicalW;
+            const SCAN_RADIUS = 20; 
+            const CROSS_RADIUS = 20; 
+            const ctx = canvasEl.getContext('2d', { willReadFrequently: true });
+            
+            let sx = Math.max(0, cursorX - (axis === 'y' ? CROSS_RADIUS : SCAN_RADIUS));
+            let sy = Math.max(0, cursorY - (axis === 'x' ? CROSS_RADIUS : SCAN_RADIUS));
+            let w = axis === 'y' ? CROSS_RADIUS * 2 : SCAN_RADIUS * 2;
+            let h = axis === 'x' ? CROSS_RADIUS * 2 : SCAN_RADIUS * 2;
+            
+            sx = Math.floor(sx * ratio); sy = Math.floor(sy * ratio);
+            w = Math.floor(w * ratio); h = Math.floor(h * ratio);
+            
+            if (w <= 0 || h <= 0 || sx >= canvasEl.width || sy >= canvasEl.height) return null;
+            if (sx + w > canvasEl.width) w = canvasEl.width - sx;
+            if (sy + h > canvasEl.height) h = canvasEl.height - sy;
+            
+            const imgData = ctx.getImageData(sx, sy, w, h);
+            const data = imgData.data;
+            
+            let maxGrad = 0;
+            let snapPos = null;
+            
+            if (axis === 'y') {
+                for (let y = 1; y < h - 1; y++) {
+                    let rowGrad = 0;
+                    for (let x = 1; x < w - 1; x++) {
+                        const idx1 = ((y - 1) * w + x) * 4;
+                        const idx2 = ((y + 1) * w + x) * 4;
+                        const dr = data[idx2] - data[idx1];
+                        const dg = data[idx2+1] - data[idx1+1];
+                        const db = data[idx2+2] - data[idx1+2];
+                        rowGrad += Math.abs(dr) + Math.abs(dg) + Math.abs(db);
+                    }
+                    if (rowGrad > maxGrad) {
+                        maxGrad = rowGrad;
+                        snapPos = (sy + y) / ratio;
+                    }
+                }
+            } else {
+                for (let x = 1; x < w - 1; x++) {
+                    let colGrad = 0;
+                    for (let y = 1; y < h - 1; y++) {
+                        const idx1 = (y * w + (x - 1)) * 4;
+                        const idx2 = (y * w + (x + 1)) * 4;
+                        const dr = data[idx2] - data[idx1];
+                        const dg = data[idx2+1] - data[idx1+1];
+                        const db = data[idx2+2] - data[idx1+2];
+                        colGrad += Math.abs(dr) + Math.abs(dg) + Math.abs(db);
+                    }
+                    if (colGrad > maxGrad) {
+                        maxGrad = colGrad;
+                        snapPos = (sx + x) / ratio;
+                    }
+                }
+            }
+            
+            if (maxGrad > w * 50) return snapPos;
+            return null;
+        }
+
         // ── 엣지 드래그 이벤트 ──────────────────────────────────────
         (function setupCropDrag() {
             const edges = [
@@ -6823,10 +6890,25 @@
                     const delta = (axis === 'y' ? e.clientY - startClient : e.clientX - startClient) / currentZoom;
                     const MIN_SIZE = 20;
                     const cw = canvas.width, ch = canvas.height;
-                    if (target === 'T') cropT = Math.max(0, Math.min(cropB - MIN_SIZE, Math.round(startVal + delta)));
-                    else if (target === 'B') cropB = Math.min(ch, Math.max(cropT + MIN_SIZE, Math.round(startVal + delta)));
-                    else if (target === 'L') cropL = Math.max(0, Math.min(cropR - MIN_SIZE, Math.round(startVal + delta)));
-                    else cropR = Math.min(cw, Math.max(cropL + MIN_SIZE, Math.round(startVal + delta)));
+                    
+                    let targetVal = Math.round(startVal + delta);
+                    
+                    // 자석 스냅 로직
+                    if (!e.altKey) {
+                        const br = canvas.lowerCanvasEl.getBoundingClientRect();
+                        const mouseX = (e.clientX - br.left) / currentZoom;
+                        const mouseY = (e.clientY - br.top) / currentZoom;
+                        let snap = findSnapEdge(axis, mouseX, mouseY, canvas.lowerCanvasEl, cw, ch);
+                        if (snap !== null && Math.abs(snap - targetVal) < 15) {
+                            targetVal = snap;
+                        }
+                    }
+
+                    if (target === 'T') cropT = Math.min(cropB - MIN_SIZE, targetVal);
+                    else if (target === 'B') cropB = Math.max(cropT + MIN_SIZE, targetVal);
+                    else if (target === 'L') cropL = Math.min(cropR - MIN_SIZE, targetVal);
+                    else cropR = Math.max(cropL + MIN_SIZE, targetVal);
+                    
                     cropAdjusted = true;
                     updateCropOverlayUI();
                 });
@@ -6838,6 +6920,48 @@
 
         // ── 자르기 실행 버튼 ──────────────────────────────────────────
         document.getElementById('btn_do_crop').addEventListener('click', performEdgeCrop);
+
+        function getCanvasEdgeColor(cLeft, cTop, cRight, cBottom, cw, ch) {
+            const ctx = canvas.lowerCanvasEl.getContext('2d', { willReadFrequently: true });
+            let samples = [];
+
+            if (cLeft < 0) {
+                const imgData = ctx.getImageData(0, 0, 1, ch).data;
+                for (let i = 0; i < imgData.length; i += 4) samples.push(`${imgData[i]},${imgData[i+1]},${imgData[i+2]},${imgData[i+3]}`);
+            }
+            if (cRight > cw) {
+                const imgData = ctx.getImageData(cw - 1, 0, 1, ch).data;
+                for (let i = 0; i < imgData.length; i += 4) samples.push(`${imgData[i]},${imgData[i+1]},${imgData[i+2]},${imgData[i+3]}`);
+            }
+            if (cTop < 0) {
+                const imgData = ctx.getImageData(0, 0, cw, 1).data;
+                for (let i = 0; i < imgData.length; i += 4) samples.push(`${imgData[i]},${imgData[i+1]},${imgData[i+2]},${imgData[i+3]}`);
+            }
+            if (cBottom > ch) {
+                const imgData = ctx.getImageData(0, ch - 1, cw, 1).data;
+                for (let i = 0; i < imgData.length; i += 4) samples.push(`${imgData[i]},${imgData[i+1]},${imgData[i+2]},${imgData[i+3]}`);
+            }
+
+            if (samples.length === 0) {
+                const imgData = ctx.getImageData(0, 0, 1, 1).data;
+                return `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3]/255})`;
+            }
+
+            const counts = {};
+            let maxCount = 0;
+            let mostCommon = samples[0];
+            for (let i = 0; i < samples.length; i++) {
+                const col = samples[i];
+                counts[col] = (counts[col] || 0) + 1;
+                if (counts[col] > maxCount) {
+                    maxCount = counts[col];
+                    mostCommon = col;
+                }
+            }
+
+            const [r, g, b, a] = mostCommon.split(',');
+            return `rgba(${r}, ${g}, ${b}, ${a / 255})`;
+        }
 
         async function performEdgeCrop() {
             if (!hasActiveCanvas || !cropAdjusted) return;
@@ -6853,40 +6977,51 @@
             objects.forEach(o => canvas.remove(o));
             canvas.renderAll();
 
-            // 2. 배경 영역만 toDataURL로 추출
-            const bgData = canvas.toDataURL({
-                left: cLeft, top: cTop, width: newW, height: newH,
-                format: 'png', multiplier: 1
-            });
+            const edgeColor = getCanvasEdgeColor(cropL, cropT, cropR, cropB, canvas.width, canvas.height);
+            const origDataURL = canvas.toDataURL({ format: 'png', multiplier: 1 });
 
-            // 3. 배경 이미지 교체
-            fabric.Image.fromURL(bgData, (img) => {
-                isHistoryAction = true;
-                img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
-                canvas.setWidth(newW);
-                canvas.setHeight(newH);
-                canvas.setBackgroundImage(img, () => {
-                    // 4. 개체 위치 보정 후 재추가 (경계 걸치거나 내부 개체만)
-                    objects.forEach(o => {
-                        o.set({ left: o.left - cLeft, top: o.top - cTop });
-                        o.setCoords();
-                        const br = o.getBoundingRect();
-                        // 완전히 바깥인 개체만 제외, 나머지 모두 유지
-                        if (br.left + br.width > 0 && br.left < newW &&
-                            br.top + br.height > 0 && br.top < newH) {
-                            o.set({ selectable: true, evented: true });
-                            canvas.add(o);
-                        }
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = newW; tempCanvas.height = newH;
+            const tCtx = tempCanvas.getContext('2d');
+            
+            tCtx.fillStyle = edgeColor;
+            tCtx.fillRect(0, 0, newW, newH);
+
+            const origImg = new Image();
+            origImg.onload = function() {
+                tCtx.drawImage(origImg, -cLeft, -cTop);
+                const bgData = tempCanvas.toDataURL('image/png');
+
+                // 3. 배경 이미지 교체
+                fabric.Image.fromURL(bgData, (img) => {
+                    isHistoryAction = true;
+                    img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
+                    canvas.setWidth(newW);
+                    canvas.setHeight(newH);
+                    canvas.setBackgroundImage(img, () => {
+                        // 4. 개체 위치 보정 후 재추가 (경계 걸치거나 내부 개체만)
+                        objects.forEach(o => {
+                            o.set({ left: o.left - cLeft, top: o.top - cTop });
+                            o.setCoords();
+                            const br = o.getBoundingRect();
+                            // 완전히 바깥인 개체만 제외, 나머지 모두 유지
+                            if (br.left + br.width > 0 && br.left < newW &&
+                                br.top + br.height > 0 && br.top < newH) {
+                                o.set({ selectable: true, evented: true });
+                                canvas.add(o);
+                            }
+                        });
+                        panX = 0; panY = 0;
+                        syncFabricContainerSize();
+                        applyFitZoom(); applyCanvasClipping();
+                        canvas.renderAll();
+                        isHistoryAction = false; saveHistory();
+                        // 자르기 도구 비활성화
+                        document.getElementById('btn_tool_crop').click();
                     });
-                    panX = 0; panY = 0;
-                    syncFabricContainerSize();
-                    applyFitZoom(); applyCanvasClipping();
-                    canvas.renderAll();
-                    isHistoryAction = false; saveHistory();
-                    // 자르기 도구 비활성화
-                    document.getElementById('btn_tool_crop').click();
                 });
-            });
+            };
+            origImg.src = origDataURL;
         }
 
     </script>
