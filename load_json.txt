@@ -1,0 +1,100 @@
+            canvas.loadFromJSON(jsonToLoad, () => {
+                if (seq !== _recentLoadSeq) return;
+
+                canvas.renderOnAddRemove = true;
+                const w = item.width || canvas.width;
+                const h = item.height || canvas.height;
+                canvas.setWidth(w);
+                canvas.setHeight(h);
+
+                function finishLoad() {
+                    syncFabricContainerSize();
+                    canvas.calcOffset();
+                    enableTools();
+                    applyFitZoom();
+                    applyCanvasClipping();
+                    canvas.renderAll();
+                    initHistory();
+                    isHistoryAction = false;
+                }
+
+                if (useFastPath) {
+                    // 캐시된 Image 객체로 즉시 배경 복원 (Base64 디코딩 불필요)
+                    const fabricBg = new fabric.Image(item.bgImgCache, {
+                        originX: 'left', originY: 'top', left: 0, top: 0
+                    });
+                    canvas.setBackgroundImage(fabricBg, () => { finishLoad(); });
+                } else {
+                    finishLoad();
+                }
+            });
+        }
+        // 현재 활성 항목 인덱스
+        let activeRecentIdx = -1;
+
+        function updateCurrentThumbnail() {
+            // no-op (호환성 유지)
+        }
+
+        function updateUndoRedoUI() {
+            const undoBtn = document.getElementById('btn_undo');
+            const redoBtn = document.getElementById('btn_redo');
+            if (undoBtn) undoBtn.classList.toggle('disabled', historyIndex <= 0);
+            if (redoBtn) redoBtn.classList.toggle('disabled', historyIndex >= stateHistory.length - 1);
+            if (activeRecentIdx >= 0 && recentList[activeRecentIdx]) {
+                recentList[activeRecentIdx].stateHistory = stateHistory;
+                recentList[activeRecentIdx].historyIndex = historyIndex;
+            }
+            updateCurrentThumbnail();
+        }
+
+        function initHistory() {
+            if (activeRecentIdx >= 0 && recentList[activeRecentIdx]) {
+                const item = recentList[activeRecentIdx];
+                if (item.stateHistory && item.stateHistory.length > 0) {
+                    stateHistory = item.stateHistory;
+                    historyIndex = item.historyIndex !== undefined ? item.historyIndex : item.stateHistory.length - 1;
+                    updateUndoRedoUI();
+                    return;
+                }
+            }
+
+            const bgImg = canvas.backgroundImage;
+            const bgColor = canvas.backgroundColor;
+            canvas.backgroundImage = null;
+            canvas.backgroundColor = null;
+            const json = JSON.stringify(canvas);
+            canvas.backgroundImage = bgImg;
+            canvas.backgroundColor = bgColor;
+
+            stateHistory = [{ objects: json, width: canvas.width, height: canvas.height }];
+            historyIndex = 0;
+            updateUndoRedoUI();
+        }
+
+        function saveHistory() {
+            if (isHistoryAction || !hasActiveCanvas) return;
+            
+            // 성능 최적화: 수 MB의 배경 이미지를 제외하고 벡터 개체만 JSON으로 직렬화 (속도 10배 이상 향상)
+            const bgImg = canvas.backgroundImage;
+            const bgColor = canvas.backgroundColor;
+            canvas.backgroundImage = null;
+            canvas.backgroundColor = null;
+            const json = JSON.stringify(canvas);
+            canvas.backgroundImage = bgImg;
+            canvas.backgroundColor = bgColor;
+            
+            if (stateHistory.length > 0 && stateHistory[historyIndex].objects === json) return;
+
+            if (historyIndex < stateHistory.length - 1) { stateHistory = stateHistory.slice(0, historyIndex + 1); }
+            
+            stateHistory.push({ objects: json, width: canvas.width, height: canvas.height });
+            
+            historyIndex++;
+            if (stateHistory.length > 50) { stateHistory.shift(); historyIndex--; }
+            updateUndoRedoUI();
+        }
+
+        canvas.on('object:added', (e) => { 
+            if (activeTool && activeTool !== 'crop' && activeTool !== 'eraser') {
+                e.target.set('evented', false);

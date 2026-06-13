@@ -1,0 +1,25 @@
+3981: });
+3982: 
+3983: let lastTextEditExitTime = 0;
+3984: canvas.on('text:editing:exited', (e) => {
+3985: lastTextEditExitTime = Date.now();
+3986: canvas.discardActiveObject();
+3987: canvas.requestRenderAll();
+3988: 
+3989: const obj = e.target;
+3990: if (obj && obj.linkedShape && activeTool === 'shape') {
+3991: document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+3992: document.getElementById('panel_shape').classList.add('active');
+3993: } else if (!activeTool) {
+3994: document.getElementById('sub_toolbar').style.display = 'none';
+3995: document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+3996: }
+3997: });
+3998: 
+3999: // ==========================================
+4000: // ★ 펜 '일반' 모드 — 도형 자동 인식 엔진 (Shape Recognition)
+4001: // ==========================================
+4002: let _shapeRecogTimer = null;
+4003: let _lastPenMoveTime = 0;
+4004: let _isAutoShapeTriggered = false;
+4005: 

@@ -1,0 +1,11 @@
+        .pin-icon { position: absolute; top: 2px; right: 2px; font-size: 10px; cursor: pointer; o
+        .pin-icon.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 2px rgba(0,0,0,0.5
+-edit disabled" id="btn_tool_text"><span class="icon">Abc</span>텍스트<span class="pin-icon" title="고정하기">📌</span></button>
+inecap="round"><path d="M3 12c3-8 9-8 12 0s9 8 9 0"/></svg></span>펜<span class="pin-icon" title="고정하기">📌</span></button>
+ middle;"><rect x="3" y="3" width="18" height="18"/></svg></span>도형<span class="pin-icon" title="고정하기">📌</span></button>
+-edit disabled" id="btn_tool_emoji"><span class="icon">😀</span>이모티콘<span class="pin-icon" title="고정하기">📌</span></button>
+-edit disabled" id="btn_tool_image"><span class="icon">🖼️</span>이미지<span class="pin-icon" title="고정하기">📌</span></button>
+edit disabled" id="btn_tool_mosaic"><span class="icon">💧</span>모자이크<span class="pin-icon" title="고정하기">📌</span></button>
+                const pin = activeBtn.querySelector('.pin-icon');
+        document.querySelectorAll('.pin-icon').forEach(pin => {
+                    const pin = activeBtn.querySelector('.pin-icon');

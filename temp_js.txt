@@ -1,0 +1,15 @@
+3336: document.getElementById('form_edit_shape').style.display = 'none';
+3337: document.getElementById('form_edit_line').style.display = 'none';
+3338: 
+3339: document.getElementById('form_edit_image').style.display = 'none';
+3340: 
+3341: if (isEmoji) {
+3342: document.getElementById('form_edit_emoji').style.display = 'block';
+3343: const currentSize = editingObject.baseFontSize ? Math.round(editingObject.baseFontSize * editingObject.scaleX) : (editingObject.fontSize || 36);
+3344: document.getElementById('edit_emoji_size').value = currentSize;
+3345: }
+3346: else if (isImage) {
+3347: document.getElementById('form_edit_image').style.display = 'block';
+3348: let imgW, imgH;
+3349: if (editingObject.type === 'group') {
+3350: imgW = editingObject.getObjects()[0].width;

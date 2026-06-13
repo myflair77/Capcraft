@@ -1,0 +1,10 @@
+3416: window.applyObjectEdit = function() {
+3417: if (!editingObject) return;
+3418: const isText = (editingObject.type === 'i-text' || editingObject.type === 'text');
+3419: const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/));
+3420: const isImage = (editingObject.type === 'image' && !editingObject.isMosaic) || editingObject.isMediaImage;
+3421: const isArrow = (editingObject.type === 'group');
+3422: const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
+3423: const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
+3424: 
+3425: if (isEmoji) {

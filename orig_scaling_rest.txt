@@ -1,0 +1,20 @@
+                    obj.setPositionByOrigin(fixedPoint, originX, originY);
+                }
+                
+                const center = obj.getCenterPoint();
+                textObj.set({ 
+                    width: Math.max(minW, (obj.width * obj.scaleX) - 20),
+                    left: center.x,
+                    top: center.y,
+                    angle: obj.angle
+                });
+                textObj.setCoords();
+            }
+        });
+
+        canvas.on('object:rotating', (e) => {
+            const obj = e.target;
+            if (obj.linkedText) {
+                const center = obj.getCenterPoint();
+                obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
+                obj.linkedText.setCoords();

@@ -1,0 +1,30 @@
+        canvas.on('selection:created', updateObjectControls);
+        canvas.on('selection:updated', updateObjectControls);
+        
+        function updateObjectControls(e) {
+            const obj = e.selected[0];
+            if (!obj) return;
+            if (['rect', 'ellipse', 'polygon'].includes(obj.type) && !obj.linkedText) {
+                obj.setControlVisible('addText', true);
+            } else {
+                obj.setControlVisible('addText', false);
+            }
+        }
+
+        canvas.on('selection:created', (e) => { toggleEdgeGlow(e, true); canvas.requestRenderAll(); });
+        canvas.on('selection:updated', (e) => { 
+            toggleEdgeGlow({ deselected: e.deselected }, false);
+            toggleEdgeGlow({ selected: e.selected }, true);
+            canvas.requestRenderAll(); 
+        });
+        canvas.on('selection:cleared', (e) => { toggleEdgeGlow(e, false); canvas.requestRenderAll(); });
+
+        // 단축키 (Delete, Backspace 삭제 및 개별 Copy & Paste) - 모달 방어벽 추가
+        let myClipboard = null;
+        let lastCanvasClick = { x: 100, y: 100 };
+
+        window.addEventListener('keydown', (e) => {
+            const isModalOpen = document.getElementById('overlay').style.display === 'block';
+            const activeEl = document.activeElement;
+            const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+            

@@ -1,0 +1,59 @@
+        function updateShapeOptions() {
+            const type = document.getElementById('shape_type').value;
+            const container = document.getElementById('shape_options_container');
+            const isLineShape = ['line', 'arrow'].includes(type);
+            
+            document.getElementById('btn_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
+            document.getElementById('label_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
+
+            if (['rect', 'ellipse', 'rhombus'].includes(type)) {
+                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>';
+            } else {
+                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>' +
+                                      '<label><input type="radio" name="line_type" value="normal" checked> 일반</label>' +
+                                      '<label><input type="radio" name="line_type" value="poly"> 꺾은 선</label>' +
+                                      '<label><input type="radio" name="line_type" value="curve"> 곡선</label>';
+            }
+        }
+        document.getElementById('shape_type').addEventListener('change', updateShapeOptions);
+        updateShapeOptions();
+
+        let activeTool = null; let isDrawing = false; let origX, origY;
+        let currentShape = null; let liveEmojiImgObj = null; let arrowHead = null;
+        let selectedEmoji = '😀'; let selectedEmojiUrl = null; let uploadedImageSrc = null;
+        let customEmojiFolders = [];
+        let txtB = false, txtI = false, txtU = false; let editingObject = null;
+        let origShapeRatio = 1, origImageRatio = 1, origLineRatio = 1;
+        
+        let sysShapeOpacity = 0.2; let sysEraserFat = 1.5; let sysArrowType = 'triangle'; let sysArrowSize = 'm';
+
+        function collectSettings() {
+            const settingsIds = [
+                'set_theme', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
+                'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk',
+                'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
+                'set_pen_highlighter_weight', 'set_pen_highlighter_opacity',
+                'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size',
+                'set_eraser_fat', 'set_mosaic_px', 'setting_save_format', 'set_recent_max', 'set_recent_max_action'
+            ];
+            const colorIds = [
+                'set_txt_color', 'set_txt_bg_color', 'set_pen_ballpoint_color',
+                'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color'
+            ];
+            let data = {};
+            settingsIds.forEach(id => {
+                let el = document.getElementById(id);
+                if(el) {
+                    if(el.type === 'checkbox') data[id] = el.checked;
+                    else data[id] = el.value;
+                }
+            });
+            colorIds.forEach(id => {
+                let el = document.getElementById(id);
+                if(el) {
+                    data[id] = { bg: el.style.backgroundColor, img: el.style.backgroundImage };
+                }
+            });
+            data.customEmojiFolders = customEmojiFolders;
+            return data;
+        }

@@ -1,0 +1,14 @@
+        const sizeInput = document.getElementById('text_size_input');
+        if (sizeInput) {
+            sizeInput.addEventListener('input', updateActiveText);
+            sizeInput.addEventListener('change', updateActiveText);
+        }
+        const editSizeInput = document.getElementById('edit_text_size');
+        if (editSizeInput) {
+            editSizeInput.addEventListener('input', function() {
+                if(document.getElementById('text_size_input')) {
+                    document.getElementById('text_size_input').value = this.value;
+                }
+                updateActiveText();
+            });
+        }

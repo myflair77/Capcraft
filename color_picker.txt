@@ -1,0 +1,30 @@
+                } else if (targetColorBtn === 'pen' || targetColorBtn === 'set_pen_ballpoint' || targetColorBtn === 'set_pen_highlighter') {
+                    const elId = targetColorBtn === 'pen' ? 'btn_pen_color' : targetColorBtn === 'set_pen_ballpoint' ? 'set_pen_ballpoint_color' : 'set_pen_highlighter_color';
+                    let finalColor = c.h;
+                    if (targetColorBtn === 'set_pen_highlighter' || (targetColorBtn === 'pen' && document.getElementById('pen_type').value === 'highlighter')) {
+                        let opacity = parseInt(document.getElementById('set_pen_highlighter_opacity').value) || 30;
+                        finalColor = new fabric.Color(c.h).setAlpha(opacity / 100).toRgba();
+                    }
+                    document.getElementById(elId).style.backgroundColor = finalColor;
+                    if(targetColorBtn === 'pen') {
+                        penCurrentColor = finalColor;
+                        if(document.getElementById('pen_type').value === 'ballpoint') sysPenBallpointColor = finalColor;
+                        else sysPenHighlighterColor = finalColor;
+                        updatePenBrush();
+                    }
+                }
+                paletteEl.style.display = 'none'; 
+                if(activeTool==='text') {
+                    if (targetColorBtn === 'text') updateActiveText('fill', textColor);
+                    else if (targetColorBtn === 'text_bg') updateActiveText('backgroundColor', getTextBgOpacity());
+                    else updateActiveText();
+                }
+                if(targetColorBtn === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                    // Update stroke color for straight line mode
+                }
+            }); 
+            paletteEl.appendChild(cell); 
+        });
+
+        // 바탕 클릭 시 팔레트 닫기
+        document.addEventListener('mousedown', e => { 

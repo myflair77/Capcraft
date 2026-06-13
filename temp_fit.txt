@@ -1,0 +1,40 @@
+1354: function updateCanvasTransform() {
+1355: wrapper.style.setProperty('--pan-x', panX + 'px');
+1356: wrapper.style.setProperty('--pan-y', panY + 'px');
+1357: wrapper.style.setProperty('--zoom', currentZoom);
+1358: // calcOffset은 변환 완료 후 1회만 실행, 이중 rAF로 레이아웃 안정 후 호출
+1359: if (window._calcOffsetRaf) cancelAnimationFrame(window._calcOffsetRaf);
+1360: window._calcOffsetRaf = requestAnimationFrame(() => {
+1361: requestAnimationFrame(() => { canvas.calcOffset(); });
+1362: });
+1363: }
+1364: 
+1365: function prepareCanvasDisplay() {
+1366: if (canvasContainer.style.display !== 'block') {
+1367: canvasContainer.style.display = 'block';
+1368: // Reflow는 rAF 내에서 수행하여 현재 프레임의 레이아웃 스래싱 방지
+1369: requestAnimationFrame(() => { void canvasContainer.offsetWidth; });
+1370: }
+1371: }
+1372: 
+1373: // ★ Fabric.js 내부 canvas-container 높이를 동기화하여 하단 깜빡임 원천 차단
+1374: function syncFabricContainerSize() {
+1375: const fabricWrapper = canvasContainer.querySelector('.canvas-container');
+1376: if (fabricWrapper) {
+1377: fabricWrapper.style.width  = canvas.width  + 'px';
+1378: fabricWrapper.style.height = canvas.height + 'px';
+1379: }
+1380: canvasContainer.style.width  = canvas.width  + 'px';
+1381: canvasContainer.style.height = canvas.height + 'px';
+1382: }
+1383: 
+1384: 
+1385: 
+1386: workspace.addEventListener('wheel', function(opt) {
+1387: if(!hasActiveCanvas) return;
+1388: opt.preventDefault();
+1389: if (opt.ctrlKey) {
+1390: let oldZoom = currentZoom;
+1391: let newZoom = oldZoom * (0.999 ** opt.deltaY);
+1392: if (newZoom > 10) newZoom = 10;
+1393: if (newZoom < 0.1) newZoom = 0.1;

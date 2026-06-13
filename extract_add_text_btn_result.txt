@@ -1,0 +1,85 @@
+                <span class="icon"><img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M4,12 l8,-6 l16,6 l-8,6 z' fill='%23fca5a5' stroke='%23000' stroke-width='1.5'/><path d='M4,12 v10 l8,6 v-10 z' fill='%23ef4444' stroke='%23000' stroke-width='1.5'/><path d='M12,18 v10 l16,-6 v-10 z' fill='%233b82f6' stroke='%23000' stroke-width='1.5'/></svg>" width="22" height="22"></span>지우개
+            </button>
+            <button class="btn-tool group-edit disabled" id="btn_tool_crop"><span class="icon">✂️</span>자르기</button>
+        </div>
+        <div class="tool-group">
+            <button id="btn_add_text_to_shape" style="display:none;"></button>
+            <button class="btn-tool disabled" id="btn_action_copy"><span class="icon">📋</span>복사</button>
+            <button class="btn-tool" id="btn_action_open" title="JSON파일을 열어서 작업을 계속할 수 있습니다."><span class="icon">📂</span>열기</button>
+            <div id="grp_save" style="position:relative;">
+                <button class="btn-tool disabled" id="btn_action_save"><span class="icon">💾</span>저장</button>
+                <div class="dropdown-menu" id="dropdown_save" style="min-width:110px;">
+                    <button data-format="png">PNG 저장</button>
+                    <button data-format="jpg">JPG 저장</button>
+                    <button data-format="svg">SVG 저장</button>
+                    <button data-format="pdf">PDF 저장</button>
+                    <button data-format="json">JSON 저장</button>
+                </div>
+            </div>
+            <button class="btn-tool disabled" id="btn_action_print"><span class="icon">🖨️</span>인쇄</button>
+        </div>
+        <div class="tool-group">
+            <button class="btn-tool red" id="btn_action_close"><span class="icon">❌</span>닫기</button>
+        </div>
+    </div>
+
+    <div id="sub_toolbar">
+        <div id="panel_shape" class="sub-panel">
+            <div class="custom-select-group" id="shape_type_group">
+                <button class="active" data-val="rect">직사각형</button>
+                <button data-val="rhombus">마름모</button>
+                <button data-val="ellipse">타원</button>
+                <button data-val="line">선분</button>
+                <button data-val="arrow">화살표</button>
+            </div>
+            <input type="hidden" id="shape_type" value="rect">
+            <div id="shape_options_container" style="display: flex; gap: 8px; align-items: center; margin: 0 5px; padding: 0 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc;"></div>
+            
+            <span>선굵기:</span><input type="number" id="shape_weight" value="3" min="1" style="width: 40px; padding: 4px;">
+            <span>선:</span><div id="btn_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
+            <span id="label_fill_color">배경:</span><div id="btn_fill_color" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+        </div>
+        <div id="panel_text" class="sub-panel">
+            <span>크기:</span><input type="number" id="text_size_input" value="50" min="10" style="width: 40px; padding: 4px;">
+            <button id="btn_txt_b" class="btn-text-style" style="font-weight: bold; margin-left:8px;">B</button>
+            <button id="btn_txt_i" class="btn-text-style" style="font-style: italic;">I</button>
+            <button id="btn_txt_u" class="btn-text-style" style="text-decoration: underline;">U</button>
+            <div class="custom-select-group btn-group" id="text_align_group" style="margin-left: 8px;">
+                <button class="btn-align active" data-val="left" data-align="left" title="왼쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="15" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <button class="btn-align" data-val="center" data-align="center" title="가운데 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <button class="btn-align" data-val="right" data-align="right" title="오른쪽 맞춤"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+            </div>
+            <input type="hidden" id="text_align" value="left">
+            <span style="margin-left:8px;">색상:</span><div id="btn_text_color" class="color-btn" style="background-color: #E03C31;"></div>
+            <span>배경:</span><div id="btn_text_bg" class="color-btn" style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;"></div>
+        </div>
+        <div id="panel_pen" class="sub-panel">
+            <div class="custom-select-group" id="pen_type_group">
+                <button class="active" data-val="ballpoint">볼펜</button>
+                <button data-val="highlighter">형광펜</button>
+            </div>
+            <input type="hidden" id="pen_type" value="ballpoint">
+            
+            <label style="margin-left:8px;"><input type="checkbox" id="pen_dashed"> 점선</label>
+            
+            <div style="display: flex; gap: 8px; margin-left: 8px; padding-left: 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding-right: 8px;">
+                <label><input type="radio" name="pen_mode" value="normal" checked> 일반</label>
+                <label><input type="radio" name="pen_mode" value="straight"> 줄긋기</label>
+            </div>
+            
+            <span style="margin-left:8px;">선굵기:</span><input type="number" id="pen_weight" value="3" min="1" style="width: 40px; padding: 4px;">
+            <span>선색상:</span><div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
+        </div>
+        <div id="panel_emoji" class="sub-panel">
+            <span style="color: var(--accent-blue); font-weight: bold;">팝업에서 선택 후, 캔버스를 드래그하세요.</span>
+            <div id="emoji_preview" style="font-size: 20px; margin-left: 10px; cursor: pointer;">😀</div>
+        </div>
+        <div id="panel_image" class="sub-panel">
+            <input type="file" id="image_upload" accept="image/png, image/jpeg, image/webp" style="font-size: 11px;">
+        </div>
+        <div id="panel_eraser" class="sub-panel"><button id="btn_clear_all" style="padding: 4px 10px; background: var(--accent-red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🗑️ 개체 모두 지우기</button></div>
+        <div id="panel_mosaic" class="sub-panel">
+            <span style="font-weight:bold;">모자이크 크기:</span>
+            <input type="number" id="mosaic_intensity" min="1" max="20" value="5" style="width: 50px;">
+        </div>
+        <div id="panel_crop" class="sub-panel" style="gap:10px;">

@@ -1,0 +1,40 @@
+
+            if (activeTool === 'text') {
+                if (Date.now() - lastTextEditExitTime < 200) return; 
+                const activeObj = canvas.getActiveObject();
+                if (activeObj && activeObj.isEditing) { canvas.discardActiveObject(); canvas.requestRenderAll(); return; }
+                if (o.target && (o.target.type === 'i-text' || o.target.type === 'text' || o.target.type === 'textbox')) return;
+                
+                const fColor = getTextBgOpacity();
+                const scaledSize = parseInt(document.getElementById('text_size_input').value);
+                const textAlignVal = document.getElementById('text_align').value;
+                currentShape = new fabric.Textbox('', {
+                    left: pointer.x, top: pointer.y, fontSize: scaledSize,
+                    cursorWidth: 2, cursorColor: textColor, textAlign: textAlignVal,
+                    fill: textColor, backgroundColor: fColor, fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontFamily: 'Pretendard',
+                    originX: 'left', originY: 'top', splitByGrapheme: true, isWidthFixed: false
+                }); 
+                currentShape.on('changed', function() {
+                    if (!this.isWidthFixed) {
+                        const ctx = this.canvas.getContext();
+                        ctx.font = (this.fontStyle || 'normal') + ' ' + (this.fontWeight || 'normal') + ' ' + this.fontSize + 'px ' + this.fontFamily;
+                        let maxW = 50;
+                        const lines = this.text.split('\n');
+                        for (let i=0; i<lines.length; i++) {
+                            const w = ctx.measureText(lines[i]).width;
+                            if (w > maxW) maxW = w;
+                        }
+                        this.set({ width: maxW + 10 });
+                    }
+                });
+                currentShape.on('resizing', function() { this.isWidthFixed = true; });
+                currentShape.on('scaling', function() { this.isWidthFixed = true; });
+                
+                currentShape.isTemp = true; canvas.add(currentShape); canvas.setActiveObject(currentShape); currentShape.enterEditing(); return;
+            }
+
+            if (activeTool === 'eraser') { 
+                const target = canvas.findTarget(o.e, false);
+                if (target && target.evented) { canvas.remove(target); canvas.requestRenderAll(); saveHistory(); }
+                return; 
+            }

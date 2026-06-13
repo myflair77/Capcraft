@@ -1,0 +1,40 @@
+        canvas.on('object:scaling', (e) => {
+            const obj = e.target;
+            if (obj.linkedText) {
+                const textObj = obj.linkedText;
+                const minW = textObj.dynamicMinWidth || 50;
+                const minH = textObj.calcTextHeight() + 20;
+                const currentW = obj.width * obj.scaleX;
+                const currentH = obj.height * obj.scaleY;
+                
+                let newScaleX = obj.scaleX;
+                let newScaleY = obj.scaleY;
+                let clamped = false;
+                
+                const minScaleX = minW / obj.width;
+                const minScaleY = minH / obj.height;
+                
+                const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
+                
+                if (isCorner) {
+                    if (currentW < minW || currentH < minH) {
+                        let requiredRatioX = minScaleX / newScaleX;
+                        let requiredRatioY = minScaleY / newScaleY;
+                        let maxRatio = Math.max(requiredRatioX, requiredRatioY);
+                        if (maxRatio > 1) {
+                            newScaleX *= maxRatio;
+                            newScaleY *= maxRatio;
+                            clamped = true;
+                        }
+                    }
+                } else {
+                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
+                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
+                }
+                
+                if (clamped && e.transform) {
+                    const originX = e.transform.originX;
+                    const originY = e.transform.originY;
+                    const fixedPoint = obj.getPointByOrigin(originX, originY);
+                    
+                    obj.set({ scaleX: newScaleX, scaleY: newScaleY });

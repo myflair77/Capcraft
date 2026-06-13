@@ -1,0 +1,30 @@
+        document.querySelectorAll('.btn-align').forEach(btn => {
+            btn.addEventListener('mousedown', e => e.preventDefault());
+            btn.addEventListener('click', function() {
+                const group = this.closest('.btn-group');
+                if (group) {
+                    group.querySelectorAll('.btn-align').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const val = this.getAttribute('data-align');
+                    
+                    if (group.id === 'edit_text_align_group') {
+                        document.getElementById('edit_text_align').value = val;
+                        updateActiveText();
+                    } else {
+                        // main toolbar align group
+                        if (document.getElementById('text_align')) {
+                            document.getElementById('text_align').value = val;
+                            updateActiveText();
+                        }
+                    }
+                }
+            });
+        });
+
+        
+        const sizeInput = document.getElementById('text_size_input');
+        if (sizeInput) {
+            sizeInput.addEventListener('input', updateActiveText);
+            sizeInput.addEventListener('change', updateActiveText);
+        }
+        const editSizeInput = document.getElementById('edit_text_size');
