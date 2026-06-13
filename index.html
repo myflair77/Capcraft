@@ -1226,6 +1226,33 @@
             <span style="font-weight:bold;">모자이크 크기:</span>
             <input type="number" id="mosaic_intensity" min="1" max="20" value="3" style="width: 50px;">
         </div>
+        
+        <div id="panel_popout" class="sub-panel" style="gap:10px;">
+            <label style="font-size: 12px; color: var(--text-color); display:flex; align-items:center; gap:5px; cursor:pointer;">
+                <input type="checkbox" id="popout_line_toggle" checked> 연결선
+            </label>
+            <div style="display:flex; align-items:center; gap:5px;" title="연결선 색상/두께">
+                <div id="btn_popout_line_color" class="color-btn" style="background-color: #94a3b8; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;"></div>
+                <input type="number" id="popout_line_weight" min="1" max="10" value="4" style="width: 35px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;" title="가로 회전">
+                <span style="font-size:12px; color:var(--text-color);">가로:</span>
+                <input type="number" id="popout_skew_x" min="-45" max="45" value="0" style="width: 40px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;" title="세로 회전">
+                <span style="font-size:12px; color:var(--text-color);">세로:</span>
+                <input type="number" id="popout_skew_y" min="-45" max="45" value="0" style="width: 40px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;" title="테두리 강조">
+                <span style="font-size:12px; color:var(--text-color);">테두리:</span>
+                <input type="number" id="popout_border" min="0" max="30" value="8" style="width: 35px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;" title="그림자 강조">
+                <span style="font-size:12px; color:var(--text-color);">그림자:</span>
+                <input type="number" id="popout_shadow" min="0" max="100" value="50" style="width: 40px;">
+            </div>
+        </div>
+
         <div id="panel_crop" class="sub-panel" style="gap:10px;">
             <span style="color: var(--accent-blue); font-weight: bold;">이미지의 네 변을 조절하여 영역을 축소 또는 확장할 수 있습니다.</span>
             <button id="btn_do_crop" disabled
@@ -2074,6 +2101,32 @@
                 sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
 
+            
+            const popOutIcon = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='#3b82f6' stroke-width='2'/><path d='M14 5l5 5v10H9v-5H4V5h10zm3 7l-3-3H6v8h8v-5z' fill='#3b82f6'/></svg>");
+            const popOutImg = new Image(); popOutImg.src = popOutIcon;
+
+            controls.popOut = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 150, cursorStyle: 'pointer',
+                mouseDownHandler: function (eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (['rect', 'ellipse', 'polygon', 'path'].includes(target.type) && !target.isPopout) {
+                        createPopoutFromObject(target);
+                    }
+                    return true;
+                },
+                actionName: 'popOut',
+                render: function (ctx, left, top, styleOverride, fabricObject) {
+                    if (['rect', 'ellipse', 'polygon', 'path'].includes(fabricObject.type) && !fabricObject.isPopout) {
+                        const size = 40;
+                        ctx.save();
+                        ctx.translate(left, top);
+                        ctx.drawImage(popOutImg, -size / 2, -size / 2, size, size);
+                        ctx.restore();
+                    }
+                },
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
+            });
+
             controls.bringFront = new fabric.Control({
                 x: 0, y: -0.5, offsetY: -40, offsetX: 50, cursorStyle: 'pointer',
                 mouseDownHandler: function (eventData, transform, x, y) {
@@ -2186,6 +2239,21 @@
             } else {
                 obj.setControlVisible('addText', false);
             }
+
+            if (obj && obj.isPopout) {
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel_popout').classList.add('active');
+                document.getElementById('popout_line_toggle').checked = !!obj.showConnectionLine;
+                document.getElementById('popout_skew_x').value = obj.tiltX || 0;
+                document.getElementById('popout_skew_y').value = obj.tiltY || 0;
+
+            }
+
+            if (['rect', 'ellipse', 'polygon', 'path'].includes(obj.type) && !obj.isPopout) {
+                obj.setControlVisible('popOut', true);
+            } else {
+                obj.setControlVisible('popOut', false);
+            }
         }
 
         canvas.on('selection:created', (e) => { toggleEdgeGlow(e, true); canvas.requestRenderAll(); });
@@ -2194,7 +2262,11 @@
             toggleEdgeGlow({ selected: e.selected }, true);
             canvas.requestRenderAll();
         });
-        canvas.on('selection:cleared', (e) => { toggleEdgeGlow(e, false); canvas.requestRenderAll(); });
+        canvas.on('selection:cleared', (e) => {
+            const deselected = e.deselected || canvas.getObjects();
+            toggleEdgeGlow({ deselected: deselected }, false);
+            canvas.requestRenderAll();
+        });
 
         // 단축키 (Delete, Backspace 삭제 및 개별 Copy & Paste) - 모달 방어벽 추가
         let myClipboard = null;
@@ -2675,6 +2747,326 @@
                 obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
                 obj.linkedShape.setCoords();
                 canvas.renderAll();
+            }
+        });
+
+        
+        // Popout UI events
+        document.getElementById('popout_line_toggle').addEventListener('change', function(e) {
+            const obj = canvas.getActiveObject();
+            if (obj && obj.isPopout) {
+                obj.showConnectionLine = this.checked;
+                updatePopoutLine(obj);
+                canvas.requestRenderAll();
+            }
+        });
+
+        window.applyPopoutTilt = function(obj) {
+            const tiltX = obj.tiltX || 0;
+            const tiltY = obj.tiltY || 0;
+            const radX = tiltX * Math.PI / 180;
+            const radY = tiltY * Math.PI / 180;
+            
+            const shadowIntensity = obj.popoutShadow !== undefined ? obj.popoutShadow : 50;
+            const maxShadowShift = shadowIntensity * 0.8;
+            
+            // 그림자가 앞/위로 튀어나오지 않고 항상 자연스럽게 아래/우측으로 깔리도록 절대적인 Base 오프셋 지정
+            let baseOffsetX = shadowIntensity * 0.3;
+            let baseOffsetY = shadowIntensity * 0.5;
+            
+            let sX = baseOffsetX + Math.sin(radY) * maxShadowShift;
+            let sY = baseOffsetY + Math.sin(radX) * maxShadowShift;
+            
+            // 음수 방지 (항상 개체 뒤/아래로)
+            if (sY < 0) sY = 0;
+            if (sX < -baseOffsetX) sX = -baseOffsetX;
+            
+            if (obj.shadow) {
+                obj.shadow.offsetX = sX;
+                obj.shadow.offsetY = sY;
+                obj.shadow.blur = shadowIntensity;
+                obj.shadow.color = `rgba(0,0,0,${Math.min(0.8, shadowIntensity/80)})`;
+            }
+            obj.dirty = true;
+        };
+
+        window.regeneratePopoutBase = function(img) {
+            if (!img._croppedBg) return;
+            const cw = img.width;
+            const ch = img.height;
+            const tCanvas = document.createElement('canvas');
+            tCanvas.width = cw; tCanvas.height = ch;
+            const ctx = tCanvas.getContext('2d');
+            
+            const obj = img.linkedOriginal;
+            if (!obj) return;
+            
+            const oldStroke = obj.stroke;
+            const oldWidth = obj.strokeWidth;
+            const oldFill = obj.fill;
+            const oldShadow = obj.shadow;
+            const oldLeft = obj.left;
+            const oldTop = obj.top;
+            
+            // 1. Draw solid shape mask
+            obj.stroke = 'transparent';
+            obj.strokeWidth = 0;
+            obj.fill = 'black';
+            obj.shadow = null;
+            obj.left = cw/2;
+            obj.top = ch/2;
+            obj.render(ctx);
+            
+            // 2. Composite background inside shape
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.fillStyle = canvas.backgroundColor || '#ffffff';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(img._croppedBg, 0, 0);
+            
+            // 3. Draw border on top
+            const borderW = img.popoutBorder !== undefined ? img.popoutBorder : 8;
+            if (borderW > 0) {
+                ctx.globalCompositeOperation = 'source-over';
+                obj.fill = 'transparent';
+                obj.stroke = 'white';
+                obj.strokeWidth = borderW;
+                obj.render(ctx);
+            }
+            
+            obj.stroke = oldStroke;
+            obj.strokeWidth = oldWidth;
+            obj.fill = oldFill;
+            obj.shadow = oldShadow;
+            obj.left = oldLeft;
+            obj.top = oldTop;
+            
+            img._element = tCanvas;
+        };
+
+        const OriginalImageRender = fabric.Image.prototype._render;
+        fabric.Image.prototype._render = function(ctx) {
+            if (this.isPopout) {
+                // 실시간 보더 변경 반영
+                if (this._lastBorder !== this.popoutBorder) {
+                    regeneratePopoutBase(this);
+                    this._lastBorder = this.popoutBorder;
+                }
+                
+                if (this.tiltX !== 0 || this.tiltY !== 0) {
+                    const w = this.width;
+                    const h = this.height;
+                    const tiltX = this.tiltX || 0;
+                    const tiltY = this.tiltY || 0;
+                    const D = Math.max(w, h) * 1.5;
+                    
+                    if (!this._offCanvas) {
+                        this._offCanvas = document.createElement('canvas');
+                        this._offCtx = this._offCanvas.getContext('2d');
+                    }
+                    
+                    const margin = Math.max(w, h) * 0.5;
+                    const ow = w + margin * 2;
+                    const oh = h + margin * 2;
+                    if (this._offCanvas.width !== ow) {
+                        this._offCanvas.width = ow;
+                        this._offCanvas.height = oh;
+                    } else {
+                        this._offCtx.clearRect(0, 0, ow, oh);
+                    }
+                    
+                    // PASS 1: Tilt X (Horizontal strips onto Off-screen Canvas)
+                    if (tiltX !== 0) {
+                        const radX = tiltX * Math.PI / 180;
+                        for (let y = 0; y < h; y += 2) {
+                            let dy = y - h/2;
+                            let z = dy * Math.sin(radX);
+                            let scale = D / (D - z);
+                            let new_y = dy * Math.cos(radX) * scale;
+                            let new_w = w * scale;
+                            let dy_next = (y + 2) - h/2;
+                            let z_next = dy_next * Math.sin(radX);
+                            let scale_next = D / (D - z_next);
+                            let new_y_next = dy_next * Math.cos(radX) * scale_next;
+                            let new_h = new_y_next - new_y;
+                            this._offCtx.drawImage(this._element, 0, y, w, 2, ow/2 - new_w/2, oh/2 + new_y, new_w, new_h + 0.5);
+                        }
+                    } else {
+                        this._offCtx.drawImage(this._element, ow/2 - w/2, oh/2 - h/2, w, h);
+                    }
+                    
+                    // PASS 2: Tilt Y (Vertical strips from Off-screen Canvas onto Final Context)
+                    if (tiltY !== 0) {
+                        const radY = tiltY * Math.PI / 180;
+                        for (let x = 0; x < ow; x += 2) {
+                            let dx = x - ow/2;
+                            let z = dx * Math.sin(radY);
+                            let scale = D / (D + z);
+                            let new_x = dx * Math.cos(radY) * scale;
+                            let new_h = oh * scale;
+                            let dx_next = (x + 2) - ow/2;
+                            let z_next = dx_next * Math.sin(radY);
+                            let scale_next = D / (D + z_next);
+                            let new_x_next = dx_next * Math.cos(radY) * scale_next;
+                            let new_w = new_x_next - new_x;
+                            ctx.drawImage(this._offCanvas, x, 0, 2, oh, new_x, -new_h/2, new_w + 0.5, new_h);
+                        }
+                    } else {
+                        ctx.drawImage(this._offCanvas, 0, 0, ow, oh, -ow/2, -oh/2, ow, oh);
+                    }
+                    return;
+                }
+            }
+            OriginalImageRender.call(this, ctx);
+        };
+
+        window.getBoundaryIntersection = function(obj, popoutCenter) {
+            let target = obj;
+            if (obj.linkedShape) target = obj.linkedShape;
+            
+            const c = target.getCenterPoint();
+            const p = popoutCenter;
+            
+            if (Math.abs(p.x - c.x) < 0.1 && Math.abs(p.y - c.y) < 0.1) return c;
+            
+            const angle = Math.atan2(p.y - c.y, p.x - c.x);
+            const objRad = target.angle * Math.PI / 180;
+            const relAngle = angle - objRad;
+            
+            const rx = (target.width * target.scaleX) / 2;
+            const ry = (target.height * target.scaleY) / 2;
+            
+            let dx = Math.cos(relAngle);
+            let dy = Math.sin(relAngle);
+            let t = 0;
+            
+            if (target.type === 'ellipse') {
+                const rx2 = rx*rx, ry2 = ry*ry;
+                t = Math.sqrt( (rx2 * ry2) / (ry2 * dx*dx + rx2 * dy*dy) );
+            } 
+            else if (target.type === 'polygon' || target.type === 'path') {
+                // Rhombus diamond equation: |x|/rx + |y|/ry = 1
+                t = 1 / (Math.abs(dx)/rx + Math.abs(dy)/ry);
+            } 
+            else { // rect
+                let tX = Math.abs(dx) > 0.0001 ? rx / Math.abs(dx) : Infinity;
+                let tY = Math.abs(dy) > 0.0001 ? ry / Math.abs(dy) : Infinity;
+                t = Math.min(tX, tY);
+            }
+            
+            const x = dx * t;
+            const y = dy * t;
+            
+            const finalX = c.x + x * Math.cos(objRad) - y * Math.sin(objRad);
+            const finalY = c.y + x * Math.sin(objRad) + y * Math.cos(objRad);
+            return { x: finalX, y: finalY };
+        };
+
+        function bindPopoutInput(id, propName, parser, callback) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('input', function(e) {
+                const obj = canvas.getActiveObject();
+                if (obj && obj.isPopout) {
+                    obj[propName] = parser(this.value);
+                    obj.dirty = true;
+                    if (callback) callback(obj);
+                    canvas.requestRenderAll();
+                }
+            });
+        }
+        
+        bindPopoutInput('popout_skew_x', 'tiltX', parseFloat, applyPopoutTilt);
+        bindPopoutInput('popout_skew_y', 'tiltY', parseFloat, applyPopoutTilt);
+        bindPopoutInput('popout_border', 'popoutBorder', parseFloat, null);
+        bindPopoutInput('popout_shadow', 'popoutShadow', parseFloat, applyPopoutTilt);
+        bindPopoutInput('popout_line_weight', 'popoutLineWeight', parseFloat, obj => {
+            if (obj.linkedLine) {
+                obj.linkedLine.strokeWidth = obj.popoutLineWeight;
+            }
+        });
+        
+        const popoutLineToggle = document.getElementById('popout_line_toggle');
+        if (popoutLineToggle) {
+            popoutLineToggle.addEventListener('change', function(e) {
+                const obj = canvas.getActiveObject();
+                if (obj && obj.isPopout) {
+                    obj.showConnectionLine = this.checked;
+                    updatePopoutLine(obj);
+                    canvas.requestRenderAll();
+                }
+            });
+        }
+        
+        const btnPopoutLineColor = document.getElementById('btn_popout_line_color');
+        if (btnPopoutLineColor) {
+            btnPopoutLineColor.addEventListener('click', function(e) {
+                const btn = this;
+                const input = document.createElement('input');
+                input.type = 'color';
+                
+                function rgb2hex(rgb) {
+                    if (!rgb) return null;
+                    if (rgb.startsWith('#')) return rgb;
+                    const res = rgb.match(/\d+/g);
+                    if (!res || res.length < 3) return null;
+                    return "#" + ((1 << 24) + (parseInt(res[0]) << 16) + (parseInt(res[1]) << 8) + parseInt(res[2])).toString(16).slice(1);
+                }
+                
+                input.value = rgb2hex(btn.style.backgroundColor) || '#94a3b8';
+                input.oninput = function() {
+                    btn.style.backgroundColor = input.value;
+                    const obj = canvas.getActiveObject();
+                    if (obj && obj.isPopout && obj.linkedLine) {
+                        obj.popoutLineColor = input.value;
+                        obj.linkedLine.stroke = input.value;
+                        canvas.requestRenderAll();
+                    }
+                };
+                input.click();
+            });
+        }
+        document.getElementById('popout_skew_y').addEventListener('input', function(e) {
+            
+            const obj = canvas.getActiveObject();
+            if (obj && obj.isPopout) {
+                obj.tiltY = parseInt(this.value);
+                applyPopoutTilt(obj);
+                updatePopoutLine(obj);
+                canvas.requestRenderAll();
+            }
+        });
+
+        // Popout Line updates on moving
+        canvas.on('object:moving', function(e) {
+            if (e.target.isPopout) updatePopoutLine(e.target);
+            canvas.getObjects().forEach(o => {
+                if (o.isPopout && o.linkedOriginal === e.target) {
+                    updatePopoutLine(o);
+                }
+            });
+        });
+        
+        canvas.on('object:scaling', function(e) {
+            if (e.target.isPopout) updatePopoutLine(e.target);
+            canvas.getObjects().forEach(o => {
+                if (o.isPopout && o.linkedOriginal === e.target) {
+                    updatePopoutLine(o);
+                }
+            });
+        });
+
+        canvas.on('object:removed', function(e) {
+            if (e.target.isPopout && e.target.linkedLine) {
+                canvas.remove(e.target.linkedLine);
+            } else {
+                canvas.getObjects().forEach(o => {
+                    if (o.isPopout && o.linkedOriginal === e.target) {
+                        o.showConnectionLine = false;
+                        o.linkedOriginal = null;
+                        if (o.linkedLine) canvas.remove(o.linkedLine);
+                    }
+                });
             }
         });
 
@@ -4250,7 +4642,7 @@
         // ==========================================
         // 6. 버튼 활성/비활성 제어 및 도구 로직
         // ==========================================
-        const panels = { 'shape': 'panel_shape', 'pen': 'panel_pen', 'text': 'panel_text', 'eraser': 'panel_eraser', 'emoji': 'panel_emoji', 'image': 'panel_image', 'mosaic': 'panel_mosaic', 'crop': 'panel_crop' };
+        const panels = { 'shape': 'panel_shape', 'pen': 'panel_pen', 'text': 'panel_text', 'eraser': 'panel_eraser', 'emoji': 'panel_emoji', 'image': 'panel_image', 'mosaic': 'panel_mosaic', 'crop': 'panel_crop', 'popout': 'panel_popout' };
 
         function updatePenBrush() {
 
@@ -7027,7 +7419,169 @@
     </script>
     <script>
         lucide.createIcons();
-    </script>
+    
+// --- POPOUT 3D FEATURE ---
+window.createPopoutFromObject = function(obj) {
+    if (!['rect', 'ellipse', 'polygon', 'path'].includes(obj.type)) return;
+    
+    // Backup viewport
+    const vpt = canvas.viewportTransform.slice(0); 
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); 
+    
+    const oldVisible = [];
+    const oldObjVisible = obj.visible;
+    obj.visible = false; // Hide only the target object to prevent capturing its own border
+    
+    // 1. Snapshot Background WITH all other objects (texts, images, etc.)
+    canvas.renderAll();
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = canvas.width;
+    bgCanvas.height = canvas.height;
+    bgCanvas.getContext('2d').drawImage(canvas.getElement(), 0, 0);
+    
+    // Now hide everything EXCEPT the target object for the mask
+    canvas.getObjects().forEach(o => {
+        oldVisible.push(o.visible);
+        if (o !== obj) o.visible = false;
+    });
+    
+    // 2. Snapshot Object Mask (Solid black for clipping)
+    const oldStrokeWidth = obj.strokeWidth;
+    const oldFill = obj.fill;
+    const oldShadow = obj.shadow;
+    const oldStroke = obj.stroke;
+    const oldAngle = obj.angle; // Backup angle
+    
+    obj.strokeWidth = 0;
+    obj.stroke = 'transparent';
+    obj.fill = 'black';
+    obj.shadow = null;
+    obj.visible = true;
+    
+    const oldBg = canvas.backgroundImage;
+    const oldBgColor = canvas.backgroundColor;
+    canvas.backgroundImage = null;
+    canvas.backgroundColor = 'transparent';
+    canvas.renderAll();
+    
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = canvas.width;
+    maskCanvas.height = canvas.height;
+    const maskCtx = maskCanvas.getContext('2d');
+    maskCtx.drawImage(canvas.getElement(), 0, 0);
+    
+    // Composite: background inside mask
+    maskCtx.globalCompositeOperation = 'source-in';
+    maskCtx.drawImage(bgCanvas, 0, 0);
+    
+    // We don't draw border here anymore. We just crop the background and save it.
+    // 4. Restore everything
+    obj.strokeWidth = oldStrokeWidth;
+    obj.stroke = oldStroke;
+    obj.fill = oldFill;
+    obj.shadow = oldShadow;
+    canvas.backgroundImage = oldBg;
+    canvas.backgroundColor = oldBgColor;
+    canvas.getObjects().forEach((o, i) => { if (o !== obj) o.visible = oldVisible[i]; });
+    obj.visible = oldObjVisible;
+    canvas.renderAll();
+    
+    // 5. Crop
+    const pad = 40; // padding to allow dynamic border and shadow
+    const br = obj.getBoundingRect(true, true);
+    const cw = br.width + pad * 2;
+    const ch = br.height + pad * 2;
+    const cx = br.left - pad;
+    const cy = br.top - pad;
+    
+    const croppedBgCanvas = document.createElement('canvas');
+    croppedBgCanvas.width = cw;
+    croppedBgCanvas.height = ch;
+    croppedBgCanvas.getContext('2d').drawImage(bgCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+    
+    // Create a dummy transparent canvas for the image element initially
+    const dummyCanvas = document.createElement('canvas');
+    dummyCanvas.width = cw; dummyCanvas.height = ch;
+    
+    fabric.Image.fromURL(dummyCanvas.toDataURL(), function(img) {
+        // Adjust for viewport so it appears in the right place
+        const zoom = canvas.getZoom();
+        
+        img.set({
+            left: obj.left + 50 * zoom,
+            top: obj.top - 50 * zoom,
+            originX: 'center',
+            originY: 'center',
+            shadow: new fabric.Shadow({
+                color: 'rgba(0,0,0,0.7)',
+                blur: 50,
+                offsetX: 0,
+                offsetY: 25
+            }),
+            tiltX: 0,
+            tiltY: 0,
+            scaleX: 1.0,
+            scaleY: 1.0,
+            hasControls: false,
+            hasBorders: false,
+            objectCaching: false,
+            isPopout: true,
+            showConnectionLine: true,
+            linkedOriginal: obj,
+            popoutBorder: 8,
+            popoutShadow: 50,
+            popoutLineWeight: 4,
+            popoutLineColor: '#94a3b8'
+        });
+        
+        img._croppedBg = croppedBgCanvas;
+        regeneratePopoutBase(img); // Bake the first image
+        
+        // NOW restore viewport
+        canvas.setViewportTransform(vpt);
+        canvas.requestRenderAll();
+        
+        
+        const line = new fabric.Line([0,0,0,0], {
+            stroke: img.popoutLineColor,
+            strokeWidth: img.popoutLineWeight,
+            strokeDashArray: null,
+            selectable: false,
+            evented: false,
+            originX: 'center',
+            originY: 'center',
+            isPopoutLine: true
+        });
+        
+        img.linkedLine = line;
+        canvas.add(line);
+        canvas.add(img);
+        updatePopoutLine(img);
+        
+        canvas.setActiveObject(img);
+        canvas.requestRenderAll();
+    });
+};
+
+window.updatePopoutLine = function(popout) {
+    if (!popout || !popout.linkedOriginal || !popout.linkedLine) return;
+    if (!popout.showConnectionLine) {
+        popout.linkedLine.set({ x1: 0, y1: 0, x2: 0, y2: 0 });
+        popout.linkedLine.visible = false;
+        return;
+    }
+    const pCenter = popout.getCenterPoint();
+    const borderPoint = getBoundaryIntersection(popout.linkedOriginal, pCenter);
+    
+    popout.linkedLine.set({
+        x1: pCenter.x, y1: pCenter.y,
+        x2: borderPoint.x, y2: borderPoint.y
+    });
+    popout.linkedLine.visible = true;
+    popout.canvas.sendBackwards(popout.linkedLine);
+};
+
+</script>
 </body>
 
 </html>
