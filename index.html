@@ -1591,7 +1591,7 @@
                 <span>연결선 두께:</span> <input type="number" id="set_popout_line_weight" value="4" min="1" max="20" style="width:40px;">
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <span>개체 기본 회전:</span> <input type="number" id="set_popout_angle" value="8.0" min="0.0" max="359.9" step="0.1" style="width:55px;">
+                <span>개체 기본 회전:</span> <input type="number" id="set_popout_angle" value="6.0" min="0.0" max="359.9" step="0.1" style="width:55px;">
                 <span>가로축 회전:</span> <input type="number" id="set_popout_skew_x" value="20" min="-45" max="45" style="width:45px;">
                 <span>세로축 회전:</span> <input type="number" id="set_popout_skew_y" value="-30" min="-45" max="45" style="width:45px;">
             </div>
@@ -1769,7 +1769,7 @@
         // 커스텀 속성 직렬화 (Undo/Redo 및 JSON 로드 시 속성 손실 방지)
         const originalToObject = fabric.Object.prototype.toObject;
         fabric.Object.prototype.toObject = function (additionalProperties) {
-            return originalToObject.call(this, ['id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize', 'isPopout', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'tiltX', 'tiltY', 'showConnectionLine', 'linkedOriginalId', 'linkedLineId', '_croppedBgDataUrl'].concat(additionalProperties || []));
+            return originalToObject.call(this, ['id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize', 'isPopout', 'isPopoutLine', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'tiltX', 'tiltY', 'showConnectionLine', 'linkedOriginalId', 'linkedLineId', '_croppedBgDataUrl', '_baseLeft', '_baseTop'].concat(additionalProperties || []));
         };
 
         // 한글(IME) 입력 시 커서 위치 보정
@@ -2759,6 +2759,37 @@
             });
         }
 
+        // ★ Undo/Redo 후 팝아웃의 linkedOriginal / linkedLine 객체 참조를 ID 기반으로 복원
+        function restorePopoutLinks() {
+            const objs = canvas.getObjects();
+            const idMap = {};
+            objs.forEach(o => { if (o.id) idMap[o.id] = o; });
+
+            objs.forEach(o => {
+                if (o.isPopout) {
+                    // linkedOriginal 복원
+                    if (o.linkedOriginalId && !o.linkedOriginal) {
+                        const orig = idMap[o.linkedOriginalId];
+                        if (orig) o.linkedOriginal = orig;
+                    }
+                    // linkedLine 복원
+                    if (o.linkedLineId && !o.linkedLine) {
+                        const line = idMap[o.linkedLineId];
+                        if (line) {
+                            o.linkedLine = line;
+                            line.isPopoutLine = true;
+                        }
+                    }
+                    // ★ _croppedBg가 이미 로드된 경우에만 그림자+기울기 재적용
+                    if (o._croppedBg) {
+                        if (typeof applyPopoutTilt === 'function') applyPopoutTilt(o);
+                    }
+                    // 연결선 위치 갱신
+                    if (typeof updatePopoutLine === 'function') updatePopoutLine(o);
+                }
+            });
+        }
+
         canvas.on('object:scaling', (e) => {
             const obj = e.target;
             if (obj.linkedText) {
@@ -2999,6 +3030,7 @@
             
             if (l > r || t > b) {
                 img._element = finalCanvas;
+                img._originalElement = finalCanvas;
                 img.set({width: ow, height: oh});
                 return;
             }
@@ -3026,6 +3058,7 @@
                 height: trimmedH
             });
             img._element = trimmedCanvas;
+            img._originalElement = trimmedCanvas;
             img.setCoords();
         };
 
@@ -3153,6 +3186,8 @@
         });
 
         canvas.on('object:removed', function(e) {
+            // Undo/Redo (loadFromJSON→canvas.clear) 중에는 연쇄 삭제를 건너뜀
+            if (isHistoryAction) return;
             if (e.target.isPopout && e.target.linkedLine) {
                 canvas.remove(e.target.linkedLine);
             } else {
@@ -3264,7 +3299,7 @@
 
             const thumbMult = Math.min(200 / Math.max(10, canvas.width), 1.0);
             const thumb = canvas.toDataURL({ format: 'png', multiplier: thumbMult });
-            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
 
             // 배경 이미지 URL 및 배경색 추출
             const bgImg = canvas.backgroundImage;
@@ -3422,6 +3457,7 @@
             canvas.loadFromJSON(jsonToLoad, () => {
                 if (seq !== _recentLoadSeq) return;
                 restoreLinkedTexts();
+                restorePopoutLinks();
 
                 canvas.renderOnAddRemove = true;
                 const w = item.width || canvas.width;
@@ -3454,6 +3490,32 @@
         // 현재 활성 항목 인덱스
         let activeRecentIdx = -1;
 
+        
+        window.popoutReviver = function(o, obj) {
+            if (o.isPopout) {
+                const props = ['isPopout', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'tiltX', 'tiltY', 'showConnectionLine', 'linkedOriginalId', 'linkedLineId', '_croppedBgDataUrl', '_baseLeft', '_baseTop'];
+                props.forEach(p => { if (o[p] !== undefined) obj[p] = o[p]; });
+                if (obj._croppedBgDataUrl && !obj._croppedBg) {
+                    const img = new Image();
+                    img.src = obj._croppedBgDataUrl;
+                    img.onload = () => {
+                        obj._croppedBg = img;
+                        // ★ linkedOriginal이 이미 복원된 경우에만 렌더링 재적용
+                        //   (아직 복원 안 됐으면 restorePopoutLinks에서 처리)
+                        if (obj.linkedOriginal) {
+                            if (typeof applyPopoutTilt === 'function') applyPopoutTilt(obj);
+                            if (typeof updatePopoutLine === 'function') updatePopoutLine(obj);
+                        }
+                        if (obj.canvas) obj.canvas.renderAll();
+                    };
+                }
+            }
+            // 연결선 속성 복원
+            if (o.isPopoutLine) {
+                obj.isPopoutLine = true;
+            }
+        };
+
         function updateCurrentThumbnail() {
             // no-op (호환성 유지)
         }
@@ -3485,7 +3547,7 @@
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
-            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
@@ -3502,7 +3564,7 @@
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
-            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
@@ -3673,6 +3735,7 @@
 
             canvas.loadFromJSON(state.objects, () => {
                 restoreLinkedTexts();
+                restorePopoutLinks();
                 canvas.backgroundImage = bgImg;
                 canvas.backgroundColor = bgColor;
                 canvas.renderOnAddRemove = true;
@@ -3686,6 +3749,23 @@
                     isHistoryAction = false;
                     updateUndoRedoUI();
                     updateGlobalCursor();
+
+                    // ★ 비동기 팝아웃 복구 안전장치: _croppedBg 로드 완료 후
+                    //    아직 regeneratePopoutBase가 실행되지 않은 팝아웃 재시도
+                    setTimeout(() => {
+                        let needsRender = false;
+                        canvas.getObjects().forEach(o => {
+                            if (o.isPopout && o._croppedBg && o.linkedOriginal) {
+                                // _element가 아직 투명 더미이거나 canvas가 아닌 경우 재생성
+                                if (!o._element || !o._element.getContext) {
+                                    if (typeof applyPopoutTilt === 'function') applyPopoutTilt(o);
+                                    if (typeof updatePopoutLine === 'function') updatePopoutLine(o);
+                                    needsRender = true;
+                                }
+                            }
+                        });
+                        if (needsRender) canvas.renderAll();
+                    }, 150);
                 }, 0);
             }, window.popoutReviver);
         }
@@ -3991,6 +4071,11 @@
                 if (data.customEmojiFolders) {
                     customEmojiFolders = data.customEmojiFolders;
                 }
+                
+                // ★ 이전 기본값(8.0)을 가진 사용자 설정을 새로운 기본값(6.0)으로 마이그레이션
+                if (data['set_popout_angle'] === '8.0' || data['set_popout_angle'] === '8' || data['set_popout_angle'] === 8.0 || data['set_popout_angle'] === 8) {
+                    data['set_popout_angle'] = '6.0';
+                }
                 for (let id in data) {
                     let el = document.getElementById(id);
                     if (!el) continue;
@@ -4017,7 +4102,7 @@
         window.applySettings = function () {
             // Force popout defaults if missing or 0
             if (document.getElementById('set_popout_angle') && (!document.getElementById('set_popout_angle').value || document.getElementById('set_popout_angle').value === '0' || document.getElementById('set_popout_angle').value === '0.0')) {
-                document.getElementById('set_popout_angle').value = '8.0';
+                document.getElementById('set_popout_angle').value = '6.0';
             }
             if (document.getElementById('set_popout_border') && (!document.getElementById('set_popout_border').value || document.getElementById('set_popout_border').value === '0')) {
                 document.getElementById('set_popout_border').value = '8';
@@ -4506,6 +4591,7 @@
 
                     canvas.loadFromJSON(f.target.result, () => {
                         restoreLinkedTexts();
+                        restorePopoutLinks();
                         let parsed = {};
                         try { parsed = JSON.parse(f.target.result); } catch (e) { }
 
@@ -4559,7 +4645,7 @@
             let blob, suggestedName, mime;
 
             if (format === 'json') {
-                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor', 'id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
+                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor', 'id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
                 blob = new Blob([jsonStr], { type: "application/json" });
                 suggestedName = `${baseName}.json`;
                 mime = 'application/json';
@@ -7664,6 +7750,9 @@
 window.createPopoutFromObject = function(obj) {
     if (!['rect', 'ellipse', 'polygon', 'path'].includes(obj.type)) return;
     
+    // ★ 원본 도형에 id가 없으면 자동 부여 (Undo/Redo 시 linkedOriginalId 복원용)
+    if (!obj.id) obj.id = 'orig_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    
     // Backup viewport
     const vpt = canvas.viewportTransform.slice(0); 
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); 
@@ -7760,6 +7849,7 @@ window.createPopoutFromObject = function(obj) {
         const pShadow = document.getElementById('set_popout_shadow');
 
         img.set({
+            id: 'popout_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
             left: obj.left + 50 * zoom,
             top: obj.top - 50 * zoom,
             originX: 'center',
@@ -7770,7 +7860,7 @@ window.createPopoutFromObject = function(obj) {
                 offsetX: 0,
                 offsetY: 25
             }),
-            angle: pAngle ? parseFloat(pAngle.value) : 8.0,
+            angle: pAngle ? parseFloat(pAngle.value) : 6.0,
             tiltX: pSkewX ? parseInt(pSkewX.value) : 20,
             tiltY: pSkewY ? parseInt(pSkewY.value) : -30,
             skewX: 0,

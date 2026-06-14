@@ -508,3 +508,78 @@ egeneratePopoutBase를 통한 사다리꼴 변형으로 구현하며, FabricJS�
 
 - **팝아웃 Undo/Redo 버그 수정:** 팝아웃 개체를 복원하는 popoutReviver 함수의 스코프가 commitLoadToCanvas 내부에 갇혀 있어 뒤로 가기/앞으로 가기 시 ReferenceError가 발생하던 문제를 해결. 함수를 글로벌 스코프로 이동하여 안정적인 Undo/Redo 지원.
 - **환경설정 기본값 적용 강제화:** 사용자의 로컬 환경설정 캐시(.capcraft_settings.json)에 이전 값(예: 테두리 10)이 저장되어 있어 새 기본값(8.0, 8)이 무시되던 현상을 파악하여, 스크립트 단에서 해당 캐시를 8.0과 8로 강제 리셋하여 기본값이 정상적으로 반영되도록 조치.
+
+- **팝아웃 Undo/Redo 배경 복구 및 커스텀 속성 직렬화 개선:** JSON 복원 시 `_croppedBgDataUrl`를 비동기적으로 로드한 뒤 팝아웃 원근감/그림자 상태(`regeneratePopoutBase`)를 다시 트리거하도록 안전하게 개선하여, 히스토리(Undo/Redo) 탐색이나 프로그램 재시작 시 팝아웃 개체가 사라지던 치명적인 문제 완전 해결.
+
+### 2026-06-14 팝아웃 Undo/Redo 완전 복원 및 그림자 강도 실시간 반영 수정
+
+#### 팝아웃 Undo/Redo 시 개체 소실 문제 완전 수정
+- **근본 원인 1 — 객체 참조 복원 누락:** `loadFromJSON` + `popoutReviver`로 팝아웃의 JSON 속성(`linkedOriginalId`, `linkedLineId`, `popoutShadow` 등)은 복원되지만, 런타임 객체 참조(`linkedOriginal`, `linkedLine`)는 복원되지 않았음. 이로 인해 `updatePopoutLine`이나 `regeneratePopoutBase`가 참조를 찾지 못해 팝아웃의 연결선이 사라지고 그림자/기울기 렌더링이 실패함.
+- **근본 원인 2 — `isPopoutLine` 직렬화 누락:** 팝아웃 연결선 객체의 `isPopoutLine` 속성이 `toObject` 및 `toJSON` 커스텀 속성 목록에 등록되지 않아, JSON 직렬화 시 연결선을 식별할 수 없었음.
+- **근본 원인 3 — `object:removed` 연쇄 삭제:** `loadFromJSON` 내부의 `canvas.clear()`가 기존 객체를 제거할 때 `object:removed` 이벤트가 발생하고, 이 핸들러가 팝아웃의 `linkedLine`을 연쇄 삭제하여 복원 대상 객체까지 제거됨.
+- **수정 내역:**
+  1. `restorePopoutLinks()` 함수 신규 추가: `loadFromJSON` 콜백에서 `restoreLinkedTexts()` 이후 호출되어, 모든 `isPopout` 객체의 `linkedOriginalId`와 `linkedLineId`를 ID Map 기반으로 대조하여 `linkedOriginal`/`linkedLine` 런타임 참조를 완벽히 복원하고, `applyPopoutTilt()` 및 `updatePopoutLine()`을 재실행하여 그림자/연결선 상태를 재구성.
+  2. `isPopoutLine` 속성을 `fabric.Object.prototype.toObject` 직렬화 목록과 모든 `canvas.toJSON()` 호출에 추가하여 연결선 객체가 JSON에 포함되도록 수정.
+  3. `popoutReviver`에 `isPopoutLine` 복원 로직 추가하여 역직렬화 시 연결선 속성이 올바르게 복원되도록 개선.
+  4. `canvas.on('object:removed')` 핸들러에 `isHistoryAction` 가드 추가하여 Undo/Redo 중 `canvas.clear()` 트리거 시 팝아웃 연결선의 연쇄 삭제를 방지.
+
+#### 팝아웃 그림자 강도 실시간 반영 수정
+- **근본 원인:** `bindPopoutInput('popout_shadow', ...)` 콜백이 `regeneratePopoutBase`로만 바인딩되어 있었음. 실제 shadow 객체의 `blur`, `offsetX`, `offsetY`, `color`를 설정하는 함수는 `applyPopoutTilt`이며, `regeneratePopoutBase`는 이미지 합성만 담당하여 그림자 변경이 반영되지 않았음.
+- **수정:** `popout_shadow` 입력의 콜백을 `applyPopoutTilt`로 변경. `applyPopoutTilt` 함수 내부에서 shadow 속성 설정 후 `regeneratePopoutBase(obj)`를 이미 호출하고 있으므로 두 기능 모두 정상 동작.
+
+### 2026-06-14 팝아웃 Undo/Redo 위치 편차(Position Drift) 및 개체 소실 근본 수정
+
+#### 근본 원인 1 — `_baseLeft`/`_baseTop` 직렬화 누락으로 인한 위치 누적 편차
+- **문제:** `regeneratePopoutBase` 함수는 3D 투영(tiltX/tiltY) 적용 후 투명 영역을 잘라내면서 팝아웃의 `left`/`top` 위치를 `_baseLeft + shiftX`로 보정함. 그런데 `_baseLeft`와 `_baseTop`은 직렬화(toObject/toJSON) 속성 목록에 포함되지 않아 Undo/Redo 시 `loadFromJSON`으로 복원된 팝아웃에는 `_baseLeft`가 `undefined`임.
+- **증상:** `regeneratePopoutBase`가 역직렬화 후 호출될 때 `_baseLeft === undefined`이므로 이미 shift가 포함된 `left` 값(= 원래 `_baseLeft + shiftX`)을 `_baseLeft`로 설정 → 다시 `left = _baseLeft + shiftX` = `원래_baseLeft + 2×shiftX`로 계산됨. 매번 Undo/Redo를 실행할 때마다 shift가 누적 적용되어 팝아웃이 점점 화면 밖으로 밀려나가 "사라지는" 것처럼 보임.
+- **수정:** `_baseLeft`와 `_baseTop`을 다음 7곳에 모두 추가하여 직렬화/역직렬화 시 보존되도록 함:
+  1. `fabric.Object.prototype.toObject` 커스텀 속성 목록
+  2. `pushCurrentToRecent()` 내 `canvas.toJSON()` 호출
+  3. `initHistory()` 내 `canvas.toJSON()` 호출
+  4. `saveHistory()` 내 `canvas.toJSON()` 호출
+  5. JSON 파일 저장 시 `canvas.toJSON()` 호출
+  6. `popoutReviver` 속성 복원 목록
+  7. `_baseLeft`/`_baseTop`이 직렬화되므로 역직렬화 후 `regeneratePopoutBase`가 올바른 기준 좌표를 사용하여 위치 편차 완전 제거
+
+#### 근본 원인 2 — `_croppedBg` 비동기 로드와 `linkedOriginal` 복원 간의 타이밍 충돌
+- **문제:** `popoutReviver`의 `img.onload` 콜백과 `restorePopoutLinks()` 함수가 서로 의존하는 데이터를 비동기적으로 설정하여 경합 조건(race condition) 발생:
+  - `popoutReviver`는 `_croppedBgDataUrl`에서 `Image`를 **비동기** 로드 → `onload`에서 `_croppedBg` 설정 후 `regeneratePopoutBase` 호출 → 이 시점에 `linkedOriginal`이 아직 복원 안 됨(`restorePopoutLinks`가 아직 실행 전) → `regeneratePopoutBase`에서 `if (!obj) return;`으로 빠져 렌더링 실패
+  - `restorePopoutLinks`에서 `linkedOriginal` 복원 후 `applyPopoutTilt` 호출 → `regeneratePopoutBase` → `if (!img._croppedBg) return;`으로 빠져 렌더링 실패 (이미지 아직 로드 중)
+  - 두 경로 모두 실패하여 팝아웃이 빈 이미지 상태로 남음
+- **수정 — 양방향 조건 체크 패턴 도입:**
+  - `restorePopoutLinks()`: `applyPopoutTilt(o)`를 `o._croppedBg`가 이미 로드된 경우에만 호출. 미로드 시에는 `popoutReviver`의 `img.onload`에 위임.
+  - `popoutReviver`의 `img.onload`: `regeneratePopoutBase` 대신 `obj.linkedOriginal`이 복원된 경우에만 `applyPopoutTilt` + `updatePopoutLine` 호출. 미복원 시에는 `restorePopoutLinks`에 위임.
+  - 어느 쪽이 먼저 실행되든 나머지 한쪽에서 완전한 복원을 보장하는 교차 확인 구조.
+
+#### 근본 원인 3 — `_originalElement` 미동기화로 인한 팝아웃 투명 직렬화
+- **문제:** `fabric.Image`의 `toObject()`는 `getSrc()` → `_originalElement.toDataURL()` 또는 `_originalElement.src`로 `src` 속성을 직렬화함. 팝아웃 생성 시 `fabric.Image.fromURL(dummyCanvas.toDataURL(), ...)`로 **투명한 더미 HTMLImageElement**가 `_originalElement`에 설정됨. 이후 `regeneratePopoutBase`에서 `img._element = trimmedCanvas`로 실제 렌더링 캔버스를 교체하지만, `_originalElement`는 여전히 투명 더미를 가리킴.
+- **증상:** `saveHistory()` → `canvas.toJSON()` → popout의 `src`가 투명 이미지 data URL로 직렬화됨. `loadFromJSON`이 이 `src`로 `fabric.Image`를 복원하면 **시각적으로 아무것도 보이지 않는 투명 이미지**가 생성됨. 비동기 복원 파이프라인(`popoutReviver` + `restorePopoutLinks`)이 완전히 성공해야만 보이게 되지만, 하나라도 실패하면 팝아웃이 영구 소실됨.
+- **수정:** `regeneratePopoutBase` 함수 내에서 `img._element`를 교체하는 **모든 경로**(trim 불필요 시 `finalCanvas`, 정상 경로 `trimmedCanvas`)에서 `img._originalElement`도 함께 동일한 캔버스로 업데이트. 이로써 `toObject()` → `getSrc()` → `_originalElement.toDataURL()`이 실제 렌더링된 팝아웃 이미지를 반환하게 되어, `loadFromJSON`이 즉시 올바른 시각적 내용을 가진 `fabric.Image`를 생성함.
+- **검증:** `fabric.min.js`의 `getSrc` 구현을 직접 확인: `getSrc:function(t){t=t?this._element:this._originalElement;return t?t.toDataURL?t.toDataURL():...}` — 인수 없이 호출 시 `_originalElement`를 사용하며, canvas 요소는 `toDataURL` 메서드가 있으므로 올바르게 data URL을 생성함.
+
+#### 비동기 팝아웃 복구 안전장치 추가
+- **목적:** `_originalElement` 수정으로 대부분의 경우 팝아웃이 즉시 보이지만, 비동기 edge case(data URL이 큰 이미지의 지연 로드 등)에서도 복구를 보장하기 위한 방어적 코드.
+- **구현:** `loadHistoryState`의 `setTimeout(renderAll, 0)` 콜백 내부에 150ms 지연 체크를 추가. 캔버스의 모든 팝아웃 객체를 순회하여, `_croppedBg`와 `linkedOriginal`이 모두 설정되어 있으나 `_element`가 아직 canvas 요소가 아닌(= `regeneratePopoutBase`가 아직 미실행) 팝아웃에 대해 `applyPopoutTilt` + `updatePopoutLine`을 재시도하고 `canvas.renderAll()`을 호출함.
+
+#### 근본 원인 4 — 팝아웃/원본 도형에 고유 ID 미부여로 인한 연결선 끊어짐
+- **문제:** `createPopoutFromObject` 함수에서 팝아웃 이미지(`img`)에 `id` 속성을 설정하지 않고, 원본 도형(`obj`)에도 `id`가 없으면 `linkedOriginalId: obj.id`가 `undefined`로 설정됨. 연결선(`line`)만 `id: 'line_' + Date.now()`으로 고유 ID가 부여되어 있었음.
+- **증상:** `restorePopoutLinks`에서 `idMap`을 통해 `linkedOriginalId`로 원본 도형을 찾으려 하지만 `undefined`이므로 매칭 실패 → `linkedOriginal = null` → `updatePopoutLine`이 `!popout.linkedOriginal` 조건에 의해 early return → 연결선이 팝아웃 이동을 따라가지 않음. 마찬가지로 `linkedLineId`와 일치하는 line 객체도 `idMap`에서 찾지 못하는 경우 발생.
+- **진단 방법:** `restorePopoutLinks`에 임시 `alert` 디버그 코드를 추가하여 실제 런타임에서 `id=undefined`, `origId=undefined`, `line=MISSING` 상태를 확인.
+- **수정:**
+  1. `createPopoutFromObject` 함수 시작부에서 원본 도형(`obj`)에 `id`가 없으면 `'orig_' + Date.now() + '_' + random`으로 자동 부여
+  2. 팝아웃 이미지 `img.set({...})`에 `id: 'popout_' + Date.now() + '_' + random` 추가
+  3. 이로써 `linkedOriginalId`와 `linkedLineId` 모두 유효한 값을 가지게 되어, `restorePopoutLinks`의 `idMap` 기반 참조 복원이 정상 동작
+
+#### UI 설정 변경 내용 (팝아웃)
+- **개체 기본 회전 (angle):** 기존 기본값 `8.0`에서 `6.0`으로 변경
+  - 환경설정 메뉴 UI 입력란(`input#set_popout_angle`)의 기본 `value` 속성 변경
+  - 값이 비어있거나 `0`일 때 강제로 기본값을 할당하는 검증 로직 변경
+  - 팝아웃 개체 생성 시 환경설정 입력값이 없을 때 사용하는 Fallback 값을 `6.0`으로 변경
+  - **마이그레이션 로직 추가:** `restoreSettings` 실행 시 사용자 설정에 저장된 값이 이전 기본값인 `8.0`일 경우, 새 기본값인 `6.0`으로 자동 덮어쓰도록 처리 (사용자가 별도의 초기화 과정 없이 새로운 기본값을 적용받을 수 있도록 함)
+
+#### JSON 파일 열기 및 최근 항목 로드 시 팝아웃 연결선 끊어짐 수정
+- **문제:** JSON 파일 열기(tn_action_open) 및 최근 항목 로드 경로에서 `loadFromJSON` 콜백 내에 `restorePopoutLinks()` 호출이 누락되어 있었음. `restoreLinkedTexts()`는 호출되지만 `restorePopoutLinks()`가 없어서, 팝아웃의 `linkedOriginal`, `linkedLine` 참조가 복원되지 않음.
+- **증상:** JSON 파일을 열거나 최근 항목에서 로드한 후 팝아웃 개체를 이동해도 연결선이 따라가지 않음. `updatePopoutLine`이 `linkedLine` 또는 `linkedOriginal`이 null이어서 early return.
+- **수정:** `loadFromJSON` 콜백 내에서 `restoreLinkedTexts()` 직후에 `restorePopoutLinks()`를 추가. 두 곳 모두 적용:
+  1. JSON 파일 열기 (`file_open_input` change 이벤트 핸들러)
+  2. 최근 항목 로드 (`loadRecentCapture` 함수)
