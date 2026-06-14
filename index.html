@@ -1227,30 +1227,19 @@
             <input type="number" id="mosaic_intensity" min="1" max="20" value="3" style="width: 50px;">
         </div>
         
-        <div id="panel_popout" class="sub-panel" style="gap:10px;">
-            <label style="font-size: 12px; color: var(--text-color); display:flex; align-items:center; gap:5px; cursor:pointer;">
-                <input type="checkbox" id="popout_line_toggle" checked> 연결선
-            </label>
-            <div style="display:flex; align-items:center; gap:5px;" title="연결선 색상/두께">
-                <div id="btn_popout_line_color" class="color-btn" style="background-color: #94a3b8; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;"></div>
-                <input type="number" id="popout_line_weight" min="1" max="10" value="4" style="width: 35px;">
-            </div>
-            <div style="display:flex; align-items:center; gap:5px;" title="가로 회전">
-                <span style="font-size:12px; color:var(--text-color);">가로:</span>
-                <input type="number" id="popout_skew_x" min="-45" max="45" value="0" style="width: 40px;">
-            </div>
-            <div style="display:flex; align-items:center; gap:5px;" title="세로 회전">
-                <span style="font-size:12px; color:var(--text-color);">세로:</span>
-                <input type="number" id="popout_skew_y" min="-45" max="45" value="0" style="width: 40px;">
-            </div>
-            <div style="display:flex; align-items:center; gap:5px;" title="테두리 강조">
-                <span style="font-size:12px; color:var(--text-color);">테두리:</span>
-                <input type="number" id="popout_border" min="0" max="30" value="8" style="width: 35px;">
-            </div>
-            <div style="display:flex; align-items:center; gap:5px;" title="그림자 강조">
-                <span style="font-size:12px; color:var(--text-color);">그림자:</span>
-                <input type="number" id="popout_shadow" min="0" max="100" value="50" style="width: 40px;">
-            </div>
+        <div id="panel_popout" class="sub-panel" style="gap:10px; font-size:12px; align-items:center;">
+            <label style="display:flex; align-items:center; gap:3px; cursor:pointer; margin:0;"><input type="checkbox" id="popout_line_toggle" checked> 연결선</label>
+            <div id="btn_popout_line_color" class="color-btn" style="background-color: #555555; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;" title="선색"></div>
+            <input type="number" id="popout_line_weight" min="1" max="20" value="4" style="width: 35px;" title="선 두께">
+            
+            <span style="margin-left:5px;">가로축:</span><input type="number" id="popout_skew_x" min="-45" max="45" value="0" style="width: 40px;">
+            <span>세로축:</span><input type="number" id="popout_skew_y" min="-45" max="45" value="0" style="width: 40px;">
+            
+            <span style="margin-left:5px;">테두리색:</span><div id="btn_popout_border_color" class="color-btn" style="background-color: #ffffff; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;"></div>
+            <input type="number" id="popout_border" min="0" max="30" value="8" style="width: 35px;" title="테두리 두께">
+            
+            <span style="margin-left:5px;">그림자색:</span><div id="btn_popout_shadow_color" class="color-btn" style="background-color: #000000; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;"></div>
+            <input type="number" id="popout_shadow" min="0" max="100" value="50" style="width: 35px;" title="그림자 강도">
         </div>
 
         <div id="panel_crop" class="sub-panel" style="gap:10px;">
@@ -1386,6 +1375,32 @@
             </div>
 
 
+
+            <!-- 팝아웃 개체 전용 폼 -->
+            <div id="form_edit_popout" style="display:none;">
+                <div class="row">
+                    <span>크기:</span> <input type="number" id="edit_popout_w" style="width: 60px;"> <span>x</span> <input type="number" id="edit_popout_h" style="width: 60px;">
+                    <label style="margin-left:10px; font-size:12px;"><input type="checkbox" id="edit_popout_lock_ratio" checked> 비율 유지</label>
+                </div>
+                <div class="row">
+                    <label style="font-size:12px; margin-right:10px;"><input type="checkbox" id="edit_popout_line_chk"> 연결선 표시</label>
+                    <span style="margin-left:5px;">연결선 색상:</span>
+                    <div id="edit_popout_line_color" class="color-btn" style="background-color: #555555;"></div>
+                    <span style="margin-left:10px;">연결선 두께:</span> <input type="number" id="edit_popout_line_w" min="1" max="20" style="width: 40px;">
+                </div>
+                <div class="row">
+                    <span>가로축 회전:</span> <input type="number" id="edit_popout_skew_x" min="-45" max="45" style="width: 50px;">
+                    <span style="margin-left:15px;">세로축 회전:</span> <input type="number" id="edit_popout_skew_y" min="-45" max="45" style="width: 50px;">
+                </div>
+                <div class="row">
+                    <span>테두리 색상:</span>
+                    <div id="edit_popout_border_color" class="color-btn" style="background-color: #ffffff;"></div>
+                    <span style="margin-left:10px;">테두리 두께:</span> <input type="number" id="edit_popout_border" min="0" max="30" style="width: 40px;">
+                    <span style="margin-left:15px;">그림자 색상:</span>
+                    <div id="edit_popout_shadow_color" class="color-btn" style="background-color: #000000;"></div>
+                    <span style="margin-left:10px;">그림자 강도:</span> <input type="number" id="edit_popout_shadow" min="0" max="100" style="width: 40px;">
+                </div>
+            </div>
 
             <!-- 이미지 전용 폼 -->
             <div id="form_edit_image" style="display:none;">
@@ -1565,6 +1580,31 @@
             </div>
         </div>
 
+        
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">팝 아웃 설정</div>
+        <div class="setting-group"
+            style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <label style="display:flex; align-items:center; gap:5px; margin:0;"><input type="checkbox" id="set_popout_line_toggle" checked> 연결선 표시</label>
+                <span>연결선 색상:</span>
+                <div id="set_popout_line_color" class="color-btn" style="background-color: #555555;"></div>
+                <span>연결선 두께:</span> <input type="number" id="set_popout_line_weight" value="4" min="1" max="20" style="width:40px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span>개체 기본 회전:</span> <input type="number" id="set_popout_angle" value="8.0" min="0.0" max="359.9" step="0.1" style="width:55px;">
+                <span>가로축 회전:</span> <input type="number" id="set_popout_skew_x" value="20" min="-45" max="45" style="width:45px;">
+                <span>세로축 회전:</span> <input type="number" id="set_popout_skew_y" value="-30" min="-45" max="45" style="width:45px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>테두리 색상:</span>
+                <div id="set_popout_border_color" class="color-btn" style="background-color: #ffffff;"></div>
+                <span>테두리 두께:</span> <input type="number" id="set_popout_border" value="8" min="0" max="30" style="width:50px;">
+                <span>그림자 색상:</span>
+                <div id="set_popout_shadow_color" class="color-btn" style="background-color: #000000;"></div>
+                <span>그림자 강도:</span> <input type="number" id="set_popout_shadow" value="50" min="0" max="100" style="width:50px;">
+            </div>
+        </div>
+
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">이모티콘 설정</div>
         <div class="setting-group"
             style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
@@ -1729,7 +1769,7 @@
         // 커스텀 속성 직렬화 (Undo/Redo 및 JSON 로드 시 속성 손실 방지)
         const originalToObject = fabric.Object.prototype.toObject;
         fabric.Object.prototype.toObject = function (additionalProperties) {
-            return originalToObject.call(this, ['id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize'].concat(additionalProperties || []));
+            return originalToObject.call(this, ['id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize', 'isPopout', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'tiltX', 'tiltY', 'showConnectionLine', 'linkedOriginalId', 'linkedLineId', '_croppedBgDataUrl'].concat(additionalProperties || []));
         };
 
         // 한글(IME) 입력 시 커서 위치 보정
@@ -2241,11 +2281,30 @@
             }
 
             if (obj && obj.isPopout) {
+                const sub = document.getElementById('sub_toolbar');
+                sub.style.display = 'block';
+                const tbRect = document.getElementById('toolbar').getBoundingClientRect();
+                sub.style.top = (tbRect.bottom + 10) + 'px';
+                const textBtn = document.getElementById('btn_tool_text');
+                if (textBtn) {
+                    const textRect = textBtn.getBoundingClientRect();
+                    sub.style.left = textRect.left + 'px';
+                    sub.style.transform = 'none';
+                } else {
+                    sub.style.left = '50%';
+                    sub.style.transform = 'translateX(-50%)';
+                }
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
                 document.getElementById('panel_popout').classList.add('active');
-                document.getElementById('popout_line_toggle').checked = !!obj.showConnectionLine;
+                document.getElementById('popout_line_toggle').checked = obj.showConnectionLine !== false;
+                if (document.getElementById('btn_popout_line_color')) document.getElementById('btn_popout_line_color').style.backgroundColor = obj.popoutLineColor || '#555555';
+                if (document.getElementById('popout_line_weight')) document.getElementById('popout_line_weight').value = obj.popoutLineWeight || 4;
                 document.getElementById('popout_skew_x').value = obj.tiltX || 0;
                 document.getElementById('popout_skew_y').value = obj.tiltY || 0;
+                if (document.getElementById('btn_popout_border_color')) document.getElementById('btn_popout_border_color').style.backgroundColor = obj.popoutBorderColor || '#ffffff';
+                if (document.getElementById('popout_border')) document.getElementById('popout_border').value = obj.popoutBorder !== undefined ? obj.popoutBorder : 8;
+                if (document.getElementById('btn_popout_shadow_color')) document.getElementById('btn_popout_shadow_color').style.backgroundColor = obj.popoutShadowColor || '#000000';
+                if (document.getElementById('popout_shadow')) document.getElementById('popout_shadow').value = obj.popoutShadow !== undefined ? obj.popoutShadow : 50;
 
             }
 
@@ -2764,6 +2823,8 @@
         window.applyPopoutTilt = function(obj) {
             const tiltX = obj.tiltX || 0;
             const tiltY = obj.tiltY || 0;
+            obj.skewX = 0;
+            obj.skewY = 0;
             const radX = tiltX * Math.PI / 180;
             const radY = tiltY * Math.PI / 180;
             
@@ -2785,18 +2846,41 @@
                 obj.shadow.offsetX = sX;
                 obj.shadow.offsetY = sY;
                 obj.shadow.blur = shadowIntensity;
-                obj.shadow.color = `rgba(0,0,0,${Math.min(0.8, shadowIntensity/80)})`;
+                
+                const shadowC = obj.popoutShadowColor || '#000000';
+                let alpha = Math.min(0.8, shadowIntensity/80);
+                let finalColor = `rgba(0,0,0,${alpha})`;
+                if (shadowC.startsWith('rgba')) {
+                    finalColor = shadowC.replace(/[\d\.]+\)$/, `${alpha})`);
+                } else if (shadowC.startsWith('rgb')) {
+                    finalColor = shadowC.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+                } else if (shadowC.startsWith('#')) {
+                    let hex = shadowC.replace('#', '');
+                    if (hex.length === 3) hex = hex.split('').map(c => c+c).join('');
+                    let r = parseInt(hex.substring(0,2), 16) || 0;
+                    let g = parseInt(hex.substring(2,4), 16) || 0;
+                    let b = parseInt(hex.substring(4,6), 16) || 0;
+                    finalColor = `rgba(${r},${g},${b},${alpha})`;
+                }
+                obj.shadow.color = finalColor;
             }
             obj.dirty = true;
+            regeneratePopoutBase(obj);
         };
 
         window.regeneratePopoutBase = function(img) {
             if (!img._croppedBg) return;
-            const cw = img.width;
-            const ch = img.height;
-            const tCanvas = document.createElement('canvas');
-            tCanvas.width = cw; tCanvas.height = ch;
-            const ctx = tCanvas.getContext('2d');
+            const borderW = img.popoutBorder !== undefined ? img.popoutBorder : 8;
+            const pad = borderW + 2; 
+            
+            const baseW = img._croppedBg.width;
+            const baseH = img._croppedBg.height;
+            const cw = baseW + pad * 2;
+            const ch = baseH + pad * 2;
+            
+            const flatCanvas = document.createElement('canvas');
+            flatCanvas.width = cw; flatCanvas.height = ch;
+            const flatCtx = flatCanvas.getContext('2d');
             
             const obj = img.linkedOriginal;
             if (!obj) return;
@@ -2807,31 +2891,28 @@
             const oldShadow = obj.shadow;
             const oldLeft = obj.left;
             const oldTop = obj.top;
+            const oldOriginX = obj.originX;
+            const oldOriginY = obj.originY;
             
-            // 1. Draw solid shape mask
             obj.stroke = 'transparent';
             obj.strokeWidth = 0;
             obj.fill = 'black';
             obj.shadow = null;
-            obj.left = cw/2;
-            obj.top = ch/2;
-            obj.render(ctx);
+            obj.left = cw / 2;
+            obj.top = ch / 2;
+            obj.originX = 'center';
+            obj.originY = 'center';
+            obj.render(flatCtx);
             
-            // 2. Composite background inside shape
-            ctx.globalCompositeOperation = 'source-in';
-            ctx.fillStyle = canvas.backgroundColor || '#ffffff';
-            ctx.fillRect(0, 0, cw, ch);
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.drawImage(img._croppedBg, 0, 0);
+            flatCtx.globalCompositeOperation = 'source-in';
+            flatCtx.drawImage(img._croppedBg, pad, pad);
             
-            // 3. Draw border on top
-            const borderW = img.popoutBorder !== undefined ? img.popoutBorder : 8;
             if (borderW > 0) {
-                ctx.globalCompositeOperation = 'source-over';
+                flatCtx.globalCompositeOperation = 'source-over';
                 obj.fill = 'transparent';
-                obj.stroke = 'white';
+                obj.stroke = img.popoutBorderColor || 'white';
                 obj.strokeWidth = borderW;
-                obj.render(ctx);
+                obj.render(flatCtx);
             }
             
             obj.stroke = oldStroke;
@@ -2840,8 +2921,113 @@
             obj.shadow = oldShadow;
             obj.left = oldLeft;
             obj.top = oldTop;
+            obj.originX = oldOriginX;
+            obj.originY = oldOriginY;
             
-            img._element = tCanvas;
+            const tiltX = img.tiltX || 0;
+            const tiltY = img.tiltY || 0;
+            
+            let finalCanvas = flatCanvas;
+            let ow = cw, oh = ch;
+            
+            if (tiltX !== 0 || tiltY !== 0) {
+                const w = cw;
+                const h = ch;
+                const D = Math.max(w, h) * 1.5;
+                const margin = Math.max(w, h) * 0.5;
+                ow = w + margin * 2;
+                oh = h + margin * 2;
+                
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = ow; offCanvas.height = oh;
+                const offCtx = offCanvas.getContext('2d');
+                
+                if (tiltX !== 0) {
+                    const radX = tiltX * Math.PI / 180;
+                    for (let y = 0; y < h; y += 2) {
+                        let dy = y - h/2;
+                        let z = dy * Math.sin(radX);
+                        let scale = D / (D - z);
+                        let new_y = dy * Math.cos(radX) * scale;
+                        let new_w = w * scale;
+                        let dy_next = (y + 2) - h/2;
+                        let z_next = dy_next * Math.sin(radX);
+                        let scale_next = D / (D - z_next);
+                        let new_y_next = dy_next * Math.cos(radX) * scale_next;
+                        let new_h = new_y_next - new_y;
+                        offCtx.drawImage(flatCanvas, 0, y, w, 2, ow/2 - new_w/2, oh/2 + new_y, new_w, new_h + 0.5);
+                    }
+                } else {
+                    offCtx.drawImage(flatCanvas, ow/2 - w/2, oh/2 - h/2, w, h);
+                }
+                
+                finalCanvas = document.createElement('canvas');
+                finalCanvas.width = ow; finalCanvas.height = oh;
+                const finalCtx = finalCanvas.getContext('2d');
+                
+                if (tiltY !== 0) {
+                    const radY = tiltY * Math.PI / 180;
+                    for (let x = 0; x < ow; x += 2) {
+                        let dx = x - ow/2;
+                        let z = dx * Math.sin(radY);
+                        let scale = D / (D + z);
+                        let new_x = dx * Math.cos(radY) * scale;
+                        let new_h = oh * scale;
+                        let dx_next = (x + 2) - ow/2;
+                        let z_next = dx_next * Math.sin(radY);
+                        let scale_next = D / (D + z_next);
+                        let new_x_next = dx_next * Math.cos(radY) * scale_next;
+                        let new_w = new_x_next - new_x;
+                        finalCtx.drawImage(offCanvas, x, 0, 2, oh, ow/2 + new_x, oh/2 - new_h/2, new_w + 0.5, new_h);
+                    }
+                } else {
+                    finalCtx.drawImage(offCanvas, 0, 0, ow, oh);
+                }
+            }
+            
+            // Trim transparent pixels
+            const pixels = finalCanvas.getContext('2d').getImageData(0, 0, ow, oh);
+            let l = ow, r = 0, t = oh, b = 0;
+            const data = pixels.data;
+            for(let y=0; y<oh; y++) {
+                for(let x=0; x<ow; x++) {
+                    if(data[(y*ow+x)*4+3] > 0) {
+                        if(x < l) l = x; if(x > r) r = x;
+                        if(y < t) t = y; if(y > b) b = y;
+                    }
+                }
+            }
+            
+            if (l > r || t > b) {
+                img._element = finalCanvas;
+                img.set({width: ow, height: oh});
+                return;
+            }
+            
+            const trimmedW = r - l + 1;
+            const trimmedH = b - t + 1;
+            const trimmedCanvas = document.createElement('canvas');
+            trimmedCanvas.width = trimmedW; trimmedCanvas.height = trimmedH;
+            trimmedCanvas.getContext('2d').drawImage(finalCanvas, l, t, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
+            
+            const shiftX = (l + r) / 2 - ow / 2;
+            const shiftY = (t + b) / 2 - oh / 2;
+            
+            if (img._baseLeft === undefined) {
+                img._baseLeft = img.left;
+                img._baseTop = img.top;
+            }
+            img._currentShiftX = shiftX;
+            img._currentShiftY = shiftY;
+            
+            img.set({
+                left: img._baseLeft + shiftX,
+                top: img._baseTop + shiftY,
+                width: trimmedW,
+                height: trimmedH
+            });
+            img._element = trimmedCanvas;
+            img.setCoords();
         };
 
         const OriginalImageRender = fabric.Image.prototype._render;
@@ -2853,69 +3039,7 @@
                     this._lastBorder = this.popoutBorder;
                 }
                 
-                if (this.tiltX !== 0 || this.tiltY !== 0) {
-                    const w = this.width;
-                    const h = this.height;
-                    const tiltX = this.tiltX || 0;
-                    const tiltY = this.tiltY || 0;
-                    const D = Math.max(w, h) * 1.5;
-                    
-                    if (!this._offCanvas) {
-                        this._offCanvas = document.createElement('canvas');
-                        this._offCtx = this._offCanvas.getContext('2d');
-                    }
-                    
-                    const margin = Math.max(w, h) * 0.5;
-                    const ow = w + margin * 2;
-                    const oh = h + margin * 2;
-                    if (this._offCanvas.width !== ow) {
-                        this._offCanvas.width = ow;
-                        this._offCanvas.height = oh;
-                    } else {
-                        this._offCtx.clearRect(0, 0, ow, oh);
-                    }
-                    
-                    // PASS 1: Tilt X (Horizontal strips onto Off-screen Canvas)
-                    if (tiltX !== 0) {
-                        const radX = tiltX * Math.PI / 180;
-                        for (let y = 0; y < h; y += 2) {
-                            let dy = y - h/2;
-                            let z = dy * Math.sin(radX);
-                            let scale = D / (D - z);
-                            let new_y = dy * Math.cos(radX) * scale;
-                            let new_w = w * scale;
-                            let dy_next = (y + 2) - h/2;
-                            let z_next = dy_next * Math.sin(radX);
-                            let scale_next = D / (D - z_next);
-                            let new_y_next = dy_next * Math.cos(radX) * scale_next;
-                            let new_h = new_y_next - new_y;
-                            this._offCtx.drawImage(this._element, 0, y, w, 2, ow/2 - new_w/2, oh/2 + new_y, new_w, new_h + 0.5);
-                        }
-                    } else {
-                        this._offCtx.drawImage(this._element, ow/2 - w/2, oh/2 - h/2, w, h);
-                    }
-                    
-                    // PASS 2: Tilt Y (Vertical strips from Off-screen Canvas onto Final Context)
-                    if (tiltY !== 0) {
-                        const radY = tiltY * Math.PI / 180;
-                        for (let x = 0; x < ow; x += 2) {
-                            let dx = x - ow/2;
-                            let z = dx * Math.sin(radY);
-                            let scale = D / (D + z);
-                            let new_x = dx * Math.cos(radY) * scale;
-                            let new_h = oh * scale;
-                            let dx_next = (x + 2) - ow/2;
-                            let z_next = dx_next * Math.sin(radY);
-                            let scale_next = D / (D + z_next);
-                            let new_x_next = dx_next * Math.cos(radY) * scale_next;
-                            let new_w = new_x_next - new_x;
-                            ctx.drawImage(this._offCanvas, x, 0, 2, oh, new_x, -new_h/2, new_w + 0.5, new_h);
-                        }
-                    } else {
-                        ctx.drawImage(this._offCanvas, 0, 0, ow, oh, -ow/2, -oh/2, ow, oh);
-                    }
-                    return;
-                }
+                // Removed custom tilt rendering to use native skewX/skewY for perfect bounding box fit
             }
             OriginalImageRender.call(this, ctx);
         };
@@ -2978,7 +3102,7 @@
         
         bindPopoutInput('popout_skew_x', 'tiltX', parseFloat, applyPopoutTilt);
         bindPopoutInput('popout_skew_y', 'tiltY', parseFloat, applyPopoutTilt);
-        bindPopoutInput('popout_border', 'popoutBorder', parseFloat, null);
+        bindPopoutInput('popout_border', 'popoutBorder', parseFloat, regeneratePopoutBase);
         bindPopoutInput('popout_shadow', 'popoutShadow', parseFloat, applyPopoutTilt);
         bindPopoutInput('popout_line_weight', 'popoutLineWeight', parseFloat, obj => {
             if (obj.linkedLine) {
@@ -2998,34 +3122,7 @@
             });
         }
         
-        const btnPopoutLineColor = document.getElementById('btn_popout_line_color');
-        if (btnPopoutLineColor) {
-            btnPopoutLineColor.addEventListener('click', function(e) {
-                const btn = this;
-                const input = document.createElement('input');
-                input.type = 'color';
-                
-                function rgb2hex(rgb) {
-                    if (!rgb) return null;
-                    if (rgb.startsWith('#')) return rgb;
-                    const res = rgb.match(/\d+/g);
-                    if (!res || res.length < 3) return null;
-                    return "#" + ((1 << 24) + (parseInt(res[0]) << 16) + (parseInt(res[1]) << 8) + parseInt(res[2])).toString(16).slice(1);
-                }
-                
-                input.value = rgb2hex(btn.style.backgroundColor) || '#94a3b8';
-                input.oninput = function() {
-                    btn.style.backgroundColor = input.value;
-                    const obj = canvas.getActiveObject();
-                    if (obj && obj.isPopout && obj.linkedLine) {
-                        obj.popoutLineColor = input.value;
-                        obj.linkedLine.stroke = input.value;
-                        canvas.requestRenderAll();
-                    }
-                };
-                input.click();
-            });
-        }
+
         document.getElementById('popout_skew_y').addEventListener('input', function(e) {
             
             const obj = canvas.getActiveObject();
@@ -3421,6 +3518,13 @@
             updateUndoRedoUI();
         }
 
+                canvas.on('object:moving', (e) => {
+            if (e.target && e.target.isPopout) {
+                e.target._baseLeft = e.target.left - (e.target._currentShiftX || 0);
+                e.target._baseTop = e.target.top - (e.target._currentShiftY || 0);
+            }
+        });
+
         canvas.on('object:added', (e) => {
             const target = e.target;
             if (target.isEmoji || target.isMediaImage || target.isMosaic) {
@@ -3676,6 +3780,36 @@
                         else sysPenHighlighterColor = finalColor;
                         updatePenBrush();
                     }
+                } else if (['popout_line_c', 'popout_border_c', 'popout_shadow_c', 'set_popout_line', 'set_popout_border_c', 'set_popout_shadow_c', 'edit_popout_line_c', 'edit_popout_border_c', 'edit_popout_shadow_c'].includes(targetColorBtn)) {
+                    let elId;
+                    if (targetColorBtn === 'popout_line_c') elId = 'btn_popout_line_color';
+                    else if (targetColorBtn === 'popout_border_c') elId = 'btn_popout_border_color';
+                    else if (targetColorBtn === 'popout_shadow_c') elId = 'btn_popout_shadow_color';
+                    else if (targetColorBtn === 'set_popout_line') elId = 'set_popout_line_color';
+                    else if (targetColorBtn === 'set_popout_border_c') elId = 'set_popout_border_color';
+                    else if (targetColorBtn === 'set_popout_shadow_c') elId = 'set_popout_shadow_color';
+                    else if (targetColorBtn === 'edit_popout_line_c') elId = 'edit_popout_line_color';
+                    else if (targetColorBtn === 'edit_popout_border_c') elId = 'edit_popout_border_color';
+                    else if (targetColorBtn === 'edit_popout_shadow_c') elId = 'edit_popout_shadow_color';
+                    
+                    if (document.getElementById(elId)) {
+                        document.getElementById(elId).style.backgroundColor = c.h;
+                    }
+                    
+                    const obj = canvas.getActiveObject();
+                    if (obj && obj.isPopout && targetColorBtn.startsWith('popout_')) {
+                        if (targetColorBtn === 'popout_line_c') {
+                            obj.popoutLineColor = c.h;
+                            if (obj.linkedLine) obj.linkedLine.stroke = c.h;
+                        } else if (targetColorBtn === 'popout_border_c') {
+                            obj.popoutBorderColor = c.h;
+                            regeneratePopoutBase(obj);
+                        } else if (targetColorBtn === 'popout_shadow_c') {
+                            obj.popoutShadowColor = c.h;
+                            applyPopoutTilt(obj);
+                        }
+                        canvas.requestRenderAll();
+                    }
                 }
                 paletteEl.style.display = 'none';
                 if (['text', 'set_text', 'edit_text_c'].includes(targetColorBtn)) {
@@ -3784,10 +3918,13 @@
         bindCP('btn_pen_bg', 'set_pen_bg'); bindCP('set_pen_bg_color', 'set_pen_bg');
         bindCP('set_pen_ballpoint_color', 'set_pen_ballpoint'); bindCP('set_pen_highlighter_color', 'set_pen_highlighter');
         bindCP('edit_shape_stroke', 'edit_shape_stroke'); bindCP('edit_shape_fill', 'edit_shape_fill');
+        bindCP('edit_popout_line_color', 'edit_popout_line_c'); bindCP('edit_popout_border_color', 'edit_popout_border_c'); bindCP('edit_popout_shadow_color', 'edit_popout_shadow_c');
         bindCP('edit_line_stroke', 'edit_line_stroke'); bindCP('edit_line_fill', 'edit_line_fill');
         bindCP('edit_text_color', 'edit_text_c'); bindCP('edit_text_bg', 'edit_text_b');
         bindCP('set_shape_stroke_color', 'set_shape_stroke'); bindCP('set_shape_fill_color', 'set_shape_fill');
         bindCP('set_txt_color', 'set_text'); bindCP('set_txt_bg_color', 'set_text_bg');
+        bindCP('set_popout_line_color', 'set_popout_line'); bindCP('set_popout_border_color', 'set_popout_border_c'); bindCP('set_popout_shadow_color', 'set_popout_shadow_c');
+        bindCP('btn_popout_line_color', 'popout_line_c'); bindCP('btn_popout_border_color', 'popout_border_c'); bindCP('btn_popout_shadow_color', 'popout_shadow_c');
 
         function updateShapeOptions() {
             const type = document.getElementById('shape_type').value;
@@ -3814,7 +3951,7 @@
         let selectedEmoji = '😀'; let selectedEmojiUrl = null; let uploadedImageSrc = null;
         let customEmojiFolders = [];
         let txtB = false, txtI = false, txtU = false; let editingObject = null;
-        let origShapeRatio = 1, origImageRatio = 1, origLineRatio = 1;
+        let origShapeRatio = 1, origImageRatio = 1, origLineRatio = 1, origPopoutRatio = 1;
 
         let sysShapeOpacity = 0.2; let sysEraserFat = 1.5; let sysArrowType = 'triangle'; let sysArrowSize = 'm';
 
@@ -3824,12 +3961,12 @@
                 'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity', 'set_pen_bg_opacity',
-                'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size',
+                'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size', 'set_popout_line_toggle', 'set_popout_line_weight', 'set_popout_angle', 'set_popout_skew_x', 'set_popout_skew_y', 'set_popout_border', 'set_popout_shadow',
                 'set_eraser_fat', 'set_mosaic_px', 'setting_save_format', 'set_recent_max', 'set_recent_max_action'
             ];
             const colorIds = [
                 'set_txt_color', 'set_txt_bg_color', 'set_pen_ballpoint_color',
-                'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color', 'set_pen_bg_color'
+                'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color', 'set_pen_bg_color', 'set_popout_line_color', 'set_popout_border_color', 'set_popout_shadow_color'
             ];
             let data = {};
             settingsIds.forEach(id => {
@@ -4834,10 +4971,77 @@
             document.getElementById('form_edit_line').style.display = 'none';
 
             document.getElementById('form_edit_image').style.display = 'none';
+            if (document.getElementById('form_edit_popout')) document.getElementById('form_edit_popout').style.display = 'none';
 
-            if (isImage) {
+            if (editingObject.isPopout) {
+
+
+                document.getElementById('form_edit_popout').style.display = 'block';
+
+
+                let ew = Math.round(editingObject.width * editingObject.scaleX);
+
+
+                let eh = Math.round(editingObject.height * editingObject.scaleY);
+
+
+                document.getElementById('edit_popout_w').value = ew;
+
+
+                document.getElementById('edit_popout_h').value = eh;
+
+
+                origPopoutRatio = (eh === 0) ? 1 : ew / eh;
+
+
+                
+
+
+                document.getElementById('edit_popout_line_chk').checked = editingObject.showConnectionLine !== false;
+
+
+                document.getElementById('edit_popout_line_color').style.backgroundColor = editingObject.popoutLineColor || '#555555';
+
+
+                document.getElementById('edit_popout_line_w').value = editingObject.popoutLineWeight || 4;
+
+
+                
+
+
+                document.getElementById('edit_popout_skew_x').value = editingObject.tiltX || 0;
+
+
+                document.getElementById('edit_popout_skew_y').value = editingObject.tiltY || 0;
+
+
+                
+
+
+                document.getElementById('edit_popout_border_color').style.backgroundColor = editingObject.popoutBorderColor || '#ffffff';
+
+
+                document.getElementById('edit_popout_border').value = editingObject.popoutBorder !== undefined ? editingObject.popoutBorder : 8;
+
+
+                
+
+
+                document.getElementById('edit_popout_shadow_color').style.backgroundColor = editingObject.popoutShadowColor || '#000000';
+
+
+                document.getElementById('edit_popout_shadow').value = editingObject.popoutShadow !== undefined ? editingObject.popoutShadow : 50;
+
+
+            } else if (isImage) {
+
+
                 document.getElementById('form_edit_image').style.display = 'block';
+
+
                 let imgW, imgH;
+
+
                 if (editingObject.type === 'group') {
                     imgW = editingObject.getObjects()[0].width;
                     imgH = editingObject.getObjects()[0].height;
@@ -4961,14 +5165,29 @@
             const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
             const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
 
-            if (isImage) {
-                const newW = parseInt(document.getElementById('edit_image_w').value);
-                const newH = parseInt(document.getElementById('edit_image_h').value);
-                let baseW = editingObject.type === 'group' ? editingObject.getObjects()[0].width : editingObject.width;
-                let baseH = editingObject.type === 'group' ? editingObject.getObjects()[0].height : editingObject.height;
-                editingObject.set({ scaleX: newW / baseW, scaleY: newH / baseH });
+            if (editingObject.isPopout) {
+                const newW = parseInt(document.getElementById('edit_popout_w').value);
+                const newH = parseInt(document.getElementById('edit_popout_h').value);
+                editingObject.set({ 
+                    scaleX: newW / editingObject.width, 
+                    scaleY: newH / editingObject.height,
+                    showConnectionLine: document.getElementById('edit_popout_line_chk').checked,
+                    popoutLineColor: document.getElementById('edit_popout_line_color').style.backgroundColor,
+                    popoutLineWeight: parseInt(document.getElementById('edit_popout_line_w').value) || 4,
+                    tiltX: parseInt(document.getElementById('edit_popout_skew_x').value) || 0,
+                    tiltY: parseInt(document.getElementById('edit_popout_skew_y').value) || 0,
+                    skewX: parseInt(document.getElementById('edit_popout_skew_x').value) || 0,
+                    skewY: parseInt(document.getElementById('edit_popout_skew_y').value) || 0,
+                    popoutBorderColor: document.getElementById('edit_popout_border_color').style.backgroundColor,
+                    popoutBorder: parseInt(document.getElementById('edit_popout_border').value) || 0,
+                    popoutShadowColor: document.getElementById('edit_popout_shadow_color').style.backgroundColor,
+                    popoutShadow: parseInt(document.getElementById('edit_popout_shadow').value) || 0
+                });
                 editingObject.setCoords();
-            } else if (isText && !isEmoji) {
+                if (typeof applyPopoutTilt === 'function') applyPopoutTilt(editingObject);
+                if (typeof regeneratePopoutBase === 'function') regeneratePopoutBase(editingObject);
+                if (typeof updatePopoutLine === 'function') updatePopoutLine(editingObject);
+            } else if (isImage) {
                 const size = parseInt(document.getElementById('edit_text_size').value);
                 const tColor = document.getElementById('edit_text_color').style.backgroundColor;
                 let bColor = document.getElementById('edit_text_bg').style.backgroundColor;
@@ -6379,6 +6598,12 @@
 
             // === 텍스트 편집 모드 보호 및 드래그 선택 강화 ===
             if (!activeTool && o.target) {
+                if (o.target.isPopout) {
+                    document.getElementById('sub_toolbar').style.display = 'block';
+                    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                    const panel = document.getElementById('panel_popout');
+                    if (panel) panel.classList.add('active');
+                }
                 let editingText = null;
                 if (o.target.isEditing) editingText = o.target;
                 else if (o.target.linkedText && o.target.linkedText.isEditing) editingText = o.target.linkedText;
@@ -7487,7 +7712,7 @@ window.createPopoutFromObject = function(obj) {
     canvas.renderAll();
     
     // 5. Crop
-    const pad = 40; // padding to allow dynamic border and shadow
+    const pad = 0; // padding removed to perfectly fit bounds
     const br = obj.getBoundingRect(true, true);
     const cw = br.width + pad * 2;
     const ch = br.height + pad * 2;
@@ -7507,35 +7732,54 @@ window.createPopoutFromObject = function(obj) {
         // Adjust for viewport so it appears in the right place
         const zoom = canvas.getZoom();
         
+        
+        const pLineToggle = document.getElementById('set_popout_line_toggle');
+        const pLineColor = document.getElementById('set_popout_line_color');
+        const pLineW = document.getElementById('set_popout_line_weight');
+        const pAngle = document.getElementById('set_popout_angle');
+        const pSkewX = document.getElementById('set_popout_skew_x');
+        const pSkewY = document.getElementById('set_popout_skew_y');
+        const pBorderC = document.getElementById('set_popout_border_color');
+        const pBorder = document.getElementById('set_popout_border');
+        const pShadowC = document.getElementById('set_popout_shadow_color');
+        const pShadow = document.getElementById('set_popout_shadow');
+
         img.set({
             left: obj.left + 50 * zoom,
             top: obj.top - 50 * zoom,
             originX: 'center',
             originY: 'center',
             shadow: new fabric.Shadow({
-                color: 'rgba(0,0,0,0.7)',
-                blur: 50,
+                color: pShadowC ? pShadowC.style.backgroundColor : '#000000',
+                blur: pShadow ? parseInt(pShadow.value) : 50,
                 offsetX: 0,
                 offsetY: 25
             }),
-            tiltX: 0,
-            tiltY: 0,
+            angle: pAngle ? parseFloat(pAngle.value) : 8.0,
+            tiltX: pSkewX ? parseInt(pSkewX.value) : 20,
+            tiltY: pSkewY ? parseInt(pSkewY.value) : -30,
+            skewX: 0,
+            skewY: 0,
             scaleX: 1.0,
             scaleY: 1.0,
             hasControls: false,
             hasBorders: false,
             objectCaching: false,
             isPopout: true,
-            showConnectionLine: true,
+            showConnectionLine: pLineToggle ? pLineToggle.checked : true,
             linkedOriginal: obj,
-            popoutBorder: 8,
-            popoutShadow: 50,
-            popoutLineWeight: 4,
-            popoutLineColor: '#94a3b8'
+            linkedOriginalId: obj.id,
+            popoutBorder: pBorder ? parseInt(pBorder.value) : 8,
+            popoutBorderColor: pBorderC ? pBorderC.style.backgroundColor : '#ffffff',
+            popoutShadow: pShadow ? parseInt(pShadow.value) : 50,
+            popoutShadowColor: pShadowC ? pShadowC.style.backgroundColor : '#000000',
+            popoutLineWeight: pLineW ? parseInt(pLineW.value) : 4,
+            popoutLineColor: pLineColor ? (pLineColor.style.backgroundColor || '#555555') : '#555555'
         });
         
         img._croppedBg = croppedBgCanvas;
-        regeneratePopoutBase(img); // Bake the first image
+        img._croppedBgDataUrl = croppedBgCanvas.toDataURL(); // 직렬화용 백업
+        applyPopoutTilt(img); // Bake the first image with correct tilt & shadows
         
         // NOW restore viewport
         canvas.setViewportTransform(vpt);
@@ -7543,6 +7787,7 @@ window.createPopoutFromObject = function(obj) {
         
         
         const line = new fabric.Line([0,0,0,0], {
+            id: 'line_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
             stroke: img.popoutLineColor,
             strokeWidth: img.popoutLineWeight,
             strokeDashArray: null,
@@ -7554,6 +7799,7 @@ window.createPopoutFromObject = function(obj) {
         });
         
         img.linkedLine = line;
+        img.linkedLineId = line.id;
         canvas.add(line);
         canvas.add(img);
         updatePopoutLine(img);
