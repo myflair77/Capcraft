@@ -498,3 +498,13 @@ awRotateSvg)의 크기를 정확히 꼭짓점 아이콘의 1.5배인 30x30 픽�
 - **팝아웃 속성 보존:** Fabric.js의 기본 객체 직렬화(`toObject`) 시 누락되던 팝아웃 전용 커스텀 속성들(`isPopout`, `tiltX`, `tiltY`, `popoutBorder` 등)을 직렬화 배열에 명시적으로 추가하여, Undo/Redo 시 데이터가 증발하지 않도록 수정함.
 - **참조 객체 연결(Link) 복원:** 팝아웃 개체와 그 모체인 원본 도형(`linkedOriginal`), 연결선(`linkedLine`) 간의 양방향 연결을 유지하기 위해 생성 시 고유 ID를 부여하여 직렬화에 포함함. 불러오기 시(`finalizeLoad`) ID를 대조하여 잃어버린 연결 고리를 자동으로 재맵핑하는 로직 구현.
 - **3D 렌더링 상태 복구:** 팝아웃의 기본 크롭 이미지(`_croppedBg`)를 DataURL 형태로 백업 저장하고, 불러올 때 이를 읽어 임시 캔버스(Canvas) 객체로 복원한 뒤 `applyPopoutTilt`를 실행시켜 저장 당시의 사실적인 3D 렌더링을 완전히 동일하게 복구하도록 구현.
+
+## 15. 팝아웃 개체 관련 주요 규칙
+- 팝아웃 개체 속성(회전, 기울기, 테두리, 그림자 등)은 JSON 직렬화에 포함되어야 Undo/Redo 및 프로그램 재시작 시 상태가 유지됩니다 (customProps에 등록).
+- 팝아웃의 원근감은 
+egeneratePopoutBase를 통한 사다리꼴 변형으로 구현하며, FabricJS의 네이티브 skewX/skewY를 직접 설정하면 변형 충돌로 인해 원근감이 깨지므로 사용을 금지합니다 (obj.set({skewX: 0, skewY: 0})로 초기화).
+- 팝아웃 개체 선택 시 상단바(sub_toolbar) 및 팝아웃 설정 패널(panel_popout)이 자동으로 표시되어 즉각적인 속성 수정이 가능해야 합니다 (selection:created 및 selection:updated에 처리).
+- 팝아웃 생성 시 기본값(기본 회전 8.0, 테두리 두께 8 등)이 유실되지 않도록 pplySettings에서 빈 값을 방어합니다.
+
+- **팝아웃 Undo/Redo 버그 수정:** 팝아웃 개체를 복원하는 popoutReviver 함수의 스코프가 commitLoadToCanvas 내부에 갇혀 있어 뒤로 가기/앞으로 가기 시 ReferenceError가 발생하던 문제를 해결. 함수를 글로벌 스코프로 이동하여 안정적인 Undo/Redo 지원.
+- **환경설정 기본값 적용 강제화:** 사용자의 로컬 환경설정 캐시(.capcraft_settings.json)에 이전 값(예: 테두리 10)이 저장되어 있어 새 기본값(8.0, 8)이 무시되던 현상을 파악하여, 스크립트 단에서 해당 캐시를 8.0과 8로 강제 리셋하여 기본값이 정상적으로 반영되도록 조치.

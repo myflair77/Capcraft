@@ -2823,8 +2823,7 @@
         window.applyPopoutTilt = function(obj) {
             const tiltX = obj.tiltX || 0;
             const tiltY = obj.tiltY || 0;
-            obj.skewX = 0;
-            obj.skewY = 0;
+            obj.set({ skewX: 0, skewY: 0 });
             const radX = tiltX * Math.PI / 180;
             const radY = tiltY * Math.PI / 180;
             
@@ -3265,7 +3264,7 @@
 
             const thumbMult = Math.min(200 / Math.max(10, canvas.width), 1.0);
             const thumb = canvas.toDataURL({ format: 'png', multiplier: thumbMult });
-            const json = JSON.stringify(canvas);
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
 
             // 배경 이미지 URL 및 배경색 추출
             const bgImg = canvas.backgroundImage;
@@ -3450,7 +3449,7 @@
                 } else {
                     finishLoad();
                 }
-            });
+            }, window.popoutReviver);
         }
         // 현재 활성 항목 인덱스
         let activeRecentIdx = -1;
@@ -3486,7 +3485,7 @@
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
-            const json = JSON.stringify(canvas);
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
@@ -3503,7 +3502,7 @@
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
-            const json = JSON.stringify(canvas);
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
@@ -3688,7 +3687,7 @@
                     updateUndoRedoUI();
                     updateGlobalCursor();
                 }, 0);
-            });
+            }, window.popoutReviver);
         }
 
         document.getElementById('btn_undo').addEventListener('click', () => {
@@ -4016,6 +4015,14 @@
         };
 
         window.applySettings = function () {
+            // Force popout defaults if missing or 0
+            if (document.getElementById('set_popout_angle') && (!document.getElementById('set_popout_angle').value || document.getElementById('set_popout_angle').value === '0' || document.getElementById('set_popout_angle').value === '0.0')) {
+                document.getElementById('set_popout_angle').value = '8.0';
+            }
+            if (document.getElementById('set_popout_border') && (!document.getElementById('set_popout_border').value || document.getElementById('set_popout_border').value === '0')) {
+                document.getElementById('set_popout_border').value = '8';
+            }
+
             renderEmojiFolderList();
             loadCustomEmojisFromFolders();
             if (document.getElementById('text_size_input') && document.getElementById('set_txt_size')) {
@@ -4514,7 +4521,7 @@
                         canvas.renderAll(); initHistory(); isHistoryAction = false;
                         pushCurrentToRecent();
                         renderRecentList();
-                    });
+                    }, window.popoutReviver);
                 }; reader.readAsText(file);
             } else {
                 reader.onload = f => fabric.Image.fromURL(f.target.result, img => {
@@ -4552,7 +4559,7 @@
             let blob, suggestedName, mime;
 
             if (format === 'json') {
-                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor']));
+                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor', 'id', 'isPopout', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing']));
                 blob = new Blob([jsonStr], { type: "application/json" });
                 suggestedName = `${baseName}.json`;
                 mime = 'application/json';
@@ -5176,8 +5183,8 @@
                     popoutLineWeight: parseInt(document.getElementById('edit_popout_line_w').value) || 4,
                     tiltX: parseInt(document.getElementById('edit_popout_skew_x').value) || 0,
                     tiltY: parseInt(document.getElementById('edit_popout_skew_y').value) || 0,
-                    skewX: parseInt(document.getElementById('edit_popout_skew_x').value) || 0,
-                    skewY: parseInt(document.getElementById('edit_popout_skew_y').value) || 0,
+                    skewX: 0,
+                    skewY: 0,
                     popoutBorderColor: document.getElementById('edit_popout_border_color').style.backgroundColor,
                     popoutBorder: parseInt(document.getElementById('edit_popout_border').value) || 0,
                     popoutShadowColor: document.getElementById('edit_popout_shadow_color').style.backgroundColor,
@@ -5846,7 +5853,15 @@
                     }
                 }
             } else if (!activeTool) {
-                document.getElementById('sub_toolbar').style.display = 'none';
+                const actObj = canvas.getActiveObject();
+                if (actObj && actObj.isPopout) {
+                    document.getElementById('sub_toolbar').style.display = 'block';
+                    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                    const panel = document.getElementById('panel_popout');
+                    if (panel) panel.classList.add('active');
+                } else {
+                    document.getElementById('sub_toolbar').style.display = 'none';
+                }
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
             }
         });
