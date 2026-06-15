@@ -578,8 +578,33 @@ egeneratePopoutBase를 통한 사다리꼴 변형으로 구현하며, FabricJS�
   - **마이그레이션 로직 추가:** `restoreSettings` 실행 시 사용자 설정에 저장된 값이 이전 기본값인 `8.0`일 경우, 새 기본값인 `6.0`으로 자동 덮어쓰도록 처리 (사용자가 별도의 초기화 과정 없이 새로운 기본값을 적용받을 수 있도록 함)
 
 #### JSON 파일 열기 및 최근 항목 로드 시 팝아웃 연결선 끊어짐 수정
-- **문제:** JSON 파일 열기(tn_action_open) 및 최근 항목 로드 경로에서 `loadFromJSON` 콜백 내에 `restorePopoutLinks()` 호출이 누락되어 있었음. `restoreLinkedTexts()`는 호출되지만 `restorePopoutLinks()`가 없어서, 팝아웃의 `linkedOriginal`, `linkedLine` 참조가 복원되지 않음.
+- **문제:** JSON 파일 열기( tn_action_open) 및 최근 항목 로드 경로에서 `loadFromJSON` 콜백 내에 `restorePopoutLinks()` 호출이 누락되어 있었음. `restoreLinkedTexts()`는 호출되지만 `restorePopoutLinks()`가 없어서, 팝아웃의 `linkedOriginal`, `linkedLine` 참조가 복원되지 않음.
 - **증상:** JSON 파일을 열거나 최근 항목에서 로드한 후 팝아웃 개체를 이동해도 연결선이 따라가지 않음. `updatePopoutLine`이 `linkedLine` 또는 `linkedOriginal`이 null이어서 early return.
 - **수정:** `loadFromJSON` 콜백 내에서 `restoreLinkedTexts()` 직후에 `restorePopoutLinks()`를 추가. 두 곳 모두 적용:
   1. JSON 파일 열기 (`file_open_input` change 이벤트 핸들러)
   2. 최근 항목 로드 (`loadRecentCapture` 함수)
+
+#### 자르기(Crop) 후 팝아웃 연결선 끊어짐 수정 (2026-06-15)
+- **문제:** 캔버스에 팝아웃 개체가 있는 상태에서 "자르기"를 통해 배경 이미지를 축소하거나 확장하면, 기존에 있던 팝아웃 개체와 원본 도형 간의 연결선(connection line)이 끊어져서 이후 팝아웃 개체를 이동해도 연결선이 더 이상 따라가지 않는 현상이 발생.
+- **근본 원인:** `performEdgeCrop()` 함수(index.html L7684) 내부에서 자르기를 수행할 때 다음과 같은 타이밍 문제가 있었음:
+  1. 캔버스의 모든 개체를 `canvas.remove(o)`로 일시 제거하여 배경만 남긴 뒤 새로운 크기의 배경 이미지를 설정하고, 개체를 위치 보정하여 다시 추가하는 과정을 거침.
+  2. 그런데 `canvas.remove(o)` 호출 시 `object:removed` 이벤트 핸들러(L3188)가 발동됨. 이 핸들러는 원본 도형이 삭제될 때 해당 도형에 연결된 팝아웃의 `linkedOriginal`을 `null`로 설정하고 연결선(`linkedLine`)도 캔버스에서 제거하는 역할을 수행함.
+  3. `isHistoryAction` 플래그가 `true`이면 이 핸들러가 조기 반환(early return)하여 연쇄 삭제를 방지하는데, `performEdgeCrop()`에서는 `isHistoryAction = true`를 개체 제거 **이후**(L7715, 콜백 내부)에 설정하고 있었음.
+  4. 따라서 개체 제거 시점에 `isHistoryAction`은 `false`이므로, `object:removed` 핸들러가 정상 동작하여 팝아웃의 `linkedOriginal`을 `null`로 만들고 연결선을 삭제함.
+  5. 이후 개체를 다시 추가해도 `linkedOriginal` 참조가 이미 `null`이 되어있어 복원되지 않으므로, `updatePopoutLine()`이 호출되어도 `!popout.linkedOriginal` 조건에서 조기 반환됨.
+- **수정 내용 (index.html `performEdgeCrop` 함수):**
+  1. **개체 제거 전에 `isHistoryAction = true` 설정:** `canvas.remove(o)` 호출 전에 `isHistoryAction` 플래그를 `true`로 설정하여, `object:removed` 핸들러가 일시 제거되는 개체들에 대해 연쇄 삭제를 수행하지 않도록 방지. (기존에 콜백 내부에서 설정하던 `isHistoryAction = true`는 제거하여 중복 설정 방지)
+  2. **개체 재추가 후 `restorePopoutLinks()` 호출:** 모든 개체를 위치 보정하여 캔버스에 다시 추가한 직후, `restorePopoutLinks()` 함수를 호출하여 ID 기반으로 `linkedOriginal`과 `linkedLine` 객체 참조를 복원하고 연결선 위치를 갱신. 이는 만약 일부 참조가 누락된 경우에 대한 안전장치 역할도 수행.
+
+### 모자이크(Mosaic) 기능 확장 및 개선 사항 (최신 변경)
+- **모자이크 다각화 UI 추가**: '직사각형'으로만 지원되던 모자이크를 '타원'과 '자유선'으로도 생성할 수 있도록 하단 패널에 토글 버튼 및 선 굵기 조절 옵션을 추가했습니다.
+- **자유선 모자이크 지원**: \canvas.isDrawingMode\를 활용하여 펜 도구처럼 자유롭게 선을 그려 그 영역만큼 모자이크를 적용할 수 있도록 구현했습니다.
+- **마스킹 처리 고도화**: 오프스크린 캔버스와 \source-in\ 합성 연산을 통해 타원이나 자유선 형태로 자른 완벽한 모양의 모자이크 패치 이미지를 캔버스에 추가하도록 했습니다.
+- **자유선 곡선 보정**: 펜(일반 곡선)과 동일하게 \getSmoothCurvePath()\를 적용하여, 자유선 모자이크 마스킹 선도 부드러운 곡선으로 자동 보정되도록 구현했습니다.
+- **버그 수정**: 직사각형 및 타원 모자이크 생성 시 \setCoords()\ 호출 누락으로 인해 바운딩 박스가 제대로 계산되지 않아 모자이크가 생성되지 않던 문제를 수정했습니다.
+- **자유선 곡선 보정 개선(떨림 제거)**: 자유선 모자이크 마스킹 선에 펜과 동일하게 DP 단순화(_simplifyDP) 알고리즘을 선행 적용하여 손떨림을 완벽히 제거한 후 getSmoothCurvePath()로 보정하도록 개선했습니다.
+- **자유선 모자이크 선택적 곡선 보정**: 일반 펜처럼 자유선 모자이크 마스킹 중 마우스를 0.5초간 멈출 경우에만 부드러운 곡선으로 보정되도록 로직을 수정했습니다.
+- **환경설정 UI 개편 및 모자이크 자유선 굵기 기본값 설정**: 환경설정의 '지우개 및 효과 설정'을 '모자이크 설정'과 '지우개 설정'으로 분리하고, 모자이크 설정 탭에 '자유선 굵기' (기본값: 30) 옵션을 추가하여 전역 기본값으로 적용 및 저장되도록 개선했습니다.
+- **모자이크 설정 UI 정렬 개선**: 환경설정의 '모자이크 설정' 내 '모자이크 블록 크기'와 '자유선 굵기' 옵션이 한 줄에 나란히 표시되도록 레이아웃을 개선했습니다.
+- **도형 설정 UI 정렬 개선**: 환경설정의 도형 설정 내 항목들을 공간 활용도를 높이기 위해 한 줄로 압축하여 배치했습니다.
+- **저장 포맷 SVG 추가**: 환경설정의 `시스템 및 저장 설정` 내 이미지 저장 포맷 옵션에 웹 호환성이 높은 벡터 이미지 포맷인 `SVG`를 추가했습니다. 저장 로직(getSaveBlobAndName)은 이미 구현되어 있어 즉시 사용 가능합니다.

@@ -1222,9 +1222,17 @@
         <div id="panel_eraser" class="sub-panel"><button id="btn_clear_all"
                 style="padding: 4px 10px; background: var(--accent-red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;"><i
                     data-lucide="trash-2" class="icon-small"></i> 개체 모두 지우기</button></div>
-        <div id="panel_mosaic" class="sub-panel">
+        <div id="panel_mosaic" class="sub-panel" style="gap:10px; align-items:center;">
+            <div id="mosaic_type_group" class="custom-select-group" style="display:inline-flex; gap:2px; margin-right:5px;">
+                <button data-val="rect" class="active" title="직사각형">직사각형</button>
+                <button data-val="ellipse" title="타원">타원</button>
+                <button data-val="freehand" title="자유선">자유선</button>
+            </div>
+            <input type="hidden" id="mosaic_type" value="rect">
             <span style="font-weight:bold;">모자이크 크기:</span>
             <input type="number" id="mosaic_intensity" min="1" max="20" value="3" style="width: 50px;">
+            <span id="lbl_mosaic_weight" style="font-weight:bold; margin-left:10px; display:none;">선 굵기:</span>
+            <input type="number" id="mosaic_weight" min="1" max="100" value="30" style="width: 50px; display:none;">
         </div>
         
         <div id="panel_popout" class="sub-panel" style="gap:10px; font-size:12px; align-items:center;">
@@ -1548,30 +1556,26 @@
         <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">도형 설정</div>
         <div class="setting-group"
             style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <span>선 굵기:</span> <input type="number" id="set_shape_weight" value="3" min="1" max="50"
-                    style="width:50px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>선 굵기:</span> <input type="number" id="set_shape_weight" value="3" min="1" max="50" style="width:50px;">
                 <span>선 색상:</span>
                 <div id="set_shape_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <span>배경 색상:</span>
+                <span style="margin-left: 5px;">배경 색상:</span>
                 <div id="set_shape_fill_color" class="color-btn"
                     style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;">
                 </div>
-                <span>배경 투명도:</span> <input type="number" id="set_shape_opacity_val" value="20" min="0" max="100"
-                    style="width:50px;">
+                <span>배경 투명도:</span> <input type="number" id="set_shape_opacity_val" value="20" min="0" max="100" style="width:50px;">
             </div>
-            <div style="margin-bottom: 8px;">
-                <span style="display:block; margin-bottom:4px; font-weight:600;">화살표 끝 모양:</span>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span style="font-weight:600;">화살표 끝 모양:</span>
                 <div class="custom-select-group" id="set_arrow_type_group">
                     <button class="active" data-val="triangle">삼각형</button><button
                         data-val="stealth">스텔스</button><button data-val="open">오픈</button>
                 </div>
                 <input type="hidden" id="set_arrow_type" value="triangle">
             </div>
-            <div>
-                <span style="display:block; margin-bottom:4px; font-weight:600;">화살표 끝 크기:</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-weight:600;">화살표 끝 크기:</span>
                 <div class="custom-select-group" id="set_arrow_size_group">
                     <button data-val="xs">아주 작게</button><button data-val="s">작게</button><button class="active"
                         data-val="m">보통</button><button data-val="l">크게</button><button data-val="xl">아주 크게</button>
@@ -1618,17 +1622,27 @@
             </div>
         </div>
 
-        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">지우개 및 효과 설정
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">모자이크 설정
         </div>
         <div class="setting-group"
             style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
-            <div style="margin-bottom:8px;">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <div>
+                    <span>모자이크 블록 크기:</span> <input type="number" id="set_mosaic_px" value="3" min="1" max="20" style="width:60px;">
+                </div>
+                <div>
+                    <span>자유선 굵기:</span> <input type="number" id="set_mosaic_freehand_weight" value="30" min="1" max="100" style="width:60px;">
+                </div>
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: var(--accent-blue);">지우개 설정
+        </div>
+        <div class="setting-group"
+            style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div>
                 <span>지우개 비대화:</span> <input type="number" id="set_eraser_fat" value="1.5" min="1.0" max="2.0"
                     step="0.1" style="width:60px;">
-            </div>
-            <div>
-                <span>모자이크 블록 크기:</span> <input type="number" id="set_mosaic_px" value="3" min="1" max="20"
-                    style="width:60px;">
             </div>
         </div>
 
@@ -1639,7 +1653,7 @@
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                 <span>이미지 저장 포맷:</span>
                 <div class="custom-select-group" id="setting_save_format_group"><button class="active"
-                        data-val="png">PNG</button><button data-val="jpg">JPG</button><button
+                        data-val="png">PNG</button><button data-val="jpg">JPG</button><button data-val="svg">SVG</button><button
                         data-val="pdf">PDF</button><button data-val="json">JSON</button></div>
                 <input type="hidden" id="setting_save_format" value="png">
             </div>
@@ -2446,6 +2460,52 @@
         document.getElementById('set_mosaic_px').addEventListener('input', (e) => {
             sysMosaicPx = parseInt(e.target.value) || 3;
             document.getElementById('mosaic_intensity').value = sysMosaicPx;
+        });
+
+        // 모자이크 타입 및 선 굵기 이벤트
+        document.querySelectorAll('#mosaic_type_group button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#mosaic_type_group button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const type = btn.getAttribute('data-val');
+                document.getElementById('mosaic_type').value = type;
+                
+                const isFreehand = (type === 'freehand');
+                document.getElementById('lbl_mosaic_weight').style.display = isFreehand ? 'inline-block' : 'none';
+                document.getElementById('mosaic_weight').style.display = isFreehand ? 'inline-block' : 'none';
+                
+                if (activeTool === 'mosaic') {
+                    if (isFreehand) {
+                        canvas.isDrawingMode = true;
+                        if (!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
+                            canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                        }
+                        canvas.freeDrawingBrush.color = 'rgba(128, 128, 128, 0.5)'; // 시각적 피드백용 가이드 색상
+                        canvas.freeDrawingBrush.width = parseInt(document.getElementById('mosaic_weight').value) || 30;
+                    } else {
+                        canvas.isDrawingMode = false;
+                    }
+                }
+            });
+        });
+
+        document.getElementById('mosaic_weight').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value) || 30;
+            document.getElementById('set_mosaic_freehand_weight').value = val;
+            if (activeTool === 'mosaic' && document.getElementById('mosaic_type').value === 'freehand') {
+                if (canvas.freeDrawingBrush) {
+                    canvas.freeDrawingBrush.width = val;
+                }
+            }
+        });
+        document.getElementById('set_mosaic_freehand_weight').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value) || 30;
+            document.getElementById('mosaic_weight').value = val;
+            if (activeTool === 'mosaic' && document.getElementById('mosaic_type').value === 'freehand') {
+                if (canvas.freeDrawingBrush) {
+                    canvas.freeDrawingBrush.width = val;
+                }
+            }
         });
 
         document.getElementById('set_pen_highlighter_opacity').addEventListener('input', (e) => {
@@ -4041,7 +4101,7 @@
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity', 'set_pen_bg_opacity',
                 'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size', 'set_popout_line_toggle', 'set_popout_line_weight', 'set_popout_angle', 'set_popout_skew_x', 'set_popout_skew_y', 'set_popout_border', 'set_popout_shadow',
-                'set_eraser_fat', 'set_mosaic_px', 'setting_save_format', 'set_recent_max', 'set_recent_max_action'
+                'set_eraser_fat', 'set_mosaic_px', 'set_mosaic_freehand_weight', 'setting_save_format', 'set_recent_max', 'set_recent_max_action'
             ];
             const colorIds = [
                 'set_txt_color', 'set_txt_bg_color', 'set_pen_ballpoint_color',
@@ -4165,6 +4225,9 @@
             sysEraserFat = parseFloat(document.getElementById('set_eraser_fat')?.value) || 1.5;
 
             window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px')?.value) || 3;
+            if (document.getElementById('mosaic_weight') && document.getElementById('set_mosaic_freehand_weight')) {
+                document.getElementById('mosaic_weight').value = document.getElementById('set_mosaic_freehand_weight').value;
+            }
 
             strokeColor = document.getElementById('set_shape_stroke_color')?.style.backgroundColor || '#E03C31';
             if (document.getElementById('btn_stroke_color')) document.getElementById('btn_stroke_color').style.backgroundColor = strokeColor;
@@ -5000,7 +5063,18 @@
                 }
                 else if (toolName.includes('이미지')) { activeTool = 'image'; document.getElementById('panel_image').classList.add('active'); }
                 else if (toolName.includes('지우개')) { activeTool = 'eraser'; document.getElementById('panel_eraser').classList.add('active'); }
-                else if (toolName.includes('모자이크')) { activeTool = 'mosaic'; document.getElementById('panel_mosaic').classList.add('active'); }
+                else if (toolName.includes('모자이크')) { 
+                    activeTool = 'mosaic'; 
+                    document.getElementById('panel_mosaic').classList.add('active'); 
+                    if (document.getElementById('mosaic_type').value === 'freehand') {
+                        canvas.isDrawingMode = true;
+                        if (!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
+                            canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                        }
+                        canvas.freeDrawingBrush.color = 'rgba(128, 128, 128, 0.5)';
+                        canvas.freeDrawingBrush.width = parseInt(document.getElementById('mosaic_weight').value) || 30;
+                    }
+                }
                 else if (toolName.includes('자르기')) {
                     activeTool = 'crop'; document.getElementById('panel_crop').classList.add('active');
                     initCropOverlay();
@@ -5009,6 +5083,127 @@
                 updateGlobalCursor();
             });
         });
+
+        // ==========================================
+        // 6.5. 모자이크 생성 공통 함수
+        // ==========================================
+        window.applyMosaicToCanvas = function(mLeft, mTop, mWidth, mHeight, maskType, maskObj) {
+            if (maskObj) {
+                canvas.remove(maskObj);
+            }
+
+            if (mWidth <= 10 || mHeight <= 10) {
+                return;
+            }
+            
+            let oldClip = canvas.clipPath;
+            canvas.clipPath = null;
+            canvas.renderAll();
+            const cropData = canvas.toDataURL({ left: mLeft, top: mTop, width: mWidth, height: mHeight, format: 'png', multiplier: 1 });
+            canvas.clipPath = oldClip;
+            canvas.renderAll();
+
+            const imgObj = new Image();
+            imgObj.onload = function () {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = mWidth; tempCanvas.height = mHeight;
+                const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                tempCtx.drawImage(imgObj, 0, 0, mWidth, mHeight);
+                const imgData = tempCtx.getImageData(0, 0, mWidth, mHeight).data;
+
+                const outCanvas = document.createElement('canvas');
+                outCanvas.width = mWidth; outCanvas.height = mHeight;
+                const outCtx = outCanvas.getContext('2d');
+
+                let k = Math.max(1, window.sysMosaicPx || 3);
+                if (k > 20) k = 20;
+
+                const cols = Math.ceil(mWidth / k);
+                const rows = Math.ceil(mHeight / k);
+                let cellColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        let cx = Math.min(c * k + Math.floor(k / 2), mWidth - 1);
+                        let cy = Math.min(r * k + Math.floor(k / 2), mHeight - 1);
+                        let idx = (cy * mWidth + cx) * 4;
+                        cellColors[r][c] = { r: imgData[idx], g: imgData[idx + 1], b: imgData[idx + 2], a: imgData[idx + 3] };
+                    }
+                }
+
+                let finalColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
+                let processed = new Array(rows).fill(0).map(() => new Array(cols).fill(false));
+                let setIndex = 0;
+                for (let r = 0; r < rows - 1; r += 2) {
+                    for (let c = 0; c < cols - 1; c += 2) {
+                        let type = setIndex % 4;
+                        let p00 = cellColors[r][c], p01 = cellColors[r][c + 1];
+                        let p10 = cellColors[r + 1][c], p11 = cellColors[r + 1][c + 1];
+
+                        if (type === 0 || type === 2) { finalColors[r][c] = p11; finalColors[r + 1][c + 1] = p00; finalColors[r][c + 1] = p10; finalColors[r + 1][c] = p01; }
+                        else if (type === 1) { finalColors[r][c + 1] = p00; finalColors[r + 1][c + 1] = p01; finalColors[r + 1][c] = p11; finalColors[r][c] = p10; }
+                        else if (type === 3) { finalColors[r + 1][c] = p00; finalColors[r + 1][c + 1] = p10; finalColors[r][c + 1] = p11; finalColors[r][c] = p01; }
+                        processed[r][c] = processed[r][c + 1] = processed[r + 1][c] = processed[r + 1][c + 1] = true;
+                        setIndex++;
+                    }
+                }
+
+                let flatCells = [];
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) { if (!processed[r][c]) flatCells.push({ r, c }); }
+                }
+                for (let i = 0; i < flatCells.length - 1; i += 2) {
+                    let p1 = flatCells[i]; let p2 = flatCells[i + 1];
+                    finalColors[p1.r][p1.c] = cellColors[p2.r][p2.c]; finalColors[p2.r][p2.c] = cellColors[p1.r][p1.c];
+                }
+                if (flatCells.length % 2 !== 0) {
+                    let p = flatCells[flatCells.length - 1]; finalColors[p.r][p.c] = cellColors[p.r][p.c];
+                }
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        let col = finalColors[r][c];
+                        if (col.a > 0) {
+                            outCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${col.a / 255})`;
+                            outCtx.fillRect(c * k, r * k, k, k);
+                        }
+                    }
+                }
+
+                let finalCanvas = outCanvas;
+                if (maskType === 'ellipse' || maskType === 'freehand') {
+                    const maskCanvas = document.createElement('canvas');
+                    maskCanvas.width = mWidth; maskCanvas.height = mHeight;
+                    const maskCtx = maskCanvas.getContext('2d');
+                    
+                    if (maskType === 'ellipse') {
+                        maskCtx.fillStyle = 'black';
+                        maskCtx.beginPath();
+                        maskCtx.ellipse(mWidth / 2, mHeight / 2, mWidth / 2, mHeight / 2, 0, 0, 2 * Math.PI);
+                        maskCtx.fill();
+                    } else if (maskType === 'freehand' && maskObj) {
+                        maskObj.set({ stroke: 'black', opacity: 1, fill: 'transparent' });
+                        maskCtx.save();
+                        maskCtx.translate(-mLeft, -mTop);
+                        maskObj.render(maskCtx);
+                        maskCtx.restore();
+                    }
+                    
+                    maskCtx.globalCompositeOperation = 'source-in';
+                    maskCtx.drawImage(outCanvas, 0, 0);
+                    finalCanvas = maskCanvas;
+                }
+
+                fabric.Image.fromURL(finalCanvas.toDataURL('image/png'), (patchImg) => {
+                    patchImg.set({ left: mLeft, top: mTop, selectable: true, isMosaic: true });
+                    canvas.add(patchImg); canvas.bringToFront(patchImg);
+                    if (maskObj) canvas.remove(maskObj);
+                    updateObjectSelectability();
+                    canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
+                });
+            };
+            imgObj.src = cropData;
+        };
 
         // ==========================================
         // 7. 새 배경 이미지 (색상농도 믹스 로직)
@@ -5961,11 +6156,13 @@
 
         // 마우스 정지 0.5초 감지: 드로잉 중 마우스가 멈추면 자동으로 mouseup 시뮬레이션
         canvas.on('mouse:move', function _penPauseDetector(o) {
-            if (activeTool !== 'pen' || !canvas.isDrawingMode || !canvas._isCurrentlyDrawing) return;
+            const isMosaicFreehand = activeTool === 'mosaic' && document.getElementById('mosaic_type') && document.getElementById('mosaic_type').value === 'freehand';
+            if ((activeTool !== 'pen' && !isMosaicFreehand) || !canvas.isDrawingMode || !canvas._isCurrentlyDrawing) return;
             _lastPenMoveTime = Date.now();
             if (_shapeRecogTimer) clearTimeout(_shapeRecogTimer);
             _shapeRecogTimer = setTimeout(() => {
-                if (!canvas._isCurrentlyDrawing || activeTool !== 'pen') return;
+                const currentIsMosaicFreehand = activeTool === 'mosaic' && document.getElementById('mosaic_type') && document.getElementById('mosaic_type').value === 'freehand';
+                if (!canvas._isCurrentlyDrawing || (activeTool !== 'pen' && !currentIsMosaicFreehand)) return;
                 _isAutoShapeTriggered = true; // 0.5초 일시정지에 의한 자동 인식 플래그 설정
                 // 0.5초 동안 마우스가 움직이지 않았으므로 드로잉 자동 종료
                 const upperCanvas = canvas.upperCanvasEl;
@@ -6466,6 +6663,58 @@
         }
 
         canvas.on('path:created', (e) => {
+            if (activeTool === 'mosaic' && document.getElementById('mosaic_type') && document.getElementById('mosaic_type').value === 'freehand') {
+                const origPathObj = e.path;
+                let pathObj = origPathObj;
+                
+                const isAuto = _isAutoShapeTriggered;
+                if (activeTool === 'mosaic') _isAutoShapeTriggered = false; // 플래그 초기화
+                
+                if (isAuto) {
+                    const pts = typeof _extractPathPoints === 'function' ? _extractPathPoints(origPathObj) : null;
+                    if (pts && pts.length > 2 && typeof getSmoothCurvePath === 'function' && typeof _simplifyDP === 'function') {
+                        const bb = typeof _getBoundingBox === 'function' ? _getBoundingBox(pts) : {w: 100, h: 100};
+                        const diag = Math.hypot(bb.w, bb.h);
+                        const simplifiedPts = _simplifyDP(pts, diag * 0.02); // 펜 인식과 유사한 곡선 보정(떨림 제거)
+                        
+                        const smoothPathStr = getSmoothCurvePath(simplifiedPts);
+                        const sWidth = origPathObj.strokeWidth || parseInt(document.getElementById('mosaic_weight').value) || 30;
+                        
+                        pathObj = new fabric.Path(smoothPathStr, {
+                            fill: 'transparent',
+                            stroke: origPathObj.stroke || 'black',
+                            strokeWidth: sWidth,
+                            strokeLineCap: 'round',
+                            strokeLineJoin: 'round'
+                        });
+                        
+                        canvas.remove(origPathObj);
+                        canvas.add(pathObj);
+                        
+                        if (typeof _showShapeRecogNotice === 'function') {
+                            _showShapeRecogNotice('curve');
+                        }
+                    }
+                }
+
+                pathObj.setCoords();
+                
+                let br = pathObj.getBoundingRect();
+                let mLeft = Math.floor(br.left);
+                let mTop = Math.floor(br.top);
+                let mWidth = Math.floor(br.width);
+                let mHeight = Math.floor(br.height);
+
+                if (mLeft < 0) { mWidth += mLeft; mLeft = 0; }
+                if (mTop < 0) { mHeight += mTop; mTop = 0; }
+                if (mLeft + mWidth > canvas.width) mWidth = canvas.width - mLeft;
+                if (mTop + mHeight > canvas.height) mHeight = canvas.height - mTop;
+
+                // applyMosaicToCanvas 내부에서 maskObj (pathObj)를 삭제해줍니다.
+                applyMosaicToCanvas(mLeft, mTop, mWidth, mHeight, 'freehand', pathObj);
+                return;
+            }
+
             if (activeTool === 'pen') {
                 const isAuto = _isAutoShapeTriggered;
                 _isAutoShapeTriggered = false; // 플래그 초기화
@@ -6898,7 +7147,14 @@
                 if (activeTool === 'crop') {
                     capStartX = o.e.clientX; capStartY = o.e.clientY;
                 } else if (activeTool === 'mosaic') {
-                    currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(0,0,0,0.0)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true }); canvas.add(currentShape);
+                    const mType = document.getElementById('mosaic_type').value;
+                    if (mType === 'freehand') { isDrawing = false; return; }
+                    if (mType === 'ellipse') {
+                        currentShape = new fabric.Ellipse({ left: origX, top: origY, rx: 0, ry: 0, fill: 'rgba(128,128,128,0.5)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true, originX: 'center', originY: 'center' });
+                    } else {
+                        currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(128,128,128,0.5)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true });
+                    }
+                    canvas.add(currentShape);
                 } else if (activeTool === 'emoji') {
                     if (!selectedEmoji && !selectedEmojiUrl) return customAlert("이모티콘을 먼저 선택해주세요.");
                     const scaledSize = parseInt(document.getElementById('text_size_input').value) || 36;
@@ -7234,8 +7490,12 @@
                 const lineRadio = document.querySelector('input[name="line_type"]:checked');
                 const isNormalLine = (shapeType === 'line' || shapeType === 'arrow') && lineRadio && lineRadio.value === 'normal';
 
-                if (shapeType === 'rect' || activeTool === 'mosaic') { currentShape.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y) }); if (origX > pointer.x) currentShape.set({ left: pointer.x }); if (origY > pointer.y) currentShape.set({ top: pointer.y }); }
-                else if (shapeType === 'ellipse') { currentShape.set({ rx: Math.abs(origX - pointer.x) / 2, ry: Math.abs(origY - pointer.y) / 2 }); currentShape.set({ left: (origX + pointer.x) / 2, top: (origY + pointer.y) / 2 }); }
+                const mType = document.getElementById('mosaic_type') ? document.getElementById('mosaic_type').value : 'rect';
+                let isRect = (activeTool === 'shape' && shapeType === 'rect') || (activeTool === 'mosaic' && mType === 'rect');
+                let isEllipse = (activeTool === 'shape' && shapeType === 'ellipse') || (activeTool === 'mosaic' && mType === 'ellipse');
+
+                if (isRect) { currentShape.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y) }); if (origX > pointer.x) currentShape.set({ left: pointer.x }); if (origY > pointer.y) currentShape.set({ top: pointer.y }); }
+                else if (isEllipse) { currentShape.set({ rx: Math.abs(origX - pointer.x) / 2, ry: Math.abs(origY - pointer.y) / 2 }); currentShape.set({ left: (origX + pointer.x) / 2, top: (origY + pointer.y) / 2 }); }
                 else if (shapeType === 'rhombus') {
                     let minX = Math.min(origX, pointer.x);
                     let maxX = Math.max(origX, pointer.x);
@@ -7314,119 +7574,26 @@
             }
 
             if (activeTool === 'mosaic' && currentShape) {
-                let mLeft = Math.floor(currentShape.left);
-                let mTop = Math.floor(currentShape.top);
-                let mWidth = Math.floor(currentShape.width);
-                let mHeight = Math.floor(currentShape.height);
-
-                canvas.remove(currentShape); currentShape = null;
+                currentShape.setCoords();
+                let br = currentShape.getBoundingRect();
+                let mLeft = Math.floor(br.left);
+                let mTop = Math.floor(br.top);
+                let mWidth = Math.floor(br.width);
+                let mHeight = Math.floor(br.height);
 
                 if (mLeft < 0) { mWidth += mLeft; mLeft = 0; }
                 if (mTop < 0) { mHeight += mTop; mTop = 0; }
                 if (mLeft + mWidth > canvas.width) mWidth = canvas.width - mLeft;
                 if (mTop + mHeight > canvas.height) mHeight = canvas.height - mTop;
 
-                if (mWidth > 10 && mHeight > 10) {
-                    let oldClip = canvas.clipPath;
-                    canvas.clipPath = null;
-                    canvas.renderAll();
-
-                    const cropData = canvas.toDataURL({ left: mLeft, top: mTop, width: mWidth, height: mHeight, format: 'png', multiplier: 1 });
-
-                    canvas.clipPath = oldClip;
-                    canvas.renderAll();
-
-                    const imgObj = new Image();
-                    imgObj.onload = function () {
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = mWidth; tempCanvas.height = mHeight;
-                        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-
-                        tempCtx.drawImage(imgObj, 0, 0, mWidth, mHeight);
-                        const imgData = tempCtx.getImageData(0, 0, mWidth, mHeight).data;
-
-                        const outCanvas = document.createElement('canvas');
-                        outCanvas.width = mWidth; outCanvas.height = mHeight;
-                        const outCtx = outCanvas.getContext('2d');
-
-                        let k = Math.max(1, window.sysMosaicPx);
-                        if (k > 20) k = 20;
-
-                        const cols = Math.ceil(mWidth / k);
-                        const rows = Math.ceil(mHeight / k);
-                        let cellColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
-
-                        for (let r = 0; r < rows; r++) {
-                            for (let c = 0; c < cols; c++) {
-                                let cx = Math.min(c * k + Math.floor(k / 2), mWidth - 1);
-                                let cy = Math.min(r * k + Math.floor(k / 2), mHeight - 1);
-                                let idx = (cy * mWidth + cx) * 4;
-                                cellColors[r][c] = {
-                                    r: imgData[idx], g: imgData[idx + 1], b: imgData[idx + 2], a: imgData[idx + 3]
-                                };
-                            }
-                        }
-
-                        let finalColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
-                        let processed = new Array(rows).fill(0).map(() => new Array(cols).fill(false));
-
-                        let setIndex = 0;
-                        for (let r = 0; r < rows - 1; r += 2) {
-                            for (let c = 0; c < cols - 1; c += 2) {
-                                let type = setIndex % 4;
-                                let p00 = cellColors[r][c], p01 = cellColors[r][c + 1];
-                                let p10 = cellColors[r + 1][c], p11 = cellColors[r + 1][c + 1];
-
-                                if (type === 0 || type === 2) {
-                                    finalColors[r][c] = p11; finalColors[r + 1][c + 1] = p00;
-                                    finalColors[r][c + 1] = p10; finalColors[r + 1][c] = p01;
-                                } else if (type === 1) {
-                                    finalColors[r][c + 1] = p00; finalColors[r + 1][c + 1] = p01;
-                                    finalColors[r + 1][c] = p11; finalColors[r][c] = p10;
-                                } else if (type === 3) {
-                                    finalColors[r + 1][c] = p00; finalColors[r + 1][c + 1] = p10;
-                                    finalColors[r][c + 1] = p11; finalColors[r][c] = p01;
-                                }
-                                processed[r][c] = processed[r][c + 1] = processed[r + 1][c] = processed[r + 1][c + 1] = true;
-                                setIndex++;
-                            }
-                        }
-
-                        let flatCells = [];
-                        for (let r = 0; r < rows; r++) {
-                            for (let c = 0; c < cols; c++) {
-                                if (!processed[r][c]) flatCells.push({ r, c });
-                            }
-                        }
-                        for (let i = 0; i < flatCells.length - 1; i += 2) {
-                            let p1 = flatCells[i]; let p2 = flatCells[i + 1];
-                            finalColors[p1.r][p1.c] = cellColors[p2.r][p2.c];
-                            finalColors[p2.r][p2.c] = cellColors[p1.r][p1.c];
-                        }
-                        if (flatCells.length % 2 !== 0) {
-                            let p = flatCells[flatCells.length - 1];
-                            finalColors[p.r][p.c] = cellColors[p.r][p.c];
-                        }
-
-                        for (let r = 0; r < rows; r++) {
-                            for (let c = 0; c < cols; c++) {
-                                let col = finalColors[r][c];
-                                if (col.a > 0) {
-                                    outCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${col.a / 255})`;
-                                    outCtx.fillRect(c * k, r * k, k, k);
-                                }
-                            }
-                        }
-
-                        fabric.Image.fromURL(outCanvas.toDataURL('image/png'), (patchImg) => {
-                            patchImg.set({ left: mLeft, top: mTop, selectable: true, isMosaic: true });
-                            canvas.add(patchImg); canvas.bringToFront(patchImg);
-                            updateObjectSelectability();
-                            canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
-                        });
-                    };
-                    imgObj.src = cropData;
-                }
+                const mType = document.getElementById('mosaic_type') ? document.getElementById('mosaic_type').value : 'rect';
+                
+                // applyMosaicToCanvas 안에서 currentShape를 삭제해주므로(maskObj 인자), 
+                // 참조만 넘깁니다. 
+                let shapeRef = currentShape;
+                currentShape = null;
+                
+                applyMosaicToCanvas(mLeft, mTop, mWidth, mHeight, mType, shapeRef);
             }
             else if (['emoji', 'image'].includes(activeTool) && liveEmojiImgObj) {
                 liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
@@ -7690,6 +7857,10 @@
             hideCropOverlay();
             canvas.discardActiveObject();
 
+            // ★ 팝아웃 연결 보호: 개체 제거 전에 isHistoryAction을 true로 설정하여
+            //   object:removed 핸들러가 linkedOriginal/linkedLine 참조를 끊지 않도록 방지
+            isHistoryAction = true;
+
             // 1. 개체 목록 복사 후 캔버스에서 일시 제거 (배경만 남김)
             const objects = canvas.getObjects().slice();
             objects.forEach(o => canvas.remove(o));
@@ -7712,7 +7883,6 @@
 
                 // 3. 배경 이미지 교체
                 fabric.Image.fromURL(bgData, (img) => {
-                    isHistoryAction = true;
                     img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
                     canvas.setWidth(newW);
                     canvas.setHeight(newH);
@@ -7729,6 +7899,8 @@
                                 canvas.add(o);
                             }
                         });
+                        // ★ 자르기 후 팝아웃 linkedOriginal/linkedLine 참조 복원
+                        restorePopoutLinks();
                         panX = 0; panY = 0;
                         syncFabricContainerSize();
                         applyFitZoom(); applyCanvasClipping();
