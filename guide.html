@@ -474,6 +474,33 @@
                     <span>• <strong>도형 유형:</strong> 직사각형, 타원, 일반 직선, 세련된 화살표</span>
                     <span>• <strong>선 및 채우기:</strong> 선 굵기 조절, 점선 선택 및 도형 내부 채우기 배경색 지원</span>
                     <span>• <strong>화살표 모양:</strong> 삼각형, 스텔스형, 오픈형 헤드와 크기 제어</span>
+                    <span>• <strong>팝아웃 개체 변환:</strong> 선택한 도형을 캔버스 밖으로 입체적으로 튀어나온 듯한 '팝아웃' 개체로 변환할 수 있습니다. 팝아웃 개체는 원본 도형과 자동으로 연결선이 생성되며 원본 도형이나 팝아웃 개체를 이동 시 연결선이 자연스럽게 따라갑니다. (환경설정에서 팝아웃 각도, 입체감, 테두리, 그림자 등을 디테일하게 제어할 수 있습니다.)</span>
+                </div>
+            </div>
+
+            <div class="button-card">
+                <div class="button-header"><span class="button-icon"><svg class="lucide lucide-smile icon-small"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="10"/>
+  <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+  <line x1="9" y1="9" x2="9.01" y2="9"/>
+  <line x1="15" y1="9" x2="15.01" y2="9"/>
+</svg></span>
+ 이모티콘 도구 (Emoticon)</div>
+                <div class="feature-desc">풍성한 감정을 표현하는 이모티콘을 캔버스에 자유롭게 삽입합니다.</div>
+                <div class="sub-panel-box">
+                    <span class="sub-panel-title">옵션 상세</span>
+                    <span>• <strong>다양한 이모티콘 제공:</strong> 내장된 다양한 이모티콘을 클릭 한 번으로 손쉽게 삽입할 수 있습니다.</span>
+                    <span>• <strong>사용자 지정 이모티콘:</strong> 내 PC의 로컬 폴더를 커스텀 이모티콘 탭에 연결하여, 자신만의 이미지(PNG, JPG, SVG 등)를 이모티콘 패널에서 즉시 불러와 캔버스에 자유롭게 배치할 수 있습니다. 연결된 경로는 자동으로 저장되어 다음 실행 시에도 유지됩니다.</span>
                 </div>
             </div>
 
@@ -493,7 +520,7 @@
   <circle cx="9" cy="9" r="2" />
   <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
 </svg></span>
- 이미지 삽입 (Insert Image)</div>
+ 이미지 도구 (Image)</div>
                 <div class="feature-desc">로컬에 저장된 이미지나 스크롤 캡처 결과를 현재의 작업 화면 위에 얹어 결합시킵니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">전용 스마트 자르기</span>
@@ -518,10 +545,12 @@
   <path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97" />
 </svg></span>
  모자이크 도구 (Mosaic)</div>
-                <div class="feature-desc">개인정보나 민감한 영역을 간편하게 드래그하여 감각적인 픽셀 조각으로 가려줍니다.</div>
+                <div class="feature-desc">개인정보나 민감한 영역을 간편하게 드래그하거나 그려서 감각적인 픽셀 조각으로 가려줍니다.</div>
                 <div class="sub-panel-box">
-                    <span class="sub-panel-title">강도 조절</span>
-                    <span>• <strong>정밀 수치 조정:</strong> 최소 1부터 20단계 크기 조정을 통해 픽셀 크기를 자연스럽고 조화롭게 변환합니다.</span>
+                    <span class="sub-panel-title">옵션 상세</span>
+                    <span>• <strong>다양한 모양 지원:</strong> 기본 '직사각형' 외에도 '타원' 모양을 지원하며, 펜처럼 자유롭게 칠할 수 있는 '자유선' 모자이크 기능이 추가되었습니다.</span>
+                    <span>• <strong>자유선 곡선 자동 보정:</strong> '자유선' 모자이크를 그릴 때 마우스를 떼지 않고 0.5초간 멈춰있으면, 손떨림이 제거되고 매끄럽고 부드러운 곡선 형태로 마스킹 영역이 자동 보정되는 스마트 기능을 지원합니다.</span>
+                    <span>• <strong>환경설정 연동 및 강도 조절:</strong> 환경설정의 '모자이크 설정'에서 모자이크 블록 크기(픽셀 뭉개짐 정도)와 자유선 굵기의 기본값을 디테일하게 지정하고 영구 저장할 수 있습니다.</span>
                 </div>
             </div>
 
@@ -541,11 +570,10 @@
   <path d="M18 22V8a2 2 0 0 0-2-2H2" />
 </svg></span>
  자르기 도구 (Crop Canvas)</div>
-                <div class="feature-desc">전체 캔버스 영역 중 필요한 핵심 부분만 선별하여 전체 크기를 변경합니다.</div>
+                <div class="feature-desc">전체 캔버스 영역 중 필요한 핵심 부분만 선별하여 전체 크기를 축소하거나, 필요에 따라 캔버스 영역을 더 넓게 확장할 수도 있습니다.</div>
                 <div class="sub-panel-box">
                     <span class="sub-panel-title">캔버스 재정의</span>
-                    <span>• <strong>가변 컨트롤러:</strong> 선택 도우미 테두리의 핸들을 조절하여 원하는 중심 영역을 선정한 뒤 적용을 누르면 캔버스가 깔끔히
-                        정제됩니다.</span>
+                    <span>• <strong>가변 컨트롤러:</strong> 선택 도우미 테두리의 핸들을 조절하여 원하는 중심 영역을 선정한 뒤 적용을 누르면 캔버스가 깔끔히 정제됩니다. 테두리의 핸들을 캔버스 바깥으로 드래그하여 적용하면 캔버스의 영역이 확장됩니다.</span>
                 </div>
             </div>
         </div>
@@ -574,8 +602,8 @@
                 <div class="feature-list">
                     <div class="feature-item">
                         <span class="feature-item-icon">✓</span>
-                        <span class="feature-name">PNG / JPG</span>
-                        <span class="feature-desc">화질 저하 없이 원본 투명 배경 및 고해상도 그래픽 파일로 내보냅니다.</span>
+                        <span class="feature-name">PNG / JPG / SVG</span>
+                        <span class="feature-desc">화질 저하 없이 원본 투명 배경 및 고해상도 그래픽 파일로 내보내며, 특히 SVG 포맷을 통해 도형과 텍스트를 벡터 데이터가 살아있는 무손실 품질로 저장할 수 있습니다.</span>
                     </div>
                     <div class="feature-item">
                         <span class="feature-item-icon">✓</span>

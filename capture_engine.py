@@ -53,12 +53,18 @@ class CaptureOverlay(QWidget):
         self.screen_data = []
 
         with mss.mss() as sct:
-            for i, screen in enumerate(screens):
-                lr  = screen.geometry()   # 논리 픽셀 QRect
+            for screen in screens:
+                lr  = screen.geometry()   # 논리 픽셀 QRect (SetProcessDpiAwareness(2) 적용시 물리 픽셀과 동일)
                 dpr = screen.devicePixelRatio()
 
-                if i + 1 < len(sct.monitors):
-                    p_mon   = sct.monitors[i + 1]
+                p_mon = {
+                    "left": lr.x(),
+                    "top": lr.y(),
+                    "width": lr.width(),
+                    "height": lr.height()
+                }
+
+                try:
                     sct_img = sct.grab(p_mon)
                     img_arr = np.array(sct_img)  # BGRA
                     
@@ -67,7 +73,7 @@ class CaptureOverlay(QWidget):
                     qimg = QImage(img_arr_copy.data, w, h, w * c, QImage.Format.Format_ARGB32)
                     display_pixmap = QPixmap.fromImage(qimg)
                     display_pixmap.setDevicePixelRatio(dpr)
-                else:
+                except Exception:
                     p_mon   = None
                     img_arr = None
                     display_pixmap = QPixmap(int(lr.width() * dpr), int(lr.height() * dpr))

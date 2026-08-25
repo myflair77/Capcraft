@@ -543,6 +543,42 @@
             cursor: grabbing;
         }
 
+        .fit-controls {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        .fit-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            color: #334155;
+            transition: all 0.2s;
+        }
+        .fit-btn:hover {
+            background: #f1f5f9;
+            color: #2563eb;
+        }
+        body.dark-mode .fit-btn {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: #475569;
+            color: #cbd5e1;
+        }
+        body.dark-mode .fit-btn:hover {
+            background: #334155;
+            color: #60a5fa;
+        }
+
         #canvas_container_wrapper {
             position: absolute;
             top: 50%;
@@ -1722,6 +1758,15 @@
                 <div class="crop-corner" id="crop_corner_bl"></div>
                 <div class="crop-corner" id="crop_corner_br"></div>
             </div>
+        </div>
+
+        <div class="fit-controls">
+            <button class="fit-btn" id="btn_fit_width" title="가로 길이 맞춤" onclick="applyFitWidth()">
+                <i data-lucide="move-horizontal" class="icon-small"></i>
+            </button>
+            <button class="fit-btn" id="btn_fit_height" title="세로 길이 맞춤" onclick="applyFitHeight()">
+                <i data-lucide="move-vertical" class="icon-small"></i>
+            </button>
         </div>
     </div>
 
@@ -3353,6 +3398,26 @@
             updateCanvasTransform();
         }
 
+        function applyFitWidth() {
+            if (!hasActiveCanvas) return;
+            let wsRect = workspace.getBoundingClientRect();
+            let fitZoom = (wsRect.width - 40) / canvas.width;
+            if (fitZoom > 10.0) fitZoom = 10.0;
+            if (fitZoom < 0.1) fitZoom = 0.1;
+            currentZoom = fitZoom; panX = 0; panY = 0;
+            updateCanvasTransform();
+        }
+
+        function applyFitHeight() {
+            if (!hasActiveCanvas) return;
+            let wsRect = workspace.getBoundingClientRect();
+            let fitZoom = (wsRect.height - 40) / canvas.height;
+            if (fitZoom > 10.0) fitZoom = 10.0;
+            if (fitZoom < 0.1) fitZoom = 0.1;
+            currentZoom = fitZoom; panX = 0; panY = 0;
+            updateCanvasTransform();
+        }
+
         function pushCurrentToRecent() {
             if (!hasActiveCanvas) return;
             if (canvas.getObjects().length === 0 && !canvas.backgroundImage && (!canvas.backgroundColor || canvas.backgroundColor === 'transparent')) return;
@@ -4511,21 +4576,58 @@
         // ==========================================
         let pyBackend = null;
         let historySaveTimer = null;
+        let isSavingHistory = false;
+        let pendingHistorySave = false;
+
         function triggerHistorySave() {
             clearTimeout(historySaveTimer);
             historySaveTimer = setTimeout(() => {
-                if (pyBackend) {
-                    // bgImgCache(HTMLImageElement)와 jsonLight는 직렬화 불가 → 제외
-                    const cleanList = recentList.map(item => ({
-                        thumb: item.thumb,
-                        json: item.json,
-                        bgSrc: item.bgSrc,
-                        bgColor: item.bgColor,
-                        width: item.width,
-                        height: item.height,
-                        time: item.time
-                    }));
-                    pyBackend.save_history(JSON.stringify(cleanList));
+                if (!pyBackend) return;
+                if (isSavingHistory) {
+                    pendingHistorySave = true;
+                    return;
+                }
+                isSavingHistory = true;
+
+                // bgImgCache(HTMLImageElement)와 jsonLight는 직렬화 불가 → 제외
+                const cleanList = recentList.map(item => ({
+                    thumb: item.thumb,
+                    json: item.json,
+                    bgSrc: item.bgSrc,
+                    bgColor: item.bgColor,
+                    width: item.width,
+                    height: item.height,
+                    time: item.time
+                }));
+
+                const fullStr = JSON.stringify(cleanList);
+                if (pyBackend.save_history_chunk) {
+                    const chunkSize = 1024 * 1024 * 2; // 2MB chunk
+                    let i = 0;
+                    function sendNext() {
+                        if (i < fullStr.length) {
+                            const chunk = fullStr.substring(i, i + chunkSize);
+                            const is_first = (i === 0);
+                            const is_last = (i + chunkSize >= fullStr.length);
+                            pyBackend.save_history_chunk(chunk, is_first, is_last);
+                            i += chunkSize;
+                            setTimeout(sendNext, 5);
+                        } else {
+                            isSavingHistory = false;
+                            if (pendingHistorySave) {
+                                pendingHistorySave = false;
+                                triggerHistorySave();
+                            }
+                        }
+                    }
+                    sendNext();
+                } else {
+                    pyBackend.save_history(fullStr);
+                    isSavingHistory = false;
+                    if (pendingHistorySave) {
+                        pendingHistorySave = false;
+                        triggerHistorySave();
+                    }
                 }
             }, 1000);
         }

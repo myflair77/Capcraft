@@ -253,6 +253,15 @@ class Backend(QObject):
         except Exception as e:
             print("Failed to save history:", e)
 
+    @pyqtSlot(str, bool, bool)
+    def save_history_chunk(self, chunk, is_first, is_last):
+        try:
+            mode = "w" if is_first else "a"
+            with open(HISTORY_FILE, mode, encoding="utf-8") as f:
+                f.write(chunk)
+        except Exception as e:
+            print("Failed to save history chunk:", e)
+
     @pyqtSlot(result=str)
     def load_history(self):
         cleanup_history_if_rebooted()
