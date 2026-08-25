@@ -2301,6 +2301,7 @@
         function toggleEdgeGlow(e, isActive) {
             const objs = e.selected || e.deselected || [];
             objs.forEach(obj => {
+                if (obj.__isLineHandle) return;
                 obj.set({
                     hasBorders: isActive,
                     hasControls: isActive,
@@ -2332,7 +2333,7 @@
 
         function updateObjectControls(e) {
             const obj = e.selected[0];
-            if (!obj) return;
+            if (!obj || obj.__isLineHandle) return;
             if (['rect', 'ellipse', 'polygon'].includes(obj.type) && !obj.linkedText) {
                 obj.setControlVisible('addText', true);
             } else {
@@ -2367,21 +2368,138 @@
 
             }
 
-            if (['rect', 'ellipse', 'polygon', 'path'].includes(obj.type) && !obj.isPopout) {
+            if (['rect', 'ellipse', 'polygon', 'path', 'group', 'line'].includes(obj.type) && !obj.isPopout) {
                 obj.setControlVisible('popOut', true);
+
+                const isShape = ['rect', 'ellipse', 'polygon', 'line'].includes(obj.type) || (obj.type === 'path' && obj.isArrowBody) || obj.type === 'group';
+                const isPen = obj.type === 'path' && !obj.isArrowBody;
+
+                if (isShape || isPen) {
+                    const sub = document.getElementById('sub_toolbar');
+                    sub.style.display = 'block';
+                    const tbRect = document.getElementById('toolbar').getBoundingClientRect();
+                    sub.style.top = (tbRect.bottom + 10) + 'px';
+
+                    const btnId = isShape ? 'btn_tool_shapes' : 'btn_tool_pen';
+                    const targetBtn = document.getElementById(btnId);
+                    if (targetBtn) {
+                        const targetRect = targetBtn.getBoundingClientRect();
+                        sub.style.left = targetRect.left + 'px';
+                        sub.style.transform = 'none';
+                        // 화면 경계 초과 방지
+                        requestAnimationFrame(() => {
+                            const subRect = sub.getBoundingClientRect();
+                            if (subRect.right > window.innerWidth - 10) {
+                                sub.style.left = Math.max(10, window.innerWidth - subRect.width - 10) + 'px';
+                            }
+                        });
+                    } else {
+                        sub.style.left = '50%';
+                        sub.style.transform = 'translateX(-50%)';
+                    }
+
+                    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                    document.querySelectorAll('.btn-tool.group-edit').forEach(b => b.classList.remove('active'));
+
+                    if (isShape) {
+                        document.getElementById('panel_shape').classList.add('active');
+                        document.querySelectorAll('#shape_type_group button').forEach(b => b.classList.remove('active'));
+                        // 그룹 객체(화살표 등)는 내부 요소에서 속성을 읽음
+                        const propSource = (obj.type === 'group' && obj._objects && obj._objects[0]) ? obj._objects[0] : obj;
+                        const sw = propSource.strokeWidth;
+                        if (sw !== undefined) document.getElementById('shape_weight').value = sw;
+                        if (propSource.stroke) document.getElementById('btn_stroke_color').style.backgroundColor = propSource.stroke;
+                        let fCol = propSource.fill;
+                        if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') fCol = 'transparent';
+                        if (fCol && fCol !== 'transparent') {
+                            document.getElementById('btn_fill_color').style.backgroundImage = 'none';
+                            document.getElementById('btn_fill_color').style.backgroundColor = fCol;
+                            if (fCol.indexOf('rgba') > -1) {
+                                const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
+                                if (m && m[1]) document.getElementById('shape_bg_opacity_input').value = Math.round(parseFloat(m[1]) * 100);
+                            } else {
+                                document.getElementById('shape_bg_opacity_input').value = 100;
+                            }
+                        } else {
+                            document.getElementById('btn_fill_color').style.backgroundColor = 'transparent';
+                            document.getElementById('btn_fill_color').style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
+                            document.getElementById('shape_bg_opacity_input').value = 0;
+                        }
+                    } else if (isPen) {
+                        document.getElementById('panel_pen').classList.add('active');
+                        document.querySelectorAll('#pen_type_group button').forEach(b => b.classList.remove('active'));
+                        if (obj.strokeWidth !== undefined) document.getElementById('pen_weight').value = obj.strokeWidth;
+                        if (obj.stroke) document.getElementById('btn_pen_color').style.backgroundColor = obj.stroke;
+                        document.getElementById('pen_dashed').checked = (obj.strokeDashArray && obj.strokeDashArray.length > 0);
+                        
+                        let fCol = obj.fill;
+                        if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') fCol = 'transparent';
+                        if (fCol && fCol !== 'transparent') {
+                            document.getElementById('btn_pen_bg').style.backgroundImage = 'none';
+                            document.getElementById('btn_pen_bg').style.backgroundColor = fCol;
+                            if (fCol.indexOf('rgba') > -1) {
+                                const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
+                                if (m && m[1]) document.getElementById('pen_bg_opacity_input').value = Math.round(parseFloat(m[1]) * 100);
+                            } else {
+                                document.getElementById('pen_bg_opacity_input').value = 100;
+                            }
+                        } else {
+                            document.getElementById('btn_pen_bg').style.backgroundColor = 'transparent';
+                            document.getElementById('btn_pen_bg').style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
+                            document.getElementById('pen_bg_opacity_input').value = 0;
+                        }
+                    }
+                }
             } else {
                 obj.setControlVisible('popOut', false);
             }
         }
 
-        canvas.on('selection:created', (e) => { toggleEdgeGlow(e, true); canvas.requestRenderAll(); });
+        canvas.on('selection:created', (e) => { 
+            toggleEdgeGlow(e, true); 
+            if (e.selected && e.selected.length === 1 && e.selected[0].__capcraftPoints) {
+                if (typeof makeLineControls === 'function') makeLineControls(e.selected[0]);
+            }
+            canvas.requestRenderAll(); 
+        });
         canvas.on('selection:updated', (e) => {
             toggleEdgeGlow({ deselected: e.deselected }, false);
             toggleEdgeGlow({ selected: e.selected }, true);
+            
+            // 핸들이 선택된 경우: 부모 선분의 핸들을 제거하지 않음
+            const selectedHandle = e.selected && e.selected.length === 1 && e.selected[0].__isLineHandle ? e.selected[0] : null;
+            
+            if (e.deselected) {
+                e.deselected.forEach(obj => {
+                    if (obj.__capcraftHandles) {
+                        // 선택된 것이 이 선분의 핸들이면 제거하지 않음
+                        if (selectedHandle && selectedHandle.__handleParentLine === obj) return;
+                        removeLineHandles(obj);
+                    }
+                    // 핸들이 deselected되는 경우 부모 선분의 핸들도 제거
+                    if (obj.__isLineHandle && obj.__handleParentLine) {
+                        if (selectedHandle && selectedHandle.__handleParentLine === obj.__handleParentLine) return;
+                        removeLineHandles(obj.__handleParentLine);
+                    }
+                });
+            }
+            if (!selectedHandle && e.selected && e.selected.length === 1 && e.selected[0].__capcraftPoints) {
+                if (typeof makeLineControls === 'function') makeLineControls(e.selected[0]);
+            }
             canvas.requestRenderAll();
         });
         canvas.on('selection:cleared', (e) => {
             const deselected = e.deselected || canvas.getObjects();
+            deselected.forEach(obj => {
+                delete obj._capcraftBaseLeft;
+                delete obj._capcraftBaseTop;
+                delete obj._capcraftBasePts;
+                // 선분 핸들 제거 (핸들 자체가 deselected되는 경우는 부모의 핸들을 제거)
+                if (obj.__capcraftHandles) removeLineHandles(obj);
+                if (obj.__isLineHandle && obj.__handleParentLine) {
+                    removeLineHandles(obj.__handleParentLine);
+                }
+            });
             toggleEdgeGlow({ deselected: deselected }, false);
             canvas.requestRenderAll();
         });
@@ -2403,7 +2521,11 @@
 
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (activeObj) {
-                    canvas.getActiveObjects().forEach(obj => canvas.remove(obj));
+                    canvas.getActiveObjects().forEach(obj => {
+                        if (obj.__isLineHandle) return; // 핸들 자체는 삭제하지 않음
+                        if (obj.__capcraftHandles) removeLineHandles(obj); // 선분 삭제 시 핸들도 제거
+                        canvas.remove(obj);
+                    });
                     canvas.discardActiveObject();
                     saveHistory();
                 }
@@ -2864,6 +2986,23 @@
             });
         }
 
+        function restoreLineLinks() {
+            const objs = canvas.getObjects();
+            const idMap = {};
+            objs.forEach(obj => { if (obj.id) idMap[obj.id] = obj; });
+
+            objs.forEach(obj => {
+                if (obj.__capcraftPoints) {
+                    if (obj.startLinkedObjId && idMap[obj.startLinkedObjId]) {
+                        obj.startLinkedObj = idMap[obj.startLinkedObjId];
+                    }
+                    if (obj.endLinkedObjId && idMap[obj.endLinkedObjId]) {
+                        obj.endLinkedObj = idMap[obj.endLinkedObjId];
+                    }
+                }
+            });
+        }
+
         // ★ Undo/Redo 후 팝아웃의 linkedOriginal / linkedLine 객체 참조를 ID 기반으로 복원
         function restorePopoutLinks() {
             const objs = canvas.getObjects();
@@ -3288,6 +3427,27 @@
                     updatePopoutLine(o);
                 }
             });
+            if (e.target.type === 'activeSelection') {
+                e.target.forEachObject(subObj => {
+                    if (typeof updateLinkedLinesOnTransform === 'function') updateLinkedLinesOnTransform(subObj);
+                    if (subObj.__capcraftPoints) { subObj.startLinkedObj = null; subObj.endLinkedObj = null; }
+                });
+            } else {
+                if (typeof updateLinkedLinesOnTransform === 'function') updateLinkedLinesOnTransform(e.target);
+                if (e.target.__capcraftPoints) { e.target.startLinkedObj = null; e.target.endLinkedObj = null; }
+            }
+        });
+
+        canvas.on('object:rotating', function(e) {
+            if (e.target.type === 'activeSelection') {
+                e.target.forEachObject(subObj => {
+                    if (typeof updateLinkedLinesOnTransform === 'function') updateLinkedLinesOnTransform(subObj);
+                    if (subObj.__capcraftPoints) { subObj.startLinkedObj = null; subObj.endLinkedObj = null; }
+                });
+            } else {
+                if (typeof updateLinkedLinesOnTransform === 'function') updateLinkedLinesOnTransform(e.target);
+                if (e.target.__capcraftPoints) { e.target.startLinkedObj = null; e.target.endLinkedObj = null; }
+            }
         });
 
         canvas.on('object:removed', function(e) {
@@ -3306,8 +3466,267 @@
             }
         });
 
+        function updateLinkedLinesOnTransform(movedObj) {
+            const objs = canvas.getObjects().slice();
+            for (let i = 0; i < objs.length; i++) {
+                const lineObj = objs[i];
+                if (lineObj === movedObj) continue;
+                if (!lineObj.__capcraftPoints) continue;
+                
+                let isLinked = false;
+                if (lineObj.startLinkedObj === movedObj) isLinked = true;
+                if (lineObj.endLinkedObj === movedObj) isLinked = true;
+                if (!isLinked) continue;
+
+                // 이동된 객체에 연결된 포인트만 업데이트 (다른 쪽은 건드리지 않음)
+                let pts = lineObj.__capcraftPoints;
+                if (lineObj.startLinkedObj === movedObj) {
+                    let snapData = calculateBoundarySnap(pts[0], canvas, lineObj, movedObj);
+                    if (snapData) pts[0] = snapData.pt;
+                }
+                if (lineObj.endLinkedObj === movedObj) {
+                    let snapData = calculateBoundarySnap(pts[pts.length - 1], canvas, lineObj, movedObj);
+                    if (snapData) pts[pts.length - 1] = snapData.pt;
+                }
+                // 링크 참조 임시 해제 (updateLineGeometryInPlace 내의 중복 재스냅 방지)
+                const savedStart = lineObj.startLinkedObj;
+                const savedEnd = lineObj.endLinkedObj;
+                lineObj.startLinkedObj = null;
+                lineObj.endLinkedObj = null;
+                updateLineGeometryInPlace(lineObj);
+                // 링크 참조 복원
+                lineObj.startLinkedObj = savedStart;
+                lineObj.endLinkedObj = savedEnd;
+            }
+        }
+
+        function createLineShapeFromPoints(lineObj, newPts, forceStart, forceEnd) {
+            let startLinked = forceStart !== undefined ? forceStart : lineObj.startLinkedObj;
+            let endLinked = forceEnd !== undefined ? forceEnd : lineObj.endLinkedObj;
+
+            if (startLinked) {
+                let snapData = calculateBoundarySnap(newPts[0], canvas, lineObj, startLinked);
+                if (snapData) { newPts[0] = snapData.pt; } else { startLinked = null; }
+            }
+            if (endLinked) {
+                let snapData = calculateBoundarySnap(newPts[newPts.length - 1], canvas, lineObj, endLinked);
+                if (snapData) { newPts[newPts.length - 1] = snapData.pt; } else { endLinked = null; }
+            }
+
+            let newShape;
+            let arrowHeadObj = null;
+            let lType = lineObj.__capcraftLineType;
+            let strokeColor = lineObj.stroke || (lineObj.isArrowGroup ? lineObj._objects[0].stroke : '#ff0000');
+            let weight = lineObj.strokeWidth || (lineObj.isArrowGroup ? lineObj._objects[0].strokeWidth : 5);
+            let dashArr = lineObj.strokeDashArray || (lineObj.isArrowGroup ? lineObj._objects[0].strokeDashArray : null);
+
+            if (lType === 'pen_straight' || lType === 'normal') {
+                let p1 = newPts[0]; let p2 = newPts[1];
+                let origX = p1.x; let origY = p1.y; let endX = p2.x; let endY = p2.y;
+
+                if (lType === 'pen_straight') {
+                    newShape = new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`, {
+                        fill: 'transparent', stroke: strokeColor, strokeWidth: weight,
+                        strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
+                        selectable: true, isTemp: false, objectCaching: false
+                    });
+                } else if (lType === 'normal') {
+                    let angle = Math.atan2(endY - origY, endX - origX);
+                    let sysArrowType = lineObj.arrowType || (lineObj.isArrowGroup ? lineObj.arrowType : null);
+                    let sysArrowSize = lineObj.arrowSize || (lineObj.isArrowGroup ? lineObj.arrowSize : null);
+                    let pullBack = 0;
+                    if (sysArrowType) {
+                        const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                        const w = weight * sizeMult + 8;
+                        pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
+                        arrowHeadObj = createArrowHead(endX, endY, angle, sysArrowType, sysArrowSize, strokeColor, weight);
+                    }
+                    let lineEndX = endX - Math.cos(angle) * pullBack;
+                    let lineEndY = endY - Math.sin(angle) * pullBack;
+                    newShape = new fabric.Path(`M ${origX} ${origY} L ${lineEndX} ${lineEndY}`, {
+                        fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr,
+                        selectable: true, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: false, isArrowBody: true
+                    });
+                }
+            } else {
+                let renderPts = JSON.parse(JSON.stringify(newPts));
+                let sysArrowType = lineObj.arrowType || (lineObj.isArrowGroup ? lineObj.arrowType : null);
+                let sysArrowSize = lineObj.arrowSize || (lineObj.isArrowGroup ? lineObj.arrowSize : null);
+
+                if (sysArrowType && renderPts.length > 1) {
+                    let p2 = renderPts[renderPts.length - 1]; let p1 = renderPts[renderPts.length - 2];
+                    for (let j = renderPts.length - 2; j >= 0; j--) {
+                        if (Math.hypot(renderPts[j].x - p2.x, renderPts[j].y - p2.y) > 3) { p1 = renderPts[j]; break; }
+                    }
+                    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const w = weight * sizeMult + 8;
+                    let pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
+                    
+                    let lineEndX = p2.x - Math.cos(angle) * pullBack; let lineEndY = p2.y - Math.sin(angle) * pullBack;
+                    renderPts[renderPts.length - 1] = { x: lineEndX, y: lineEndY };
+                    arrowHeadObj = createArrowHead(p2.x, p2.y, angle, sysArrowType, sysArrowSize, strokeColor, weight);
+                }
+
+                let newPathStr = lType === 'curve' ? getSmoothCurvePath(renderPts) : renderPts.reduce((acc, pt, idx) => acc + (idx === 0 ? 'M' : 'L') + ` ${pt.x} ${pt.y} `, '');
+                newShape = new fabric.Path(newPathStr, {
+                    fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr,
+                    selectable: true, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: false, isArrowBody: !!sysArrowType
+                });
+            }
+
+            let finalObj = newShape;
+            if (arrowHeadObj) {
+                finalObj = new fabric.Group([newShape, arrowHeadObj], { selectable: true, isArrowGroup: true });
+                finalObj.arrowType = lineObj.arrowType || (lineObj.isArrowGroup ? lineObj.arrowType : null);
+                finalObj.arrowSize = lineObj.arrowSize || (lineObj.isArrowGroup ? lineObj.arrowSize : null);
+            }
+            finalObj.startLinkedObj = startLinked;
+            finalObj.endLinkedObj = endLinked;
+            return finalObj;
+        }
+
+        function updateLineGeometryInPlace(target) {
+            let newObj = createLineShapeFromPoints(target, target.__capcraftPoints);
+            if (target.isArrowGroup) {
+                target._objects = newObj._objects;
+                if (target._objects) target._objects.forEach(o => { o.group = target; o.dirty = true; });
+            } else {
+                target.path = newObj.path;
+            }
+            target.left = newObj.left;
+            target.top = newObj.top;
+            target.width = newObj.width;
+            target.height = newObj.height;
+            target.pathOffset = newObj.pathOffset;
+            target.dirty = true;
+            target.setCoords();
+            
+            target.startLinkedObj = newObj.startLinkedObj;
+            target.endLinkedObj = newObj.endLinkedObj;
+            canvas.requestRenderAll();
+        }
+
+        function recalculateAndRedrawLine(lineObj, forceBreakLink) {
+            let newPts = JSON.parse(JSON.stringify(lineObj.__capcraftPoints));
+            let startLinked = forceBreakLink ? null : lineObj.startLinkedObj;
+            let endLinked = forceBreakLink ? null : lineObj.endLinkedObj;
+
+            let finalObj = createLineShapeFromPoints(lineObj, newPts, startLinked, endLinked);
+            finalObj.__capcraftPoints = newPts;
+            finalObj.__capcraftLineType = lineObj.__capcraftLineType;
+            finalObj.__shapeJustSelected = lineObj.__shapeJustSelected;
+
+            let idx = canvas.getObjects().indexOf(lineObj);
+            canvas.remove(lineObj);
+            canvas.insertAt(finalObj, idx, false);
+            
+            if (canvas.getActiveObject() === lineObj) {
+                canvas.setActiveObject(finalObj);
+                if (typeof makeLineControls === 'function') makeLineControls(finalObj);
+            }
+            canvas.requestRenderAll();
+        }
+
+        function removeLineHandles(lineObj) {
+            if (lineObj && lineObj.__capcraftHandles) {
+                lineObj.__capcraftHandles.forEach(h => {
+                    if (h.canvas) h.canvas.remove(h);
+                });
+                lineObj.__capcraftHandles = null;
+                // 선분 이동/크기조절 제한 해제 (makeLineControls에서 설정했던 것을 복원)
+                lineObj.set({
+                    lockMovementX: false,
+                    lockMovementY: false,
+                    lockScalingX: false,
+                    lockScalingY: false,
+                    lockRotation: false
+                });
+            }
+        }
+
+        function makeLineControls(lineObj) {
+            if (!lineObj || !lineObj.__capcraftPoints || !Array.isArray(lineObj.__capcraftPoints)) return;
+            
+            // 기존 핸들 제거
+            removeLineHandles(lineObj);
+            
+            lineObj.set({
+                hasControls: false, 
+                hasBorders: false,
+                lockScalingX: true,
+                lockScalingY: true,
+                lockRotation: true,
+                lockMovementX: true,
+                lockMovementY: true
+            });
+
+            const handles = [];
+            const pts = lineObj.__capcraftPoints;
+
+            for (let i = 0; i < pts.length; i++) {
+                const handle = new fabric.Circle({
+                    left: pts[i].x,
+                    top: pts[i].y,
+                    radius: 6,
+                    fill: '#ffffff',
+                    stroke: '#2563eb',
+                    strokeWidth: 2,
+                    originX: 'center',
+                    originY: 'center',
+                    hasControls: false,
+                    hasBorders: false,
+                    selectable: true,
+                    evented: true,
+                    objectCaching: false,
+                    isTemp: true
+                });
+                // 순환참조 방지: non-enumerable로 설정하여 toObject 직렬화에서 제외
+                Object.defineProperty(handle, '__isLineHandle', { value: true, writable: true, enumerable: false });
+                Object.defineProperty(handle, '__handlePointIndex', { value: i, writable: true, enumerable: false });
+                Object.defineProperty(handle, '__handleParentLine', { value: lineObj, writable: true, enumerable: false });
+                canvas.add(handle);
+                handles.push(handle);
+            }
+            // 순환참조 방지: non-enumerable로 설정
+            Object.defineProperty(lineObj, '__capcraftHandles', { value: handles, writable: true, enumerable: false, configurable: true });
+        }
+
         canvas.on('object:moving', (e) => {
             const obj = e.target;
+
+            // ★ 선분 핸들 드래그 처리
+            if (obj.__isLineHandle) {
+                const parentLine = obj.__handleParentLine;
+                const idx = obj.__handlePointIndex;
+                if (!parentLine || !parentLine.__capcraftPoints) return;
+
+                const handleX = obj.left;
+                const handleY = obj.top;
+
+                // 시점/종점은 스냅 적용
+                let snapData = null;
+                if (idx === 0 || idx === parentLine.__capcraftPoints.length - 1) {
+                    snapData = calculateBoundarySnap({x: handleX, y: handleY}, canvas, parentLine, null);
+                }
+
+                if (snapData) {
+                    parentLine.__capcraftPoints[idx] = snapData.pt;
+                    obj.set({ left: snapData.pt.x, top: snapData.pt.y });
+                    if (idx === 0) parentLine.startLinkedObj = snapData.target;
+                    else parentLine.endLinkedObj = snapData.target;
+                    updateSnapMarker(canvas, snapData.pt);
+                } else {
+                    parentLine.__capcraftPoints[idx] = { x: handleX, y: handleY };
+                    if (idx === 0) parentLine.startLinkedObj = null;
+                    else if (idx === parentLine.__capcraftPoints.length - 1) parentLine.endLinkedObj = null;
+                    updateSnapMarker(canvas, null);
+                }
+
+                updateLineGeometryInPlace(parentLine);
+                return; // 핸들은 일반 이동 처리 안 함
+            }
+
             const cw = canvas.width;
             const ch = canvas.height;
 
@@ -3350,6 +3769,52 @@
                 obj.linkedShape.set({ angle: obj.angle });
                 obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
                 obj.linkedShape.setCoords();
+            }
+
+            if (obj.type === 'activeSelection') {
+                if (obj._capcraftBaseLeft === undefined) {
+                    obj._capcraftBaseLeft = obj.left;
+                    obj._capcraftBaseTop = obj.top;
+                    obj.forEachObject(subObj => {
+                        if (subObj.__capcraftPoints) {
+                            subObj._capcraftBasePts = JSON.parse(JSON.stringify(subObj.__capcraftPoints));
+                        }
+                    });
+                }
+                let dx = obj.left - obj._capcraftBaseLeft;
+                let dy = obj.top - obj._capcraftBaseTop;
+
+                obj.forEachObject(subObj => {
+                    updateLinkedLinesOnTransform(subObj);
+                    if (subObj.__capcraftPoints) {
+                        subObj.startLinkedObj = null;
+                        subObj.endLinkedObj = null;
+                        if (subObj._capcraftBasePts) {
+                            for (let i = 0; i < subObj.__capcraftPoints.length; i++) {
+                                subObj.__capcraftPoints[i].x = subObj._capcraftBasePts[i].x + dx;
+                                subObj.__capcraftPoints[i].y = subObj._capcraftBasePts[i].y + dy;
+                            }
+                        }
+                    }
+                });
+            } else {
+                updateLinkedLinesOnTransform(obj);
+                if (obj.__capcraftPoints) {
+                    if (obj._capcraftBaseLeft === undefined) {
+                        obj._capcraftBaseLeft = obj.left;
+                        obj._capcraftBaseTop = obj.top;
+                        obj._capcraftBasePts = JSON.parse(JSON.stringify(obj.__capcraftPoints));
+                    }
+                    let dx = obj.left - obj._capcraftBaseLeft;
+                    let dy = obj.top - obj._capcraftBaseTop;
+                    
+                    obj.startLinkedObj = null;
+                    obj.endLinkedObj = null;
+                    for (let i = 0; i < obj.__capcraftPoints.length; i++) {
+                        obj.__capcraftPoints[i].x = obj._capcraftBasePts[i].x + dx;
+                        obj.__capcraftPoints[i].y = obj._capcraftBasePts[i].y + dy;
+                    }
+                }
             }
         });
 
@@ -3424,7 +3889,7 @@
 
             const thumbMult = Math.min(200 / Math.max(10, canvas.width), 1.0);
             const thumb = canvas.toDataURL({ format: 'png', multiplier: thumbMult });
-            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop', '__capcraftPoints', '__capcraftLineType', 'startLinkedObjId', 'endLinkedObjId', 'isArrowGroup', 'arrowType', 'arrowSize', 'isArrowBody']));
 
             // 배경 이미지 URL 및 배경색 추출
             const bgImg = canvas.backgroundImage;
@@ -3596,6 +4061,7 @@
                     enableTools();
                     applyFitZoom();
                     applyCanvasClipping();
+                    restoreLineLinks();
                     canvas.renderAll();
                     initHistory();
                     isHistoryAction = false;
@@ -3672,7 +4138,7 @@
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
-            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop', '__capcraftPoints', '__capcraftLineType', 'startLinkedObjId', 'endLinkedObjId', 'isArrowGroup', 'arrowType', 'arrowSize', 'isArrowBody']));
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
@@ -3689,7 +4155,11 @@
             const bgColor = canvas.backgroundColor;
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
-            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
+            // 핸들 객체는 직렬화에서 제외 (이벤트를 발생시키지 않도록 _objects를 직접 교체)
+            const origObjects = canvas._objects;
+            canvas._objects = origObjects.filter(o => !o.__isLineHandle);
+            const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop', '__capcraftPoints', '__capcraftLineType', 'startLinkedObjId', 'endLinkedObjId', 'isArrowGroup', 'arrowType', 'arrowSize', 'isArrowBody']));
+            canvas._objects = origObjects;
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
@@ -3803,6 +4273,22 @@
         }
 
         canvas.on('object:modified', (e) => {
+            // 핸들 드래그 완료 시 처리
+            if (e.target && e.target.__isLineHandle) {
+                const parentLine = e.target.__handleParentLine;
+                if (parentLine && parentLine.__capcraftHandles) {
+                    // 핸들 위치를 최종 포인트 위치에 동기화
+                    const pts = parentLine.__capcraftPoints;
+                    parentLine.__capcraftHandles.forEach((h, i) => {
+                        if (pts[i]) h.set({ left: pts[i].x, top: pts[i].y });
+                    });
+                }
+                updateSnapMarker(canvas, null);
+                if (!isHistoryAction) {
+                    saveHistory();
+                }
+                return;
+            }
             if (e.target && (e.target.scaleX !== 1 || e.target.scaleY !== 1)) {
                 // Skip normalizeScale for shapes with linked text (rect/ellipse)
                 // because normalizeScale recreates the object and breaks the linkedText binding
@@ -3825,6 +4311,19 @@
                     normalizeScale(e.target);
                 }
             }
+            if (e.target) {
+                if (e.target.type === 'activeSelection') {
+                    e.target.forEachObject(subObj => {
+                        delete subObj._capcraftBaseLeft;
+                        delete subObj._capcraftBaseTop;
+                        delete subObj._capcraftBasePts;
+                    });
+                }
+                delete e.target._capcraftBaseLeft;
+                delete e.target._capcraftBaseTop;
+                delete e.target._capcraftBasePts;
+            }
+
             if (!isHistoryAction) {
                 saveHistory();
                 // 썸네일 갱신 (디바운스 800ms)
@@ -4021,6 +4520,50 @@
                 } else if (['text_bg', 'set_text_bg', 'edit_text_b'].includes(targetColorBtn)) {
                     updateActiveText('backgroundColor', getTextBgOpacity());
                 }
+                
+                const activeObj = canvas.getActiveObject();
+                if (activeObj && !activeObj.isPopout) {
+                    const isShape = ['rect', 'ellipse', 'polygon', 'line'].includes(activeObj.type) || (activeObj.type === 'path' && activeObj.isArrowBody) || activeObj.type === 'group';
+                    const isPen = activeObj.type === 'path' && !activeObj.isArrowBody;
+                    
+                    if (isShape && (targetColorBtn === 'stroke' || targetColorBtn === 'fill')) {
+                        if (targetColorBtn === 'stroke') {
+                            activeObj.set({ stroke: strokeColor });
+                            if (activeObj.type === 'group') {
+                                activeObj.getObjects().forEach(o => { if (o.isArrowBody || o.isArrowHead) o.set({ stroke: strokeColor }); });
+                            }
+                        } else {
+                            let fColor = c.h;
+                            if (fColor !== 'transparent') {
+                                let op = parseInt(document.getElementById('shape_bg_opacity_input').value) || 0;
+                                if (op === 0) {
+                                    op = parseInt(document.getElementById('set_shape_opacity_val') ? document.getElementById('set_shape_opacity_val').value : 20) || 20;
+                                    document.getElementById('shape_bg_opacity_input').value = op;
+                                }
+                                fColor = new fabric.Color(fColor).setAlpha(op / 100).toRgba();
+                            }
+                            activeObj.set({ fill: fColor });
+                        }
+                        canvas.requestRenderAll();
+                    } else if (isPen && (targetColorBtn === 'pen' || targetColorBtn === 'btn_pen_bg' || targetColorBtn === 'set_pen_bg')) {
+                        if (targetColorBtn === 'pen') {
+                            activeObj.set({ stroke: penCurrentColor });
+                        } else {
+                            let fColor = c.h;
+                            if (fColor !== 'transparent') {
+                                let op = parseInt(document.getElementById('pen_bg_opacity_input').value) || 0;
+                                if (op === 0) {
+                                    op = parseInt(document.getElementById('set_pen_bg_opacity') ? document.getElementById('set_pen_bg_opacity').value : 15) || 15;
+                                    document.getElementById('pen_bg_opacity_input').value = op;
+                                }
+                                fColor = new fabric.Color(fColor).setAlpha(op / 100).toRgba();
+                            }
+                            activeObj.set({ fill: fColor });
+                        }
+                        canvas.requestRenderAll();
+                    }
+                }
+
                 if (targetColorBtn === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
                     // Update stroke color for straight line mode
                 }
@@ -4151,6 +4694,9 @@
         updateShapeOptions();
 
         let activeTool = null; let isDrawing = false; let origX, origY;
+        let capStartX = 0, capStartY = 0;
+        let tempStartLinkedObj = null; let tempEndLinkedObj = null;
+        let currentLogicalPoints = []; let currentLineType = '';
         let currentShape = null; let liveEmojiImgObj = null; let arrowHead = null;
         let selectedEmoji = '😀'; let selectedEmojiUrl = null; let uploadedImageSrc = null;
         let customEmojiFolders = [];
@@ -4810,7 +5356,7 @@
             let blob, suggestedName, mime;
 
             if (format === 'json') {
-                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor', 'id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop']));
+                const jsonStr = JSON.stringify(canvas.toJSON(['width', 'height', 'backgroundColor', 'id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop', '__capcraftPoints', '__capcraftLineType', 'startLinkedObjId', 'endLinkedObjId', 'isArrowGroup', 'arrowType', 'arrowSize', 'isArrowBody']));
                 blob = new Blob([jsonStr], { type: "application/json" });
                 suggestedName = `${baseName}.json`;
                 mime = 'application/json';
@@ -5093,14 +5639,20 @@
 
         document.getElementById('pen_weight').addEventListener('input', (e) => {
             const val = parseInt(e.target.value) || 1;
-            if (document.getElementById('pen_type').value === 'ballpoint') {
-                sysPenBallpointWeight = val;
-                document.getElementById('set_pen_ballpoint_weight').value = val;
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
+                activeObj.set({ strokeWidth: val });
+                canvas.requestRenderAll();
             } else {
-                sysPenHighlighterWeight = val;
-                document.getElementById('set_pen_highlighter_weight').value = val;
+                if (document.getElementById('pen_type').value === 'ballpoint') {
+                    sysPenBallpointWeight = val;
+                    document.getElementById('set_pen_ballpoint_weight').value = val;
+                } else {
+                    sysPenHighlighterWeight = val;
+                    document.getElementById('set_pen_highlighter_weight').value = val;
+                }
+                updatePenBrush();
             }
-            updatePenBrush();
         });
 
         document.getElementById('pen_highlighter_intensity_input').addEventListener('input', (e) => {
@@ -5113,10 +5665,72 @@
             
             document.getElementById('set_pen_highlighter_opacity').value = intensity;
             document.getElementById('set_pen_highlighter_color').style.backgroundColor = penCurrentColor;
-            updatePenBrush();
+            
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
+                activeObj.set({ stroke: penCurrentColor });
+                canvas.requestRenderAll();
+            } else {
+                updatePenBrush();
+            }
         });
 
-        document.getElementById('pen_dashed').addEventListener('change', updatePenBrush);
+        document.getElementById('pen_dashed').addEventListener('change', (e) => {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
+                activeObj.set({ strokeDashArray: e.target.checked ? [activeObj.strokeWidth * 3, activeObj.strokeWidth * 3] : null });
+                canvas.requestRenderAll();
+            } else {
+                updatePenBrush();
+            }
+        });
+        
+        document.getElementById('shape_weight').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value) || 1;
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && !activeObj.isPopout) {
+                const isShape = ['rect', 'ellipse', 'polygon', 'line'].includes(activeObj.type) || (activeObj.type === 'path' && activeObj.isArrowBody) || activeObj.type === 'group';
+                if (isShape) {
+                    activeObj.set({ strokeWidth: val });
+                    if (activeObj.type === 'group') {
+                        activeObj.getObjects().forEach(o => { if (o.isArrowBody) o.set({ strokeWidth: val }); });
+                    }
+                    canvas.requestRenderAll();
+                }
+            }
+        });
+
+        document.getElementById('shape_bg_opacity_input').addEventListener('input', (e) => {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && !activeObj.isPopout) {
+                const isShape = ['rect', 'ellipse', 'polygon', 'line'].includes(activeObj.type) || (activeObj.type === 'path' && activeObj.isArrowBody) || activeObj.type === 'group';
+                if (isShape && activeObj.fill !== 'transparent') {
+                    const op = parseInt(e.target.value) || 0;
+                    let fColor = activeObj.fill;
+                    if (fColor.indexOf('rgba') > -1) {
+                        fColor = fColor.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
+                    }
+                    activeObj.set({ fill: new fabric.Color(fColor).setAlpha(op / 100).toRgba() });
+                    canvas.requestRenderAll();
+                }
+            }
+        });
+
+        document.getElementById('pen_bg_opacity_input').addEventListener('input', (e) => {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
+                if (activeObj.fill !== 'transparent') {
+                    const op = parseInt(e.target.value) || 0;
+                    let fColor = activeObj.fill;
+                    if (fColor.indexOf('rgba') > -1) {
+                        fColor = fColor.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
+                    }
+                    activeObj.set({ fill: new fabric.Color(fColor).setAlpha(op / 100).toRgba() });
+                    canvas.requestRenderAll();
+                }
+            }
+        });
+
         document.querySelectorAll('input[name="pen_mode"]').forEach(r => r.addEventListener('change', updatePenBrush));
 
         document.querySelectorAll('.btn-tool.group-edit').forEach(btn => {
@@ -5488,7 +6102,10 @@
 
                 let fCol = editingObject.fill;
                 let bgOpacity = document.getElementById('set_shape_opacity_val') ? document.getElementById('set_shape_opacity_val').value : 20;
-                if (fCol && fCol.indexOf('rgba') > -1) { 
+                
+                if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') {
+                    fCol = 'transparent';
+                } else if (fCol && fCol.indexOf('rgba') > -1) { 
                     const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
                     if (m && m[1]) bgOpacity = Math.round(parseFloat(m[1]) * 100);
                     fCol = fCol.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
@@ -5533,7 +6150,10 @@
                 document.getElementById('edit_line_dashed').checked = isDashed;
 
                 let bgOpacity = document.getElementById('set_pen_bg_opacity') ? document.getElementById('set_pen_bg_opacity').value : 0;
-                if (fCol && fCol.indexOf('rgba') > -1) { 
+                
+                if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') {
+                    fCol = 'transparent';
+                } else if (fCol && fCol.indexOf('rgba') > -1) { 
                     const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
                     if (m && m[1]) bgOpacity = Math.round(parseFloat(m[1]) * 100);
                     fCol = fCol.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
@@ -6932,14 +7552,14 @@
 
                     currentShape.arrowType = sysArrowType;
                     currentShape.arrowSize = sysArrowSize;
-                    const group = new fabric.Group([currentShape, arrowHead], { selectable: true });
+                    const group = new fabric.Group([currentShape, arrowHead], { selectable: true, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj, isArrowGroup: true, __capcraftPoints: currentLogicalPoints, __capcraftLineType: currentLineType });
                     group.arrowType = sysArrowType;
                     group.arrowSize = sysArrowSize;
                     canvas.remove(currentShape, arrowHead);
                     canvas.add(group);
                 } else {
                     let newPathStr = isCurve ? getSmoothCurvePath(renderPoints) : renderPoints.reduce((acc, pt, idx) => acc + (idx === 0 ? 'M' : 'L') + ` ${pt.x} ${pt.y} `, '');
-                    currentShape.set({ path: new fabric.Path(newPathStr).path, selectable: true, isTemp: false });
+                    currentShape.set({ path: new fabric.Path(newPathStr).path, selectable: true, isTemp: false, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj, __capcraftPoints: currentLogicalPoints, __capcraftLineType: currentLineType });
                 }
             }
             currentShape = null; arrowHead = null; clickPoints = [];
@@ -6973,11 +7593,12 @@
             canvas.requestRenderAll();
         }
 
-        function calculateBoundarySnap(pointer, canvas, currentShapeToIgnore) {
-            const snapRadius = 15;
+        function calculateBoundarySnap(pointer, canvas, currentShapeToIgnore, forcedTarget = null) {
+            const snapRadius = forcedTarget ? Infinity : 15;
             let closestPoint = null;
+            let closestObj = null;
             let minDist = snapRadius;
-            const objects = canvas.getObjects();
+            const objects = forcedTarget ? [forcedTarget] : canvas.getObjects();
             
             function distToSegment(px, py, x1, y1, x2, y2) {
                 let l2 = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
@@ -6996,9 +7617,11 @@
 
             for (let i = objects.length - 1; i >= 0; i--) {
                 const obj = objects[i];
-                if (obj === currentShapeToIgnore || obj === snapMarkerObj || obj.isArrowBody || obj.type === 'path' && obj.isTemp) continue;
-                if (obj.linkedShape) continue; 
-                if (obj.opacity === 0 || !obj.visible) continue;
+                if (!forcedTarget) {
+                    if (obj === currentShapeToIgnore || obj === snapMarkerObj || obj.__isLineHandle || obj.isArrowBody || obj.type === 'path' && obj.isTemp) continue;
+                    if (obj.linkedShape) continue; 
+                    if (obj.opacity === 0 || !obj.visible) continue;
+                }
 
                 let matrix = obj.calcTransformMatrix();
 
@@ -7012,7 +7635,7 @@
                         let edgeLocalY = ry * Math.sin(angle);
                         let edgeGlobal = fabric.util.transformPoint({x: edgeLocalX, y: edgeLocalY}, matrix);
                         let dist = Math.hypot(pointer.x - edgeGlobal.x, pointer.y - edgeGlobal.y);
-                        if (dist < minDist) { minDist = dist; closestPoint = edgeGlobal; }
+                        if (dist < minDist) { minDist = dist; closestPoint = edgeGlobal; closestObj = obj; }
                     }
                 } else if (obj.type === 'polygon' && obj.points) {
                     let pts = obj.points.map(p => {
@@ -7023,7 +7646,7 @@
                     for(let j=0; j<pts.length; j++) {
                         let p1 = pts[j]; let p2 = pts[(j+1)%pts.length];
                         let dist = distToSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y);
-                        if (dist < minDist) { minDist = dist; closestPoint = closestPointOnSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y); }
+                        if (dist < minDist) { minDist = dist; closestPoint = closestPointOnSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y); closestObj = obj; }
                     }
                 } else {
                     let w = obj.width; let h = obj.height;
@@ -7033,11 +7656,12 @@
                     for(let j=0; j<pts.length; j++) {
                         let p1 = pts[j]; let p2 = pts[(j+1)%pts.length];
                         let dist = distToSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y);
-                        if (dist < minDist) { minDist = dist; closestPoint = closestPointOnSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y); }
+                        if (dist < minDist) { minDist = dist; closestPoint = closestPointOnSegment(pointer.x, pointer.y, p1.x, p1.y, p2.x, p2.y); closestObj = obj; }
                     }
                 }
             }
-            return closestPoint;
+            if (closestPoint) return { pt: closestPoint, target: closestObj };
+            return null;
         }
 
         canvas.on('mouse:down', o => {
@@ -7164,9 +7788,10 @@
             if (activeTool === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
                 let snapPt = null;
                 if (!o.e.altKey) {
-                    snapPt = calculateBoundarySnap(pointer, canvas, null);
-                    if (snapPt) { pointer.x = snapPt.x; pointer.y = snapPt.y; }
-                }
+                    let snapData = calculateBoundarySnap(pointer, canvas, null);
+                    if (snapData) { snapPt = snapData.pt; pointer.x = snapPt.x; pointer.y = snapPt.y; tempStartLinkedObj = snapData.target; }
+                    else { tempStartLinkedObj = null; }
+                } else { tempStartLinkedObj = null; }
 
                 isDrawing = true; origX = pointer.x; origY = pointer.y;
                 const weight = parseInt(document.getElementById('pen_weight').value) || 5;
@@ -7184,6 +7809,9 @@
 
             // 도구가 활성화되어 있지 않고 대상이 있다면 (선택 이동 & 맨 앞으로 가져오기)
             if (!activeTool && o.target && o.target.selectable) {
+                // 핸들 드래그 시작 시에는 saveHistory를 호출하지 않음
+                if (o.target.__isLineHandle) return;
+                
                 // 텍스트 편집 중에는 Fabric.js 내장 IText 핸들러에 완전히 위임 (드래그 블록지정, 커서 이동 등)
                 if (o.target.isEditing) return;
 
@@ -7213,12 +7841,14 @@
                 floatingTooltip.style.display = 'block';
 
                 let snapPt = null;
-                if (!o.e.altKey) {
-                    snapPt = calculateBoundarySnap(pointer, canvas, null);
-                    if (snapPt) { pointer.x = snapPt.x; pointer.y = snapPt.y; }
-                }
-
                 if (!multiClickDrawing) {
+                    // 시점 스냅은 첫 번째 클릭에서만 설정
+                    if (!o.e.altKey) {
+                        let snapData = calculateBoundarySnap(pointer, canvas, null);
+                        if (snapData) { snapPt = snapData.pt; pointer.x = snapPt.x; pointer.y = snapPt.y; tempStartLinkedObj = snapData.target; }
+                        else { tempStartLinkedObj = null; }
+                    } else { tempStartLinkedObj = null; }
+
                     multiClickDrawing = true;
                     clickPoints = [{ x: pointer.x, y: pointer.y }, { x: pointer.x, y: pointer.y }];
 
@@ -7245,6 +7875,19 @@
 
             if (['shape', 'emoji', 'image', 'crop', 'mosaic'].includes(activeTool)) {
                 isDrawing = true; origX = pointer.x; origY = pointer.y;
+                
+                const shapeType = document.getElementById('shape_type').value;
+                const lineRadio = document.querySelector('input[name="line_type"]:checked');
+                const isNormalLine = (shapeType === 'line' || shapeType === 'arrow') && lineRadio && lineRadio.value === 'normal';
+                
+                if (activeTool === 'shape' && isNormalLine && !o.e.altKey) {
+                    let snapData = calculateBoundarySnap(pointer, canvas, null);
+                    if (snapData) {
+                        origX = snapData.pt.x;
+                        origY = snapData.pt.y;
+                        tempStartLinkedObj = snapData.target;
+                    } else { tempStartLinkedObj = null; }
+                } else { tempStartLinkedObj = null; }
 
                 if (activeTool === 'crop') {
                     capStartX = o.e.clientX; capStartY = o.e.clientY;
@@ -7414,6 +8057,15 @@
                         ], { left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true, objectCaching: false });
                         canvas.add(currentShape);
                     } else if (shapeType === 'line' || shapeType === 'arrow') {
+                        if (!o.e.altKey) {
+                            let snapData = calculateBoundarySnap({x: origX, y: origY}, canvas, null);
+                            if (snapData) {
+                                origX = snapData.pt.x;
+                                origY = snapData.pt.y;
+                                tempStartLinkedObj = snapData.target;
+                            } else { tempStartLinkedObj = null; }
+                        } else { tempStartLinkedObj = null; }
+
                         currentShape = new fabric.Path(`M ${origX} ${origY} L ${origX} ${origY}`, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
                         canvas.add(currentShape);
                         if (shapeType === 'arrow') {
@@ -7463,13 +8115,33 @@
 
             const pointer = canvas.getPointer(o.e);
 
+            // 선분/화살표 그리기 시작 전(시점 탐색 중) 시점 자석 마커 표시
+            if (activeTool === 'shape' && !isDrawing && !multiClickDrawing) {
+                const shapeType = document.getElementById('shape_type').value;
+                if (shapeType === 'line' || shapeType === 'arrow') {
+                    if (!o.e.altKey) {
+                        let snapData = calculateBoundarySnap(pointer, canvas, null);
+                        if (snapData) {
+                            updateSnapMarker(canvas, snapData.pt);
+                        } else {
+                            updateSnapMarker(canvas, null);
+                        }
+                    } else {
+                        updateSnapMarker(canvas, null);
+                    }
+                } else {
+                    updateSnapMarker(canvas, null);
+                }
+            }
+
             if (activeTool === 'pen' && isDrawing && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
                 let snapPt = null;
                 let snapX = pointer.x; let snapY = pointer.y;
                 if (!o.e.altKey) {
-                    snapPt = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
-                    if (snapPt) { snapX = snapPt.x; snapY = snapPt.y; }
-                }
+                    let snapData = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
+                    if (snapData) { snapPt = snapData.pt; snapX = snapPt.x; snapY = snapPt.y; tempEndLinkedObj = snapData.target; }
+                    else { tempEndLinkedObj = null; }
+                } else { tempEndLinkedObj = null; }
                 updateSnapMarker(canvas, snapPt);
 
                 let endX = snapX; let endY = snapY;
@@ -7489,6 +8161,9 @@
                 const isDashed = document.getElementById('pen_dashed').checked;
                 const dashArr = isDashed ? [weight * 3, weight * 3] : null;
 
+                currentLogicalPoints = [{x: origX, y: origY}, {x: endX, y: endY}];
+                currentLineType = 'pen_straight';
+
                 canvas.remove(currentShape);
                 currentShape = new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`, {
                     fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
@@ -7507,9 +8182,10 @@
                 let snapX = pointer.x; let snapY = pointer.y;
                 let snapPt = null;
                 if (!o.e.altKey) {
-                    snapPt = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
-                    if (snapPt) { snapX = snapPt.x; snapY = snapPt.y; }
-                }
+                    let snapData = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
+                    if (snapData) { snapPt = snapData.pt; snapX = snapPt.x; snapY = snapPt.y; tempEndLinkedObj = snapData.target; }
+                    else { tempEndLinkedObj = null; }
+                } else { tempEndLinkedObj = null; }
                 updateSnapMarker(canvas, snapPt);
 
                 if (!snapPt && clickPoints.length > 2) {
@@ -7523,6 +8199,9 @@
                 const weight = parseInt(document.getElementById('shape_weight').value);
                 const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
                 const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                currentLogicalPoints = JSON.parse(JSON.stringify(clickPoints));
+                currentLineType = lineRadio.value;
 
                 let renderPoints = [...clickPoints];
 
@@ -7619,9 +8298,10 @@
                     let snapX = pointer.x; let snapY = pointer.y;
                     let snapPt = null;
                     if (!o.e.altKey) {
-                        snapPt = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
-                        if (snapPt) { snapX = snapPt.x; snapY = snapPt.y; }
-                    }
+                        let snapData = calculateBoundarySnap({x: snapX, y: snapY}, canvas, currentShape);
+                        if (snapData) { snapPt = snapData.pt; snapX = snapPt.x; snapY = snapPt.y; tempEndLinkedObj = snapData.target; }
+                        else { tempEndLinkedObj = null; }
+                    } else { tempEndLinkedObj = null; }
                     updateSnapMarker(canvas, snapPt);
 
                     let angle = Math.atan2(snapY - origY, snapX - origX);
@@ -7636,6 +8316,9 @@
                     let pathStr = `M ${origX} ${origY} L ${endX} ${endY}`;
                     const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
                     const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                    currentLogicalPoints = [{x: origX, y: origY}, {x: snapX, y: snapY}];
+                    currentLineType = 'normal';
 
                     canvas.remove(currentShape);
                     currentShape = new fabric.Path(pathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
@@ -7668,7 +8351,7 @@
 
             if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
                 currentShape.setCoords();
-                currentShape.set({ selectable: true, isTemp: false });
+                currentShape.set({ selectable: true, isTemp: false, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj });
                 currentShape = null;
                 updateObjectSelectability();
                 canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
@@ -7712,11 +8395,19 @@
                 if (currentShape) {
                     if (arrowHead) {
                         canvas.remove(currentShape, arrowHead);
-                        const group = new fabric.Group([currentShape, arrowHead], { selectable: true });
+                        const group = new fabric.Group([currentShape, arrowHead], { selectable: true, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj, isArrowGroup: true });
+                        if (isNormalLine) {
+                            group.__capcraftPoints = currentLogicalPoints;
+                            group.__capcraftLineType = 'normal';
+                        }
                         canvas.add(group);
                     } else {
                         currentShape.setCoords();
-                        currentShape.set({ selectable: true, isTemp: false });
+                        currentShape.set({ selectable: true, isTemp: false, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj });
+                        if (isNormalLine) {
+                            currentShape.__capcraftPoints = currentLogicalPoints;
+                            currentShape.__capcraftLineType = 'normal';
+                        }
                     }
                 }
                 currentShape = null; arrowHead = null;
@@ -7730,10 +8421,24 @@
             const hiddenInput = document.getElementById(group.id.replace('_group', ''));
             group.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    if (group.id === 'shape_type_group' || group.id === 'pen_type_group') {
+                        const activeObj = canvas.getActiveObject();
+                        if (activeObj && !activeObj.isPopout) {
+                            canvas.discardActiveObject();
+                            canvas.requestRenderAll();
+                            const targetToolBtn = document.getElementById(group.id === 'shape_type_group' ? 'btn_tool_shapes' : 'btn_tool_pen');
+                            if (targetToolBtn && !targetToolBtn.classList.contains('active')) {
+                                targetToolBtn.click();
+                            }
+                        }
+                    }
+
                     group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
-                    hiddenInput.value = btn.getAttribute('data-val');
-                    hiddenInput.dispatchEvent(new Event('change'));
+                    if (hiddenInput) {
+                        hiddenInput.value = btn.getAttribute('data-val');
+                        hiddenInput.dispatchEvent(new Event('change'));
+                    }
                 });
             });
         });
@@ -7885,9 +8590,9 @@
                         const br = canvas.lowerCanvasEl.getBoundingClientRect();
                         const mouseX = (e.clientX - br.left) / currentZoom;
                         const mouseY = (e.clientY - br.top) / currentZoom;
-                        let snap = findSnapEdge(axis, mouseX, mouseY, canvas.lowerCanvasEl, cw, ch);
-                        if (snap !== null && Math.abs(snap - targetVal) < 15) {
-                            targetVal = snap;
+                        let snapData = findSnapEdge(axis, mouseX, mouseY, canvas.lowerCanvasEl, cw, ch);
+                        if (snapData !== null && Math.abs(snapData - targetVal) < 15) {
+                            targetVal = snapData;
                         }
                     }
 
