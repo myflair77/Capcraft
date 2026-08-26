@@ -1880,9 +1880,87 @@
 
         window.sysMosaicPx = 3;
 
+        window.isLineOrArrow = function(obj) {
+            if (!obj) return false;
+            if (obj.type === 'line' || obj.isArrowGroup || obj.isArrowBody) return true;
+            if (obj.type === 'path' && (obj.isArrowBody || obj.__capcraftLineType || obj.shapeType === 'line' || obj.shapeType === 'arrow')) return true;
+            if (obj.type === 'group' && (obj.isArrowGroup || (obj.getObjects && typeof obj.getObjects === 'function' && (obj.getObjects() || []).some(o => o && (o.isArrowBody || o.isArrowHead))))) return true;
+            return false;
+        };
+
+        window.getLineMidpoint = function(obj) {
+            if (obj && obj.__capcraftPoints && Array.isArray(obj.__capcraftPoints) && obj.__capcraftPoints.length >= 2) {
+                const pts = obj.__capcraftPoints;
+                if (pts.length === 2) {
+                    return {
+                        x: (pts[0].x + pts[1].x) / 2,
+                        y: (pts[0].y + pts[1].y) / 2
+                    };
+                } else {
+                    let totalLen = 0;
+                    let lengths = [];
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        let l = Math.hypot(pts[i+1].x - pts[i].x, pts[i+1].y - pts[i].y);
+                        lengths.push(l);
+                        totalLen += l;
+                    }
+                    let half = totalLen / 2;
+                    let accum = 0;
+                    for (let i = 0; i < lengths.length; i++) {
+                        if (accum + lengths[i] >= half || i === lengths.length - 1) {
+                            let ratio = lengths[i] > 0 ? (half - accum) / lengths[i] : 0.5;
+                            ratio = Math.max(0, Math.min(1, ratio));
+                            return {
+                                x: pts[i].x + (pts[i+1].x - pts[i].x) * ratio,
+                                y: pts[i].y + (pts[i+1].y - pts[i].y) * ratio
+                            };
+                        }
+                        accum += lengths[i];
+                    }
+                }
+            }
+            return obj && typeof obj.getCenterPoint === 'function' ? obj.getCenterPoint() : { x: 0, y: 0 };
+        };
+
+        window.flipLineOrArrow = function(lineObj, axis) {
+            if (!lineObj || !isLineOrArrow(lineObj) || !lineObj.__capcraftPoints || !Array.isArray(lineObj.__capcraftPoints)) return;
+            const pts = lineObj.__capcraftPoints;
+            if (pts.length < 2) return;
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            pts.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            });
+
+            const midX = (minX + maxX) / 2;
+            const midY = (minY + maxY) / 2;
+
+            for (let i = 0; i < pts.length; i++) {
+                if (axis === 'x') {
+                    pts[i].x = midX * 2 - pts[i].x;
+                } else if (axis === 'y') {
+                    pts[i].y = midY * 2 - pts[i].y;
+                }
+            }
+
+            lineObj.startLinkedObj = null;
+            lineObj.endLinkedObj = null;
+            lineObj.set({ flipX: false, flipY: false });
+
+            setTimeout(() => {
+                if (typeof recalculateAndRedrawLine === 'function') {
+                    recalculateAndRedrawLine(lineObj, true);
+                }
+            }, 0);
+        };
+
         // 선택 개체 컨트롤 커스터마이징
         function initCustomControls() {
             const controls = fabric.Object.prototype.controls;
+            const isLineOrArrow = window.isLineOrArrow;
 
             // 모든 개체에 대해 strokeUniform 설정 (크기 조절 시 선 굵기 유지)
             fabric.Object.prototype.strokeUniform = true;
@@ -2102,11 +2180,15 @@
                 x: 0, y: -0.5, offsetY: -40, offsetX: -100, cursorStyle: 'pointer',
                 mouseDownHandler: function (eventData, transform, x, y) {
                     const target = transform.target;
-                    const center = target.getCenterPoint();
-                    target.set('flipX', !target.flipX);
-                    target.setPositionByOrigin(center, 'center', 'center');
-                    target.setCoords();
-                    target.set('dirty', true);
+                    if (isLineOrArrow(target)) {
+                        flipLineOrArrow(target, 'x');
+                    } else {
+                        const center = target.getCenterPoint();
+                        target.set('flipX', !target.flipX);
+                        target.setPositionByOrigin(center, 'center', 'center');
+                        target.setCoords();
+                        target.set('dirty', true);
+                    }
                     if (target.canvas) {
                         target.canvas.fire('object:modified', { target: target });
                         target.canvas.requestRenderAll();
@@ -2126,14 +2208,14 @@
                 x: 0, y: -0.5, offsetY: -40, offsetX: 100, cursorStyle: 'pointer',
                 mouseDownHandler: function (eventData, transform, x, y) {
                     const target = transform.target;
-                    if (['rect', 'ellipse', 'polygon'].includes(target.type) && !target.linkedText) {
+                    if ((['rect', 'ellipse', 'polygon'].includes(target.type) || isLineOrArrow(target)) && !target.linkedText) {
                         document.getElementById('btn_add_text_to_shape').click();
                     }
                     return true;
                 },
                 actionName: 'addText',
                 render: function (ctx, left, top, styleOverride, fabricObject) {
-                    if (['rect', 'ellipse', 'polygon'].includes(fabricObject.type) && !fabricObject.linkedText) {
+                    if ((['rect', 'ellipse', 'polygon'].includes(fabricObject.type) || isLineOrArrow(fabricObject)) && !fabricObject.linkedText) {
                         const size = 40;
                         ctx.save();
                         ctx.translate(left, top);
@@ -2148,11 +2230,15 @@
                 x: 0, y: -0.5, offsetY: -40, offsetX: -50, cursorStyle: 'pointer',
                 mouseDownHandler: function (eventData, transform, x, y) {
                     const target = transform.target;
-                    const center = target.getCenterPoint();
-                    target.set('flipY', !target.flipY);
-                    target.setPositionByOrigin(center, 'center', 'center');
-                    target.setCoords();
-                    target.set('dirty', true);
+                    if (isLineOrArrow(target)) {
+                        flipLineOrArrow(target, 'y');
+                    } else {
+                        const center = target.getCenterPoint();
+                        target.set('flipY', !target.flipY);
+                        target.setPositionByOrigin(center, 'center', 'center');
+                        target.setCoords();
+                        target.set('dirty', true);
+                    }
                     if (target.canvas) {
                         target.canvas.fire('object:modified', { target: target });
                         target.canvas.requestRenderAll();
@@ -2208,14 +2294,14 @@
                 x: 0, y: -0.5, offsetY: -40, offsetX: 150, cursorStyle: 'pointer',
                 mouseDownHandler: function (eventData, transform, x, y) {
                     const target = transform.target;
-                    if (['rect', 'ellipse', 'polygon', 'path'].includes(target.type) && !target.isPopout) {
+                    if (['rect', 'ellipse', 'polygon', 'path'].includes(target.type) && !target.isPopout && !isLineOrArrow(target)) {
                         createPopoutFromObject(target);
                     }
                     return true;
                 },
                 actionName: 'popOut',
                 render: function (ctx, left, top, styleOverride, fabricObject) {
-                    if (['rect', 'ellipse', 'polygon', 'path'].includes(fabricObject.type) && !fabricObject.isPopout) {
+                    if (['rect', 'ellipse', 'polygon', 'path'].includes(fabricObject.type) && !fabricObject.isPopout && !isLineOrArrow(fabricObject)) {
                         const size = 40;
                         ctx.save();
                         ctx.translate(left, top);
@@ -2332,9 +2418,22 @@
         canvas.on('selection:updated', updateObjectControls);
 
         function updateObjectControls(e) {
-            const obj = e.selected[0];
+            const obj = (e && e.selected && e.selected.length > 0) ? e.selected[0] : (e ? e.target : (canvas ? canvas.getActiveObject() : null));
             if (!obj || obj.__isLineHandle) return;
-            if (['rect', 'ellipse', 'polygon'].includes(obj.type) && !obj.linkedText) {
+
+            if (typeof isLineOrArrow === 'function' && isLineOrArrow(obj)) {
+                obj.__lastLeft = obj.left;
+                obj.__lastTop = obj.top;
+                obj.set({ cornerSize: 20, touchCornerSize: 96, hasControls: true, hasBorders: true, lockMovementX: false, lockMovementY: false });
+                ['tl', 'tr', 'bl', 'br', 'ml', 'mt', 'mr', 'mb', 'mtr'].forEach(k => obj.setControlVisible(k, false));
+                obj.setControlVisible('flipX', true);
+                obj.setControlVisible('flipY', true);
+                obj.setControlVisible('sendBack', true);
+                obj.setControlVisible('bringFront', true);
+                obj.setControlVisible('popOut', false);
+            }
+
+            if ((['rect', 'ellipse', 'polygon'].includes(obj.type) || (typeof isLineOrArrow === 'function' && isLineOrArrow(obj))) && !obj.linkedText) {
                 obj.setControlVisible('addText', true);
             } else {
                 obj.setControlVisible('addText', false);
@@ -2404,6 +2503,18 @@
                     if (isShape) {
                         document.getElementById('panel_shape').classList.add('active');
                         document.querySelectorAll('#shape_type_group button').forEach(b => b.classList.remove('active'));
+
+                        const isLineObj = (typeof isLineOrArrow === 'function' && isLineOrArrow(obj));
+                        const fillBtn = document.getElementById('btn_fill_color');
+                        const fillLabel = document.getElementById('label_fill_color');
+                        const opacityInput = document.getElementById('shape_bg_opacity_input');
+                        const opacityLabel = opacityInput ? opacityInput.previousElementSibling : null;
+
+                        if (fillBtn) fillBtn.style.display = isLineObj ? 'none' : 'inline-block';
+                        if (fillLabel) fillLabel.style.display = isLineObj ? 'none' : 'inline-block';
+                        if (opacityInput) opacityInput.style.display = isLineObj ? 'none' : 'inline-block';
+                        if (opacityLabel && opacityLabel.tagName === 'SPAN') opacityLabel.style.display = isLineObj ? 'none' : 'inline-block';
+
                         // 그룹 객체(화살표 등)는 내부 요소에서 속성을 읽음
                         const propSource = (obj.type === 'group' && obj._objects && obj._objects[0]) ? obj._objects[0] : obj;
                         const sw = propSource.strokeWidth;
@@ -2412,18 +2523,22 @@
                         let fCol = propSource.fill;
                         if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') fCol = 'transparent';
                         if (fCol && fCol !== 'transparent') {
-                            document.getElementById('btn_fill_color').style.backgroundImage = 'none';
-                            document.getElementById('btn_fill_color').style.backgroundColor = fCol;
+                            if (fillBtn) {
+                                fillBtn.style.backgroundImage = 'none';
+                                fillBtn.style.backgroundColor = fCol;
+                            }
                             if (fCol.indexOf('rgba') > -1) {
                                 const m = fCol.match(/rgba\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
-                                if (m && m[1]) document.getElementById('shape_bg_opacity_input').value = Math.round(parseFloat(m[1]) * 100);
+                                if (m && m[1] && opacityInput) opacityInput.value = Math.round(parseFloat(m[1]) * 100);
                             } else {
-                                document.getElementById('shape_bg_opacity_input').value = 100;
+                                if (opacityInput) opacityInput.value = 100;
                             }
                         } else {
-                            document.getElementById('btn_fill_color').style.backgroundColor = 'transparent';
-                            document.getElementById('btn_fill_color').style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
-                            document.getElementById('shape_bg_opacity_input').value = 0;
+                            if (fillBtn) {
+                                fillBtn.style.backgroundColor = 'transparent';
+                                fillBtn.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
+                            }
+                            if (opacityInput) opacityInput.value = 0;
                         }
                     } else if (isPen) {
                         document.getElementById('panel_pen').classList.add('active');
@@ -2832,6 +2947,12 @@
         function syncShapeToText(shape, transform) {
             if (!shape || !shape.linkedText) return;
             const textObj = shape.linkedText;
+            if (typeof isLineOrArrow === 'function' && isLineOrArrow(shape)) {
+                const center = typeof getLineMidpoint === 'function' ? getLineMidpoint(shape) : shape.getCenterPoint();
+                textObj.set({ left: center.x, top: center.y });
+                textObj.setCoords();
+                return;
+            }
             const padding = 20;
             const minW = textObj.dynamicMinWidth || 50;
 
@@ -2922,6 +3043,15 @@
             textObj.on('changed', function () {
                 const s = this.linkedShape;
                 if (!s) return;
+                if (typeof isLineOrArrow === 'function' && isLineOrArrow(s)) {
+                    const measuredW = Math.ceil(this.calcTextWidth ? this.calcTextWidth() + 20 : this.width);
+                    this.set({ width: Math.max(80, measuredW) });
+                    const center = typeof getLineMidpoint === 'function' ? getLineMidpoint(s) : s.getCenterPoint();
+                    this.set({ left: center.x, top: center.y });
+                    this.setCoords();
+                    if (this.canvas) this.canvas.requestRenderAll();
+                    return;
+                }
 
                 const padding = 20;
                 let shapeVisualW = s.width * s.scaleX;
@@ -3467,36 +3597,30 @@
         });
 
         function updateLinkedLinesOnTransform(movedObj) {
+            if (!movedObj || !canvas) return;
             const objs = canvas.getObjects().slice();
             for (let i = 0; i < objs.length; i++) {
                 const lineObj = objs[i];
-                if (lineObj === movedObj) continue;
-                if (!lineObj.__capcraftPoints) continue;
-                
+                if (!lineObj || lineObj === movedObj) continue;
+                if (!lineObj.__capcraftPoints || !Array.isArray(lineObj.__capcraftPoints) || lineObj.__capcraftPoints.length < 2) continue;
+
                 let isLinked = false;
                 if (lineObj.startLinkedObj === movedObj) isLinked = true;
                 if (lineObj.endLinkedObj === movedObj) isLinked = true;
                 if (!isLinked) continue;
 
-                // 이동된 객체에 연결된 포인트만 업데이트 (다른 쪽은 건드리지 않음)
+                // 이동된 객체에 연결된 포인트만 업데이트
                 let pts = lineObj.__capcraftPoints;
                 if (lineObj.startLinkedObj === movedObj) {
                     let snapData = calculateBoundarySnap(pts[0], canvas, lineObj, movedObj);
-                    if (snapData) pts[0] = snapData.pt;
+                    if (snapData && snapData.pt) pts[0] = snapData.pt;
                 }
                 if (lineObj.endLinkedObj === movedObj) {
                     let snapData = calculateBoundarySnap(pts[pts.length - 1], canvas, lineObj, movedObj);
-                    if (snapData) pts[pts.length - 1] = snapData.pt;
+                    if (snapData && snapData.pt) pts[pts.length - 1] = snapData.pt;
                 }
-                // 링크 참조 임시 해제 (updateLineGeometryInPlace 내의 중복 재스냅 방지)
-                const savedStart = lineObj.startLinkedObj;
-                const savedEnd = lineObj.endLinkedObj;
-                lineObj.startLinkedObj = null;
-                lineObj.endLinkedObj = null;
-                updateLineGeometryInPlace(lineObj);
-                // 링크 참조 복원
-                lineObj.startLinkedObj = savedStart;
-                lineObj.endLinkedObj = savedEnd;
+
+                recalculateAndRedrawLine(lineObj, false);
             }
         }
 
@@ -3516,9 +3640,9 @@
             let newShape;
             let arrowHeadObj = null;
             let lType = lineObj.__capcraftLineType;
-            let strokeColor = lineObj.stroke || (lineObj.isArrowGroup ? lineObj._objects[0].stroke : '#ff0000');
-            let weight = lineObj.strokeWidth || (lineObj.isArrowGroup ? lineObj._objects[0].strokeWidth : 5);
-            let dashArr = lineObj.strokeDashArray || (lineObj.isArrowGroup ? lineObj._objects[0].strokeDashArray : null);
+            let strokeColor = lineObj.stroke || (lineObj.isArrowGroup && lineObj._objects && lineObj._objects[0] ? lineObj._objects[0].stroke : '#ff0000');
+            let weight = lineObj.strokeWidth || (lineObj.isArrowGroup && lineObj._objects && lineObj._objects[0] ? lineObj._objects[0].strokeWidth : 5);
+            let dashArr = lineObj.strokeDashArray || (lineObj.isArrowGroup && lineObj._objects && lineObj._objects[0] ? lineObj._objects[0].strokeDashArray : null);
 
             if (lType === 'pen_straight' || lType === 'normal') {
                 let p1 = newPts[0]; let p2 = newPts[1];
@@ -3604,27 +3728,49 @@
             
             target.startLinkedObj = newObj.startLinkedObj;
             target.endLinkedObj = newObj.endLinkedObj;
+
+            if (target.linkedText) {
+                const center = typeof getLineMidpoint === 'function' ? getLineMidpoint(target) : target.getCenterPoint();
+                target.linkedText.set({ left: center.x, top: center.y });
+                target.linkedText.setCoords();
+            }
+
             canvas.requestRenderAll();
         }
 
         function recalculateAndRedrawLine(lineObj, forceBreakLink) {
+            if (!lineObj || !lineObj.__capcraftPoints) return;
+            if (typeof removeLineHandles === 'function') removeLineHandles(lineObj);
+
             let newPts = JSON.parse(JSON.stringify(lineObj.__capcraftPoints));
             let startLinked = forceBreakLink ? null : lineObj.startLinkedObj;
             let endLinked = forceBreakLink ? null : lineObj.endLinkedObj;
 
             let finalObj = createLineShapeFromPoints(lineObj, newPts, startLinked, endLinked);
+            if (!finalObj) return;
+
             finalObj.__capcraftPoints = newPts;
             finalObj.__capcraftLineType = lineObj.__capcraftLineType;
             finalObj.__shapeJustSelected = lineObj.__shapeJustSelected;
 
-            let idx = canvas.getObjects().indexOf(lineObj);
-            canvas.remove(lineObj);
-            canvas.insertAt(finalObj, idx, false);
-            
-            if (canvas.getActiveObject() === lineObj) {
-                canvas.setActiveObject(finalObj);
-                if (typeof makeLineControls === 'function') makeLineControls(finalObj);
+            if (lineObj.linkedText) {
+                finalObj.linkedText = lineObj.linkedText;
+                lineObj.linkedText.linkedShape = finalObj;
+                const center = typeof getLineMidpoint === 'function' ? getLineMidpoint(finalObj) : finalObj.getCenterPoint();
+                finalObj.linkedText.set({ left: center.x, top: center.y });
+                finalObj.linkedText.setCoords();
             }
+
+            let idx = canvas.getObjects().indexOf(lineObj);
+            if (idx !== -1) {
+                canvas.remove(lineObj);
+                canvas.insertAt(finalObj, idx, false);
+            } else {
+                canvas.add(finalObj);
+            }
+            
+            canvas.setActiveObject(finalObj);
+            if (typeof makeLineControls === 'function') makeLineControls(finalObj);
             canvas.requestRenderAll();
         }
 
@@ -3652,14 +3798,27 @@
             removeLineHandles(lineObj);
             
             lineObj.set({
-                hasControls: false, 
-                hasBorders: false,
+                hasControls: true, 
+                hasBorders: true,
+                cornerSize: 16,
+                touchCornerSize: 96,
                 lockScalingX: true,
                 lockScalingY: true,
                 lockRotation: true,
-                lockMovementX: true,
-                lockMovementY: true
+                lockMovementX: false,
+                lockMovementY: false
             });
+            ['tl', 'tr', 'bl', 'br', 'ml', 'mt', 'mr', 'mb', 'mtr'].forEach(k => lineObj.setControlVisible(k, false));
+            lineObj.setControlVisible('flipX', true);
+            lineObj.setControlVisible('flipY', true);
+            lineObj.setControlVisible('sendBack', true);
+            lineObj.setControlVisible('bringFront', true);
+            lineObj.setControlVisible('popOut', false);
+            if (!lineObj.linkedText) {
+                lineObj.setControlVisible('addText', true);
+            } else {
+                lineObj.setControlVisible('addText', false);
+            }
 
             const handles = [];
             const pts = lineObj.__capcraftPoints;
@@ -3668,7 +3827,7 @@
                 const handle = new fabric.Circle({
                     left: pts[i].x,
                     top: pts[i].y,
-                    radius: 6,
+                    radius: 8,
                     fill: '#ffffff',
                     stroke: '#2563eb',
                     strokeWidth: 2,
@@ -3727,6 +3886,39 @@
                 return; // 핸들은 일반 이동 처리 안 함
             }
 
+            if (typeof isLineOrArrow === 'function' && isLineOrArrow(obj) && !obj.__isLineHandle) {
+                // 선분 자체 이동 시 기존 도형 스냅 연결 해제
+                obj.startLinkedObj = null;
+                obj.endLinkedObj = null;
+
+                if (obj.__lastLeft !== undefined && obj.__lastTop !== undefined) {
+                    const dx = obj.left - obj.__lastLeft;
+                    const dy = obj.top - obj.__lastTop;
+
+                    if (dx !== 0 || dy !== 0) {
+                        if (obj.__capcraftPoints && Array.isArray(obj.__capcraftPoints)) {
+                            obj.__capcraftPoints.forEach(pt => {
+                                pt.x += dx;
+                                pt.y += dy;
+                            });
+                        }
+                        if (obj.__capcraftHandles && Array.isArray(obj.__capcraftHandles)) {
+                            obj.__capcraftHandles.forEach((h, idx) => {
+                                if (obj.__capcraftPoints && obj.__capcraftPoints[idx]) {
+                                    h.set({
+                                        left: obj.__capcraftPoints[idx].x,
+                                        top: obj.__capcraftPoints[idx].y
+                                    });
+                                    h.setCoords();
+                                }
+                            });
+                        }
+                    }
+                }
+                obj.__lastLeft = obj.left;
+                obj.__lastTop = obj.top;
+            }
+
             const cw = canvas.width;
             const ch = canvas.height;
 
@@ -3760,7 +3952,7 @@
             }
 
             if (obj.linkedText) {
-                const center = obj.getCenterPoint();
+                const center = (typeof isLineOrArrow === 'function' && isLineOrArrow(obj) && typeof getLineMidpoint === 'function') ? getLineMidpoint(obj) : obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
                 canvas.renderAll();
@@ -4678,8 +4870,15 @@
             const container = document.getElementById('shape_options_container');
             const isLineShape = ['line', 'arrow'].includes(type);
 
-            document.getElementById('btn_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
-            document.getElementById('label_fill_color').style.display = isLineShape ? 'none' : 'inline-block';
+            const fillBtn = document.getElementById('btn_fill_color');
+            const fillLabel = document.getElementById('label_fill_color');
+            const opacityInput = document.getElementById('shape_bg_opacity_input');
+            const opacityLabel = opacityInput ? opacityInput.previousElementSibling : null;
+
+            if (fillBtn) fillBtn.style.display = isLineShape ? 'none' : 'inline-block';
+            if (fillLabel) fillLabel.style.display = isLineShape ? 'none' : 'inline-block';
+            if (opacityInput) opacityInput.style.display = isLineShape ? 'none' : 'inline-block';
+            if (opacityLabel && opacityLabel.tagName === 'SPAN') opacityLabel.style.display = isLineShape ? 'none' : 'inline-block';
 
             if (['rect', 'ellipse', 'rhombus'].includes(type)) {
                 container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>';
@@ -5450,10 +5649,11 @@
 
         document.getElementById('btn_add_text_to_shape').addEventListener('click', () => {
             const obj = canvas.getActiveObject();
-            if (!obj || !['rect', 'ellipse', 'polygon'].includes(obj.type) || obj.linkedText) return;
+            const isLineArrowObj = typeof isLineOrArrow === 'function' && isLineOrArrow(obj);
+            if (!obj || (!['rect', 'ellipse', 'polygon'].includes(obj.type) && !isLineArrowObj) || obj.linkedText) return;
 
             const txtColor = typeof textColor !== 'undefined' ? textColor : '#E03C31';
-            const txtBgColor = typeof getTextBgOpacity === 'function' ? getTextBgOpacity() : '';
+            const txtBgColor = isLineArrowObj ? 'rgba(255, 255, 255, 0.3)' : (typeof getTextBgOpacity === 'function' ? getTextBgOpacity() : '');
             const txtSize = parseInt(document.getElementById('text_size_input') ? document.getElementById('text_size_input').value : 50) || 50;
             const isBold = (document.getElementById('btn_txt_b') || { classList: { contains: () => false } }).classList.contains('active');
             const isItalic = (document.getElementById('btn_txt_i') || { classList: { contains: () => false } }).classList.contains('active');
@@ -5462,11 +5662,13 @@
             const alignActive = document.querySelector('.btn-group .btn-align.active');
             const textAlign = alignActive ? alignActive.getAttribute('data-align') : 'center';
 
-            const center = obj.getCenterPoint();
+            const center = isLineArrowObj && typeof getLineMidpoint === 'function' ? getLineMidpoint(obj) : obj.getCenterPoint();
 
             let padW = 20;
             let startW = obj.width * obj.scaleX;
-            if (obj.type === 'ellipse') {
+            if (isLineArrowObj) {
+                startW = 200;
+            } else if (obj.type === 'ellipse') {
                 startW = startW * Math.cos(Math.PI / 4);
             } else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) {
                 startW = startW * 0.5;
@@ -7581,8 +7783,8 @@
             }
             if (!snapMarkerObj) {
                 snapMarkerObj = new fabric.Circle({
-                    left: point.x, top: point.y, radius: 4, originX: 'center', originY: 'center',
-                    fill: 'rgba(59, 130, 246, 0.8)', stroke: 'white', strokeWidth: 1.5,
+                    left: point.x, top: point.y, radius: 8, originX: 'center', originY: 'center',
+                    fill: 'rgba(59, 130, 246, 0.95)', stroke: '#ffffff', strokeWidth: 2,
                     selectable: false, evented: false, isTemp: true, objectCaching: false
                 });
                 canvas.add(snapMarkerObj);
