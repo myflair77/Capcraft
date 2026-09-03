@@ -1888,6 +1888,44 @@
             return false;
         };
 
+        window.getMaxLineWidth = function(textObj) {
+            if (!textObj || !textObj.text) return 50;
+            const lines = textObj.text.split('\n');
+            let maxW = 0;
+            try {
+                const ctx = textObj._getMeasuringContext ? textObj._getMeasuringContext() : (typeof canvas !== 'undefined' && canvas ? canvas.getContext() : null);
+                if (ctx) {
+                    ctx.save();
+                    if (typeof textObj._setTextStyles === 'function') {
+                        textObj._setTextStyles(ctx);
+                    } else {
+                        ctx.font = `${textObj.fontStyle || 'normal'} ${textObj.fontWeight || 'normal'} ${textObj.fontSize || 50}px ${textObj.fontFamily || 'sans-serif'}`;
+                    }
+                    lines.forEach(line => {
+                        let w = 0;
+                        if (typeof textObj._measureLine === 'function') {
+                            w = textObj._measureLine(line);
+                        } else {
+                            w = ctx.measureText(line).width;
+                        }
+                        if (w > maxW) maxW = w;
+                    });
+                    ctx.restore();
+                } else {
+                    lines.forEach(line => {
+                        const w = line.length * (textObj.fontSize || 50) * 0.6;
+                        if (w > maxW) maxW = w;
+                    });
+                }
+            } catch (e) {
+                lines.forEach(line => {
+                    const w = line.length * (textObj.fontSize || 50) * 0.6;
+                    if (w > maxW) maxW = w;
+                });
+            }
+            return Math.ceil(maxW);
+        };
+
         window.getLineMidpoint = function(obj) {
             if (obj && obj.__capcraftPoints && Array.isArray(obj.__capcraftPoints) && obj.__capcraftPoints.length >= 2) {
                 const pts = obj.__capcraftPoints;
@@ -3044,8 +3082,8 @@
                 const s = this.linkedShape;
                 if (!s) return;
                 if (typeof isLineOrArrow === 'function' && isLineOrArrow(s)) {
-                    const measuredW = Math.ceil(this.calcTextWidth ? this.calcTextWidth() + 20 : this.width);
-                    this.set({ width: Math.max(80, measuredW) });
+                    const maxW = typeof getMaxLineWidth === 'function' ? getMaxLineWidth(this) : (this.calcTextWidth ? this.calcTextWidth() : 50);
+                    this.set({ width: Math.max(80, maxW + 30) });
                     const center = typeof getLineMidpoint === 'function' ? getLineMidpoint(s) : s.getCenterPoint();
                     this.set({ left: center.x, top: center.y });
                     this.setCoords();
@@ -3891,32 +3929,37 @@
                 obj.startLinkedObj = null;
                 obj.endLinkedObj = null;
 
-                if (obj.__lastLeft !== undefined && obj.__lastTop !== undefined) {
-                    const dx = obj.left - obj.__lastLeft;
-                    const dy = obj.top - obj.__lastTop;
+                if (obj._capcraftBaseLeft === undefined) {
+                    obj._capcraftBaseLeft = obj.left;
+                    obj._capcraftBaseTop = obj.top;
+                    if (obj.__capcraftPoints) {
+                        obj._capcraftBasePts = JSON.parse(JSON.stringify(obj.__capcraftPoints));
+                    }
+                }
 
-                    if (dx !== 0 || dy !== 0) {
-                        if (obj.__capcraftPoints && Array.isArray(obj.__capcraftPoints)) {
-                            obj.__capcraftPoints.forEach(pt => {
-                                pt.x += dx;
-                                pt.y += dy;
-                            });
-                        }
-                        if (obj.__capcraftHandles && Array.isArray(obj.__capcraftHandles)) {
-                            obj.__capcraftHandles.forEach((h, idx) => {
-                                if (obj.__capcraftPoints && obj.__capcraftPoints[idx]) {
-                                    h.set({
-                                        left: obj.__capcraftPoints[idx].x,
-                                        top: obj.__capcraftPoints[idx].y
-                                    });
-                                    h.setCoords();
-                                }
-                            });
+                const dx = obj.left - obj._capcraftBaseLeft;
+                const dy = obj.top - obj._capcraftBaseTop;
+
+                if (obj.__capcraftPoints && obj._capcraftBasePts) {
+                    for (let i = 0; i < obj.__capcraftPoints.length; i++) {
+                        if (obj._capcraftBasePts[i]) {
+                            obj.__capcraftPoints[i].x = obj._capcraftBasePts[i].x + dx;
+                            obj.__capcraftPoints[i].y = obj._capcraftBasePts[i].y + dy;
                         }
                     }
                 }
-                obj.__lastLeft = obj.left;
-                obj.__lastTop = obj.top;
+
+                if (obj.__capcraftHandles && Array.isArray(obj.__capcraftHandles)) {
+                    obj.__capcraftHandles.forEach((h, idx) => {
+                        if (obj.__capcraftPoints && obj.__capcraftPoints[idx]) {
+                            h.set({
+                                left: obj.__capcraftPoints[idx].x,
+                                top: obj.__capcraftPoints[idx].y
+                            });
+                            h.setCoords();
+                        }
+                    });
+                }
             }
 
             const cw = canvas.width;
@@ -3991,7 +4034,7 @@
                 });
             } else {
                 updateLinkedLinesOnTransform(obj);
-                if (obj.__capcraftPoints) {
+                if (obj.__capcraftPoints && (typeof isLineOrArrow !== 'function' || !isLineOrArrow(obj))) {
                     if (obj._capcraftBaseLeft === undefined) {
                         obj._capcraftBaseLeft = obj.left;
                         obj._capcraftBaseTop = obj.top;
@@ -5653,7 +5696,7 @@
             if (!obj || (!['rect', 'ellipse', 'polygon'].includes(obj.type) && !isLineArrowObj) || obj.linkedText) return;
 
             const txtColor = typeof textColor !== 'undefined' ? textColor : '#E03C31';
-            const txtBgColor = isLineArrowObj ? 'rgba(255, 255, 255, 0.3)' : (typeof getTextBgOpacity === 'function' ? getTextBgOpacity() : '');
+            const txtBgColor = isLineArrowObj ? 'rgba(255, 255, 255, 0.6)' : (typeof getTextBgOpacity === 'function' ? getTextBgOpacity() : '');
             const txtSize = parseInt(document.getElementById('text_size_input') ? document.getElementById('text_size_input').value : 50) || 50;
             const isBold = (document.getElementById('btn_txt_b') || { classList: { contains: () => false } }).classList.contains('active');
             const isItalic = (document.getElementById('btn_txt_i') || { classList: { contains: () => false } }).classList.contains('active');
@@ -5667,7 +5710,7 @@
             let padW = 20;
             let startW = obj.width * obj.scaleX;
             if (isLineArrowObj) {
-                startW = 200;
+                startW = 80;
             } else if (obj.type === 'ellipse') {
                 startW = startW * Math.cos(Math.PI / 4);
             } else if (obj.type === 'polygon' && obj.points && obj.points.length === 4) {
@@ -5694,7 +5737,7 @@
                 hasBorders: false,
                 selectable: true,
                 evented: true,     // 클릭 이벤트는 받아야 함
-                splitByGrapheme: true,
+                splitByGrapheme: !isLineArrowObj,
                 isWidthFixed: true,
                 hoverCursor: 'move'
             });
