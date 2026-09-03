@@ -588,7 +588,12 @@
         }
 
         #canvas_container {
-            background: white;
+            background-color: #ffffff;
+            background-image: 
+                linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1),
+                linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1);
+            background-size: 16px 16px;
+            background-position: 0 0, 8px 8px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             display: none;
             position: relative;
@@ -1286,10 +1291,18 @@
             <input type="number" id="popout_shadow" min="0" max="100" value="50" style="width: 35px;" title="그림자 강도">
         </div>
 
-        <div id="panel_crop" class="sub-panel" style="gap:10px;">
-            <span style="color: var(--accent-blue); font-weight: bold;">이미지의 네 변을 조절하여 영역을 축소 또는 확장할 수 있습니다.</span>
+        <div id="panel_crop" class="sub-panel" style="gap:8px; align-items:center;">
+            <span style="color: var(--accent-blue); font-weight: bold;">자르기/확장</span>
+            <span style="color: var(--text-main); font-size:12px; margin-left: 5px;">확장 배경색:</span>
+            <div class="custom-select-group" id="crop_bg_mode_group" style="display:inline-flex; gap:3px;">
+                <button class="active" data-val="auto">자동 지정</button>
+                <button data-val="custom">직접 선택</button>
+            </div>
+            <div id="crop_custom_color_container" style="display:none; align-items:center; gap:4px;">
+                <div id="btn_crop_bg_color" class="color-btn" style="background-color: #ffffff; width:20px; height:20px; border:1px solid #cbd5e1; cursor:pointer;" title="확장 배경색 선택"></div>
+            </div>
             <button id="btn_do_crop" disabled
-                style="padding: 4px 12px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; opacity:0.4; transition:opacity 0.2s;">확인</button>
+                style="padding: 4px 12px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; opacity:0.4; transition:opacity 0.2s; margin-left: 5px;">확인</button>
         </div>
     </div>
 
@@ -1524,6 +1537,61 @@
                 <button data-val="high">고화질</button>
             </div>
             <input type="hidden" id="set_cap_quality" value="normal">
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">핀 설정</div>
+        <div class="setting-group"
+            style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-weight: 600;">텍스트:</span>
+                    <div class="custom-select-group" id="set_pin_text_group">
+                        <button data-val="on">ON</button>
+                        <button class="active" data-val="off">OFF</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-weight: 600;">펜:</span>
+                    <div class="custom-select-group" id="set_pin_pen_group">
+                        <button class="active" data-val="on">ON</button>
+                        <button data-val="off">OFF</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-weight: 600;">도형:</span>
+                    <div class="custom-select-group" id="set_pin_shape_group">
+                        <button data-val="on">ON</button>
+                        <button class="active" data-val="off">OFF</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-weight: 600;">이모티콘:</span>
+                    <div class="custom-select-group" id="set_pin_emoji_group">
+                        <button data-val="on">ON</button>
+                        <button class="active" data-val="off">OFF</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-weight: 600;">이미지:</span>
+                    <div class="custom-select-group" id="set_pin_image_group">
+                        <button data-val="on">ON</button>
+                        <button class="active" data-val="off">OFF</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-weight: 600;">모자이크:</span>
+                    <div class="custom-select-group" id="set_pin_mosaic_group">
+                        <button data-val="on">ON</button>
+                        <button class="active" data-val="off">OFF</button>
+                    </div>
+                </div>
+            </div>
+            <input type="hidden" id="set_pin_text" value="off">
+            <input type="hidden" id="set_pin_pen" value="on">
+            <input type="hidden" id="set_pin_shape" value="off">
+            <input type="hidden" id="set_pin_emoji" value="off">
+            <input type="hidden" id="set_pin_image" value="off">
+            <input type="hidden" id="set_pin_mosaic" value="off">
         </div>
 
         <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">텍스트 설정</div>
@@ -2477,6 +2545,55 @@
                 obj.setControlVisible('addText', false);
             }
 
+            const isEmojiObj = !!(obj.isEmoji);
+            const isMosaicObj = !!(obj.isMosaic);
+            const isMediaImgObj = !!(obj.isMediaImage) || (obj.type === 'image' && !isEmojiObj && !isMosaicObj);
+
+            if (isEmojiObj || isMediaImgObj || isMosaicObj) {
+                const sub = document.getElementById('sub_toolbar');
+                sub.style.display = 'block';
+                const tbRect = document.getElementById('toolbar').getBoundingClientRect();
+                sub.style.top = (tbRect.bottom + 10) + 'px';
+
+                let btnId = '';
+                let panelId = '';
+
+                if (isEmojiObj) {
+                    btnId = 'btn_tool_emoji';
+                    panelId = 'panel_emoji';
+                    const ep = document.getElementById('emoji_popup');
+                    if (ep) ep.style.display = 'none';
+                } else if (isMediaImgObj) {
+                    btnId = 'btn_tool_image';
+                    panelId = 'panel_image';
+                } else if (isMosaicObj) {
+                    btnId = 'btn_tool_mosaic';
+                    panelId = 'panel_mosaic';
+                }
+
+                const targetBtn = document.getElementById(btnId);
+                if (targetBtn) {
+                    const targetRect = targetBtn.getBoundingClientRect();
+                    sub.style.left = targetRect.left + 'px';
+                    sub.style.transform = 'none';
+                    requestAnimationFrame(() => {
+                        const subRect = sub.getBoundingClientRect();
+                        if (subRect.right > window.innerWidth - 10) {
+                            sub.style.left = Math.max(10, window.innerWidth - subRect.width - 10) + 'px';
+                        }
+                    });
+                } else {
+                    sub.style.left = '50%';
+                    sub.style.transform = 'translateX(-50%)';
+                }
+
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.btn-tool.group-edit').forEach(b => b.classList.remove('active'));
+
+                const panelEl = document.getElementById(panelId);
+                if (panelEl) panelEl.classList.add('active');
+            }
+
             if (obj && obj.isPopout) {
                 const sub = document.getElementById('sub_toolbar');
                 sub.style.display = 'block';
@@ -2492,6 +2609,7 @@
                     sub.style.transform = 'translateX(-50%)';
                 }
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.btn-tool.group-edit').forEach(b => b.classList.remove('active'));
                 document.getElementById('panel_popout').classList.add('active');
                 document.getElementById('popout_line_toggle').checked = obj.showConnectionLine !== false;
                 if (document.getElementById('btn_popout_line_color')) document.getElementById('btn_popout_line_color').style.backgroundColor = obj.popoutLineColor || '#555555';
@@ -2505,7 +2623,7 @@
 
             }
 
-            if (['rect', 'ellipse', 'polygon', 'path', 'group', 'line'].includes(obj.type) && !obj.isPopout) {
+            if (['rect', 'ellipse', 'polygon', 'path', 'group', 'line'].includes(obj.type) && !obj.isPopout && !isEmojiObj && !isMosaicObj && !isMediaImgObj) {
                 obj.setControlVisible('popOut', true);
 
                 const isShape = ['rect', 'ellipse', 'polygon', 'line'].includes(obj.type) || (obj.type === 'path' && obj.isArrowBody) || obj.type === 'group';
@@ -2517,7 +2635,7 @@
                     const tbRect = document.getElementById('toolbar').getBoundingClientRect();
                     sub.style.top = (tbRect.bottom + 10) + 'px';
 
-                    const btnId = isShape ? 'btn_tool_shapes' : 'btn_tool_pen';
+                    const btnId = isShape ? 'btn_tool_shape' : 'btn_tool_pen';
                     const targetBtn = document.getElementById(btnId);
                     if (targetBtn) {
                         const targetRect = targetBtn.getBoundingClientRect();
@@ -4079,7 +4197,8 @@
                 });
             } else {
                 canvas.setBackgroundImage(null, () => {
-                    canvas.setBackgroundColor(bgColor || 'white', () => {
+                    const finalBg = (bgColor !== undefined && bgColor !== null) ? bgColor : 'transparent';
+                    canvas.setBackgroundColor(finalBg, () => {
                         canvas.renderAll();
                         finalizeLoad();
                         setTimeout(() => canvas.requestRenderAll(), 50);
@@ -4369,15 +4488,22 @@
                 }
             }
 
-            const bgImg = canvas.backgroundImage;
-            const bgColor = canvas.backgroundColor;
+            let initBgData = null;
+            if (bgImg) {
+                if (bgImg._element && bgImg._element.src) {
+                    initBgData = bgImg._element.src;
+                } else if (typeof bgImg.toDataURL === 'function') {
+                    try { initBgData = bgImg.toDataURL({ format: 'png' }); } catch (e) { }
+                }
+            }
+
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
             const json = JSON.stringify(canvas.toJSON(['id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'showConnectionLine', 'tiltX', 'tiltY', 'skewX', 'skewY', 'isEditing', '_baseLeft', '_baseTop', '__capcraftPoints', '__capcraftLineType', 'startLinkedObjId', 'endLinkedObjId', 'isArrowGroup', 'arrowType', 'arrowSize', 'isArrowBody']));
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
-            stateHistory = [{ objects: json, width: canvas.width, height: canvas.height }];
+            stateHistory = [{ objects: json, width: canvas.width, height: canvas.height, bgData: initBgData }];
             historyIndex = 0;
             updateUndoRedoUI();
         }
@@ -4385,9 +4511,18 @@
         function saveHistory() {
             if (isHistoryAction || !hasActiveCanvas) return;
 
-            // 성능 최적화: 수 MB의 배경 이미지를 제외하고 벡터 개체만 JSON으로 직렬화 (속도 10배 이상 향상)
             const bgImg = canvas.backgroundImage;
             const bgColor = canvas.backgroundColor;
+
+            let bgData = null;
+            if (bgImg) {
+                if (bgImg._element && bgImg._element.src) {
+                    bgData = bgImg._element.src;
+                } else if (typeof bgImg.toDataURL === 'function') {
+                    try { bgData = bgImg.toDataURL({ format: 'png' }); } catch (e) { }
+                }
+            }
+
             canvas.backgroundImage = null;
             canvas.backgroundColor = null;
             // 핸들 객체는 직렬화에서 제외 (이벤트를 발생시키지 않도록 _objects를 직접 교체)
@@ -4398,11 +4533,15 @@
             canvas.backgroundImage = bgImg;
             canvas.backgroundColor = bgColor;
 
-            if (stateHistory.length > 0 && stateHistory[historyIndex].objects === json) return;
+            if (stateHistory.length > 0 &&
+                stateHistory[historyIndex].objects === json &&
+                stateHistory[historyIndex].width === canvas.width &&
+                stateHistory[historyIndex].height === canvas.height &&
+                stateHistory[historyIndex].bgData === bgData) return;
 
             if (historyIndex < stateHistory.length - 1) { stateHistory = stateHistory.slice(0, historyIndex + 1); }
 
-            stateHistory.push({ objects: json, width: canvas.width, height: canvas.height });
+            stateHistory.push({ objects: json, width: canvas.width, height: canvas.height, bgData: bgData });
 
             historyIndex++;
             if (stateHistory.length > 50) { stateHistory.shift(); historyIndex--; }
@@ -4589,33 +4728,24 @@
             canvas.setHeight(state.height);
             syncFabricContainerSize();
 
-            const bgImg = canvas.backgroundImage;
-            const bgColor = canvas.backgroundColor;
-
-            canvas.loadFromJSON(state.objects, () => {
+            const finishLoad = () => {
                 restoreLinkedTexts();
                 restorePopoutLinks();
-                canvas.backgroundImage = bgImg;
-                canvas.backgroundColor = bgColor;
                 canvas.renderOnAddRemove = true;
                 syncFabricContainerSize();
                 applyCanvasClipping();
+                applyFitZoom();
 
-                // ★ 핵심: setTimeout으로 새 macrotask에서 렌더링하여
-                //    Chromium compositor가 프레임을 스케줄링할 기회를 확보
                 setTimeout(() => {
                     canvas.renderAll();
                     isHistoryAction = false;
                     updateUndoRedoUI();
                     updateGlobalCursor();
 
-                    // ★ 비동기 팝아웃 복구 안전장치: _croppedBg 로드 완료 후
-                    //    아직 regeneratePopoutBase가 실행되지 않은 팝아웃 재시도
                     setTimeout(() => {
                         let needsRender = false;
                         canvas.getObjects().forEach(o => {
                             if (o.isPopout && o._croppedBg && o.linkedOriginal) {
-                                // _element가 아직 투명 더미이거나 canvas가 아닌 경우 재생성
                                 if (!o._element || !o._element.getContext) {
                                     if (typeof applyPopoutTilt === 'function') applyPopoutTilt(o);
                                     if (typeof updatePopoutLine === 'function') updatePopoutLine(o);
@@ -4626,6 +4756,20 @@
                         if (needsRender) canvas.renderAll();
                     }, 150);
                 }, 0);
+            };
+
+            canvas.loadFromJSON(state.objects, () => {
+                if (state.bgData) {
+                    fabric.Image.fromURL(state.bgData, (img) => {
+                        img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
+                        canvas.setBackgroundImage(img, () => {
+                            finishLoad();
+                        });
+                    });
+                } else {
+                    canvas.backgroundImage = null;
+                    finishLoad();
+                }
             }, window.popoutReviver);
         }
 
@@ -4685,7 +4829,12 @@
                     if (targetColorBtn === 'text' || targetColorBtn === 'set_text') textColor = c.h; else if (targetColorBtn === 'text_bg' || targetColorBtn === 'set_text_bg') textBg = c.h;
                 } else if (targetColorBtn === 'new_bg') {
                     document.getElementById('new_bg_color').style.backgroundColor = c.h;
-
+                } else if (targetColorBtn === 'crop_bg' || targetColorBtn === 'btn_crop_bg_color') {
+                    const el = document.getElementById('btn_crop_bg_color');
+                    if (el) {
+                        el.style.backgroundColor = c.h;
+                        el.style.backgroundImage = bgImg;
+                    }
                 } else if (targetColorBtn === 'set_pen_bg' || targetColorBtn === 'btn_pen_bg') {
                     const elId = targetColorBtn === 'set_pen_bg' ? 'set_pen_bg_color' : 'btn_pen_bg';
                     document.getElementById(elId).style.backgroundColor = c.h;
@@ -4907,6 +5056,7 @@
         bindCP('set_txt_color', 'set_text'); bindCP('set_txt_bg_color', 'set_text_bg');
         bindCP('set_popout_line_color', 'set_popout_line'); bindCP('set_popout_border_color', 'set_popout_border_c'); bindCP('set_popout_shadow_color', 'set_popout_shadow_c');
         bindCP('btn_popout_line_color', 'popout_line_c'); bindCP('btn_popout_border_color', 'popout_border_c'); bindCP('btn_popout_shadow_color', 'popout_shadow_c');
+        bindCP('btn_crop_bg_color', 'crop_bg');
 
         function updateShapeOptions() {
             const type = document.getElementById('shape_type').value;
@@ -5013,6 +5163,30 @@
         };
 
         window.applySettings = function () {
+            // 핀 설정 복원 및 상단바 반영 (펜만 기본값 ON, 나머지는 OFF)
+            const pinMap = [
+                { toolId: 'btn_tool_text', settingId: 'set_pin_text', defaultVal: 'off' },
+                { toolId: 'btn_tool_pen', settingId: 'set_pin_pen', defaultVal: 'on' },
+                { toolId: 'btn_tool_shape', settingId: 'set_pin_shape', defaultVal: 'off' },
+                { toolId: 'btn_tool_emoji', settingId: 'set_pin_emoji', defaultVal: 'off' },
+                { toolId: 'btn_tool_image', settingId: 'set_pin_image', defaultVal: 'off' },
+                { toolId: 'btn_tool_mosaic', settingId: 'set_pin_mosaic', defaultVal: 'off' }
+            ];
+
+            pinMap.forEach(item => {
+                const inputEl = document.getElementById(item.settingId);
+                const val = inputEl ? (inputEl.value || item.defaultVal) : item.defaultVal;
+                if (inputEl && !inputEl.value) inputEl.value = val;
+                const toolBtn = document.getElementById(item.toolId);
+                if (toolBtn) {
+                    const pin = toolBtn.querySelector('.pin-icon');
+                    if (pin) {
+                        if (val === 'on') pin.classList.add('active');
+                        else pin.classList.remove('active');
+                    }
+                }
+            });
+
             // Force popout defaults if missing or 0
             if (document.getElementById('set_popout_angle') && (!document.getElementById('set_popout_angle').value || document.getElementById('set_popout_angle').value === '0' || document.getElementById('set_popout_angle').value === '0.0')) {
                 document.getElementById('set_popout_angle').value = '6.0';
@@ -5294,12 +5468,37 @@
             }
         });
 
-        lucide.createIcons();
         document.addEventListener('click', function (e) {
             const pin = e.target.closest('.pin-icon');
             if (pin) {
                 e.stopPropagation();
                 pin.classList.toggle('active');
+
+                const parentBtn = pin.closest('.btn-tool');
+                if (parentBtn) {
+                    const toolIdMap = {
+                        'btn_tool_text': 'set_pin_text',
+                        'btn_tool_pen': 'set_pin_pen',
+                        'btn_tool_shape': 'set_pin_shape',
+                        'btn_tool_emoji': 'set_pin_emoji',
+                        'btn_tool_image': 'set_pin_image',
+                        'btn_tool_mosaic': 'set_pin_mosaic'
+                    };
+                    const settingId = toolIdMap[parentBtn.id];
+                    if (settingId) {
+                        const val = pin.classList.contains('active') ? 'on' : 'off';
+                        const inputEl = document.getElementById(settingId);
+                        if (inputEl) inputEl.value = val;
+                        const groupEl = document.getElementById(settingId + '_group');
+                        if (groupEl) {
+                            groupEl.querySelectorAll('button').forEach(b => {
+                                if (b.getAttribute('data-val') === val) b.classList.add('active');
+                                else b.classList.remove('active');
+                            });
+                        }
+                        if (typeof saveSettingsAuto === 'function') saveSettingsAuto();
+                    }
+                }
             }
         }, true);
 
@@ -5603,7 +5802,16 @@
                 suggestedName = `${baseName}.json`;
                 mime = 'application/json';
             } else if (format === 'pdf') {
+                const oldBg = canvas.backgroundColor;
+                if (!oldBg || oldBg === 'transparent' || oldBg === 'rgba(0,0,0,0)') {
+                    canvas.backgroundColor = '#ffffff';
+                    canvas.renderAll();
+                }
                 const dataUrl = canvas.toDataURL({ format: 'png', quality: 1, multiplier: 1, left: 0, top: 0, width: canvas.width, height: canvas.height });
+                if (!oldBg || oldBg === 'transparent' || oldBg === 'rgba(0,0,0,0)') {
+                    canvas.backgroundColor = oldBg;
+                    canvas.renderAll();
+                }
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({ orientation: canvas.width > canvas.height ? 'l' : 'p', unit: 'px', format: [canvas.width, canvas.height] });
                 pdf.addImage(dataUrl, 'PNG', 0, 0, canvas.width, canvas.height);
@@ -5617,7 +5825,16 @@
                 mime = 'image/svg+xml';
             } else {
                 const f = format === 'jpg' ? 'jpeg' : 'png';
+                const oldBg = canvas.backgroundColor;
+                if (f === 'jpeg' && (!oldBg || oldBg === 'transparent' || oldBg === 'rgba(0,0,0,0)')) {
+                    canvas.backgroundColor = '#ffffff';
+                    canvas.renderAll();
+                }
                 const dataUrl = canvas.toDataURL({ format: f, quality: 1, multiplier: 1, left: 0, top: 0, width: canvas.width, height: canvas.height });
+                if (f === 'jpeg' && (!oldBg || oldBg === 'transparent' || oldBg === 'rgba(0,0,0,0)')) {
+                    canvas.backgroundColor = oldBg;
+                    canvas.renderAll();
+                }
                 const byteString = atob(dataUrl.split(',')[1]);
                 const ab = new ArrayBuffer(byteString.length);
                 const ia = new Uint8Array(ab);
@@ -6174,11 +6391,16 @@
             const intensity = parseInt(document.getElementById('new_bg_intensity').value) / 100;
             const rawColor = document.getElementById('new_bg_color').style.backgroundColor;
 
-            const fColor = new fabric.Color(rawColor).getSource();
-            const r = Math.round(255 - (255 - fColor[0]) * intensity);
-            const g = Math.round(255 - (255 - fColor[1]) * intensity);
-            const b = Math.round(255 - (255 - fColor[2]) * intensity);
-            const bgColor = `rgb(${r}, ${g}, ${b})`;
+            let bgColor = 'transparent';
+            if (rawColor && rawColor !== 'transparent' && rawColor !== 'rgba(0, 0, 0, 0)') {
+                const fColor = new fabric.Color(rawColor).getSource();
+                if (fColor && fColor.length >= 3 && fColor[3] !== 0) {
+                    const r = Math.round(255 - (255 - fColor[0]) * intensity);
+                    const g = Math.round(255 - (255 - fColor[1]) * intensity);
+                    const b = Math.round(255 - (255 - fColor[2]) * intensity);
+                    bgColor = `rgb(${r}, ${g}, ${b})`;
+                }
+            }
 
             if (hasActiveCanvas) pushCurrentToRecent();
             activeRecentIdx = -1;
@@ -6956,9 +7178,26 @@
                 canvas.bringToFront(img);
                 canvas.requestRenderAll();
                 saveHistory();
-                // 이미지 툴 비활성화 (선택 모드로 복귀)
+
+                // 이미지 1회 삽입 완료 즉시 activeTool 해제 (연속 드래그 추가 방지)
+                deactivateActiveTool();
+
                 const imgBtn = document.getElementById('btn_tool_image');
-                if (imgBtn && imgBtn.classList.contains('active')) imgBtn.click();
+                if (imgBtn) {
+                    imgBtn.classList.remove('active');
+                    const sub = document.getElementById('sub_toolbar');
+                    if (sub) {
+                        sub.style.display = 'block';
+                        const tbRect = document.getElementById('toolbar').getBoundingClientRect();
+                        sub.style.top = (tbRect.bottom + 10) + 'px';
+                        const targetRect = imgBtn.getBoundingClientRect();
+                        sub.style.left = targetRect.left + 'px';
+                        sub.style.transform = 'none';
+                    }
+                    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                    const panelImg = document.getElementById('panel_image');
+                    if (panelImg) panelImg.classList.add('active');
+                }
             });
         }
 
@@ -7910,7 +8149,10 @@
         }
 
         canvas.on('mouse:down', o => {
-            if (document.getElementById('emoji_popup').style.display === 'block') { document.getElementById('emoji_popup').style.display = 'none'; return; }
+            if (document.getElementById('emoji_popup').style.display === 'block') {
+                document.getElementById('emoji_popup').style.display = 'none';
+                if (!o.target) return;
+            }
             const pointer = canvas.getPointer(o.e);
             lastMouseDownPoint = pointer;
 
@@ -8855,6 +9097,16 @@
             });
         })();
 
+        document.querySelectorAll('#crop_bg_mode_group button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#crop_bg_mode_group button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const val = btn.getAttribute('data-val');
+                const container = document.getElementById('crop_custom_color_container');
+                if (container) container.style.display = (val === 'custom') ? 'inline-flex' : 'none';
+            });
+        });
+
         // ── 자르기 실행 버튼 ──────────────────────────────────────────
         document.getElementById('btn_do_crop').addEventListener('click', performEdgeCrop);
 
@@ -8918,7 +9170,19 @@
             objects.forEach(o => canvas.remove(o));
             canvas.renderAll();
 
-            const edgeColor = getCanvasEdgeColor(cropL, cropT, cropR, cropB, canvas.width, canvas.height);
+            let edgeColor = 'rgba(255, 255, 255, 1)';
+            const activeCropModeBtn = document.querySelector('#crop_bg_mode_group button.active');
+            const cropMode = activeCropModeBtn ? activeCropModeBtn.getAttribute('data-val') : 'auto';
+
+            if (cropMode === 'custom') {
+                const customColBtn = document.getElementById('btn_crop_bg_color');
+                if (customColBtn && customColBtn.style.backgroundColor) {
+                    edgeColor = customColBtn.style.backgroundColor;
+                }
+            } else {
+                edgeColor = getCanvasEdgeColor(cropL, cropT, cropR, cropB, canvas.width, canvas.height);
+            }
+
             const origDataURL = canvas.toDataURL({ format: 'png', multiplier: 1 });
 
             const tempCanvas = document.createElement('canvas');

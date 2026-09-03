@@ -167,21 +167,43 @@ class Backend(QObject):
             elif "pdf" in selected_filter.lower(): ext = "pdf"
             elif "json" in selected_filter.lower(): ext = "json"
             
+            save_path = os.path.normpath(save_path)
+            if not save_path.lower().endswith(f".{ext}"):
+                save_path += f".{ext}"
+
+            dir_name = os.path.dirname(save_path)
+            if dir_name and not os.path.exists(dir_name):
+                try:
+                    os.makedirs(dir_name, exist_ok=True)
+                except Exception as e:
+                    print(f"Directory creation error: {e}")
+
             path_b64 = base64.b64encode(save_path.encode('utf-8')).decode()
             self.view.page().runJavaScript(f"window.execute_save_to_path(atob('{path_b64}'), '{ext}')")
 
     @pyqtSlot(str, str)
     def write_file_data(self, path, base64_data):
         try:
+            path = os.path.normpath(path)
+            dir_name = os.path.dirname(path)
+            if dir_name and not os.path.exists(dir_name):
+                os.makedirs(dir_name, exist_ok=True)
+
             if "," in base64_data:
-                base64_data = base64_data.split(",")[1]
+                base64_data = base64_data.split(",", 1)[1]
             data = base64.b64decode(base64_data)
             with open(path, "wb") as f:
                 f.write(data)
-            self.view.page().runJavaScript("if(typeof showToast === 'function') showToast('저장되었습니다.');")
+                f.flush()
+                os.fsync(f.fileno())
+
+            self.view.page().runJavaScript("if(typeof showToast === 'function') showToast('성공적으로 저장되었습니다.');")
+            return True
         except Exception as e:
-            print(f"Save error: {e}")
-            self.view.page().runJavaScript(f"if(typeof customAlert === 'function') customAlert('저장 중 오류가 발생했습니다: {e}');")
+            print(f"Save error for path {path}: {e}")
+            err_msg = str(e).replace('\\', '/').replace("'", "\\'").replace('"', '\\"').replace('\n', ' ')
+            self.view.page().runJavaScript(f"if(typeof customAlert === 'function') customAlert('저장 중 오류가 발생했습니다: {err_msg}');")
+            return False
 
     @pyqtSlot()
     def request_open_file(self):
