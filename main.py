@@ -39,17 +39,8 @@ def create_camera_icon():
 HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".capcraft_history.json")
 
 def cleanup_history_if_rebooted():
-    try:
-        if not os.path.exists(HISTORY_FILE):
-            return
-        mtime = os.path.getmtime(HISTORY_FILE)
-        uptime_sec = ctypes.windll.kernel32.GetTickCount64() / 1000.0
-        boot_time = time.time() - uptime_sec
-        # 파일이 시스템 부팅 시간 이전에 수정되었다면 재부팅된 것으로 간주하고 삭제
-        if mtime < boot_time:
-            os.remove(HISTORY_FILE)
-    except Exception:
-        pass
+    pass
+
 
 from capture_engine import CaptureEngine
 
