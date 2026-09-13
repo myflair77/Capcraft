@@ -324,8 +324,8 @@ def main():
 
     os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '0'
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'
-    # ★ QWebEngine GPU 래스터화만 선택적 비활성화 — 캔버스 깜빡임 방지 + GPU 컴포지팅 성능 유지
-    os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = '--disable-gpu-rasterization --disable-partial-raster'
+    # ★ QWebEngine GPU 래스터화 및 Canvas 2D 가속 활성화 — 캔버스 드래그/개체 생성 시 깜빡임 완전 방지
+    os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = '--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist --enable-accelerated-2d-canvas'
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )

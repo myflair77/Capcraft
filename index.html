@@ -602,11 +602,18 @@
             contain: layout style;
         }
 
-        /* Fabric.js가 생성하는 내부 래퍼의 높이 불일치로 인한 하단 깜빡임 방지 */
+        /* Fabric.js가 생성하는 내부 래퍼 및 캔버스 렌더링 하드웨어 가속 설정 (화면 깜빡임 방지) */
         #canvas_container .canvas-container {
             display: block !important;
             line-height: 0;
             font-size: 0;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+        }
+
+        #canvas_container canvas {
+            transform: translateZ(0);
+            backface-visibility: hidden;
         }
 
         /* 우측 사이드바 */
@@ -621,6 +628,8 @@
             max-width: var(--sidebar-width);
             flex-shrink: 0;
             background: var(--bg-panel);
+            transform: translateZ(0);
+            backface-visibility: hidden;
             border-left: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
@@ -628,6 +637,11 @@
             margin: 0;
             z-index: 2500;
             box-shadow: -5px 0 15px rgba(0, 0, 0, 0.05);
+        }
+
+        #toolbar, #sub_toolbar {
+            transform: translateZ(0);
+            backface-visibility: hidden;
             box-sizing: border-box;
         }
 
@@ -1257,8 +1271,15 @@
             <span style="color: var(--accent-blue); font-weight: bold;">팝업에서 선택 후, 캔버스를 드래그하세요.</span>
             <div id="emoji_preview" style="font-size: 20px; margin-left: 10px; cursor: pointer;">😀</div>
         </div>
-        <div id="panel_image" class="sub-panel">
-            <input type="file" id="image_upload" accept="image/png, image/jpeg, image/webp" style="font-size: 11px;">
+        <div id="panel_image" class="sub-panel" style="gap: 6px; align-items: stretch; flex-direction: column;">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                <span id="image_ready_label" style="color: var(--accent-blue); font-weight: bold; font-size: 12px; display: none;">캔버스를 드래그하세요</span>
+                <span id="image_empty_label" style="color: #94a3b8; font-size: 12px;">이미지를 선택하세요 →</span>
+                <button id="btn_image_region_select" style="padding: 4px 10px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; display: none;" title="영역 재설정">영역 선택</button>
+                <button id="btn_image_file_select" style="padding: 4px 10px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: 11px;">파일 선택</button>
+                <input type="file" id="image_upload" accept="image/png, image/jpeg, image/webp" style="display: none;">
+            </div>
+            <div id="image_recent_list" style="display: none; gap: 6px; align-items: center; flex-wrap: wrap; padding: 2px 0;"></div>
         </div>
         <div id="panel_eraser" class="sub-panel"><button id="btn_clear_all"
                 style="padding: 4px 10px; background: var(--accent-red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;"><i
@@ -2575,12 +2596,20 @@
         const canvas = new fabric.Canvas('mainCanvas', {
             uniformScaling: false,
             width: 800, height: 600, selection: true,
-            imageSmoothingEnabled: false,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
             perPixelTargetFind: false,
             targetFindTolerance: 25,
             preserveObjectStacking: true,
-            enableRetinaScaling: false
+            enableRetinaScaling: true
         });
+
+        // Ctrl 및 Shift 키를 누른 상태에서의 다중 선택(Multi-selection) 지원
+        // Fabric.js 내장 selectionKey 처리를 비활성화하고, mouse:down 커스텀 핸들러에서 직접 관리
+        canvas.selectionKey = null;
+        canvas._isSelectionKeyPressed = function (e) {
+            return false;
+        };
 
         // 엣지 글로우 토글 핸들러 (선택 시 파란 테두리 및 컨트롤 표시)
         function toggleEdgeGlow(e, isActive) {
@@ -2617,7 +2646,17 @@
         canvas.on('selection:updated', updateObjectControls);
 
         function updateObjectControls(e) {
-            const obj = (e && e.selected && e.selected.length > 0) ? e.selected[0] : (e ? e.target : (canvas ? canvas.getActiveObject() : null));
+            const activeObj = canvas ? canvas.getActiveObject() : null;
+            if (activeObj && activeObj.type === 'activeSelection') {
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.btn-tool.group-edit').forEach(b => {
+                    const pin = b.querySelector('.pin-icon');
+                    if (pin && pin.classList.contains('active')) return; // ★ 핀 고정 버튼은 보호
+                    b.classList.remove('active');
+                });
+                return;
+            }
+            const obj = (e && e.selected && e.selected.length > 0) ? e.selected[0] : (e ? e.target : activeObj);
             if (!obj || obj.__isLineHandle) return;
 
             if (typeof isLineOrArrow === 'function' && isLineOrArrow(obj)) {
@@ -2660,21 +2699,29 @@
                 }
 
                 const targetBtn = document.getElementById(btnId);
-                updateSubToolbarPosition(targetBtn);
-
-                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
-                document.querySelectorAll('.btn-tool.group-edit').forEach(b => b.classList.remove('active'));
-
                 const panelEl = document.getElementById(panelId);
-                if (panelEl) panelEl.classList.add('active');
-                requestAnimationFrame(() => updateSubToolbarPosition(targetBtn));
+
+                if (panelEl && !panelEl.classList.contains('active')) {
+                    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                    document.querySelectorAll('.btn-tool.group-edit').forEach(b => {
+                        const pin = b.querySelector('.pin-icon');
+                        if (pin && pin.classList.contains('active')) return; // ★ 핀 고정 버튼은 보호
+                        b.classList.remove('active');
+                    });
+                    panelEl.classList.add('active');
+                    updateSubToolbarPosition(targetBtn);
+                }
             }
 
             if (obj && obj.isPopout) {
                 const textBtn = document.getElementById('btn_tool_text');
                 updateSubToolbarPosition(textBtn);
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
-                document.querySelectorAll('.btn-tool.group-edit').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.btn-tool.group-edit').forEach(b => {
+                    const pin = b.querySelector('.pin-icon');
+                    if (pin && pin.classList.contains('active')) return; // ★ 핀 고정 버튼은 보호
+                    b.classList.remove('active');
+                });
                 document.getElementById('panel_popout').classList.add('active');
                 requestAnimationFrame(() => updateSubToolbarPosition(textBtn));
                 document.getElementById('popout_line_toggle').checked = obj.showConnectionLine !== false;
@@ -2862,12 +2909,34 @@
 
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (activeObj) {
-                    canvas.getActiveObjects().forEach(obj => {
+                    const activeObjs = canvas.getActiveObjects();
+                    activeObjs.forEach(obj => {
                         if (obj.__isLineHandle) return; // 핸들 자체는 삭제하지 않음
                         if (obj.__capcraftHandles) removeLineHandles(obj); // 선분 삭제 시 핸들도 제거
+                        if (obj.linkedText) canvas.remove(obj.linkedText);
+                        if (obj.linkedShape) canvas.remove(obj.linkedShape);
+                        if (obj.isPopout && obj.linkedLine) canvas.remove(obj.linkedLine);
                         canvas.remove(obj);
                     });
                     canvas.discardActiveObject();
+                    canvas.requestRenderAll();
+                    saveHistory();
+                }
+            } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+                if (activeObj) {
+                    e.preventDefault();
+                    const step = e.shiftKey ? 10 : 1;
+                    let dx = 0, dy = 0;
+                    if (e.key === 'ArrowLeft') dx = -step;
+                    else if (e.key === 'ArrowRight') dx = step;
+                    else if (e.key === 'ArrowUp') dy = -step;
+                    else if (e.key === 'ArrowDown') dy = step;
+
+                    activeObj.left += dx;
+                    activeObj.top += dy;
+                    activeObj.setCoords();
+                    canvas.fire('object:moving', { target: activeObj });
+                    canvas.requestRenderAll();
                     saveHistory();
                 }
             } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
@@ -3153,6 +3222,9 @@
             if (!activeTool && !e.target.closest('#toolbar') && !e.target.closest('.modal') && hasActiveCanvas) {
                 const target = canvas.findTarget(e, false);
                 if (target && target.selectable) return;
+
+                // Ctrl/Shift/Meta 키가 눌려 있으면 다중 선택 드래그 모드이므로 panning을 시작하지 않음
+                if (e.ctrlKey || e.shiftKey || e.metaKey) return;
 
                 isPanning = true;
                 panStartX = e.clientX; panStartY = e.clientY;
@@ -3697,14 +3769,16 @@
 
         const OriginalImageRender = fabric.Image.prototype._render;
         fabric.Image.prototype._render = function(ctx) {
+            if (ctx) {
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+            }
             if (this.isPopout) {
                 // 실시간 보더 변경 반영
                 if (this._lastBorder !== this.popoutBorder) {
                     regeneratePopoutBase(this);
                     this._lastBorder = this.popoutBorder;
                 }
-                
-                // Removed custom tilt rendering to use native skewX/skewY for perfect bounding box fit
             }
             OriginalImageRender.call(this, ctx);
         };
@@ -3879,7 +3953,11 @@
                     if (snapData && snapData.pt) pts[pts.length - 1] = snapData.pt;
                 }
 
-                recalculateAndRedrawLine(lineObj, false);
+                if (typeof updateLineGeometryInPlace === 'function') {
+                    updateLineGeometryInPlace(lineObj);
+                } else {
+                    recalculateAndRedrawLine(lineObj, false);
+                }
             }
         }
 
@@ -4230,7 +4308,7 @@
                 const center = (typeof isLineOrArrow === 'function' && isLineOrArrow(obj) && typeof getLineMidpoint === 'function') ? getLineMidpoint(obj) : obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
-                canvas.renderAll();
+                canvas.requestRenderAll();
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
@@ -4251,8 +4329,20 @@
                 let dx = obj.left - obj._capcraftBaseLeft;
                 let dy = obj.top - obj._capcraftBaseTop;
 
+                const selectedSubObjs = obj.getObjects();
                 obj.forEachObject(subObj => {
                     updateLinkedLinesOnTransform(subObj);
+                    if (subObj.linkedText && (!selectedSubObjs || !selectedSubObjs.includes(subObj.linkedText))) {
+                        const center = (typeof isLineOrArrow === 'function' && isLineOrArrow(subObj) && typeof getLineMidpoint === 'function') ? getLineMidpoint(subObj) : subObj.getCenterPoint();
+                        subObj.linkedText.set({ left: center.x, top: center.y, angle: subObj.angle });
+                        subObj.linkedText.setCoords();
+                    } else if (subObj.linkedShape && (!selectedSubObjs || !selectedSubObjs.includes(subObj.linkedShape))) {
+                        const center = subObj.getCenterPoint();
+                        subObj.linkedShape.set({ angle: subObj.angle });
+                        subObj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
+                        subObj.linkedShape.setCoords();
+                    }
+
                     if (subObj.__capcraftPoints) {
                         subObj.startLinkedObj = null;
                         subObj.endLinkedObj = null;
@@ -4298,12 +4388,17 @@
                 applyFitZoom();
                 applyCanvasClipping();
                 isHistoryAction = false;
-                saveHistory();
-                pushCurrentToRecent(); // ★ 즉시 최근 목록에 추가
-                renderRecentList();
+                canvas.renderAll();
+                setTimeout(() => {
+                    canvas.requestRenderAll();
+                    saveHistory();
+                    pushCurrentToRecent(true); // ★ 새로 캡처된 이미지를 썸네일 카드로 강제 신규 등록
+                    renderRecentList();
+                }, 50);
             }
 
             if (img) {
+                img.set({ selectable: false, evented: false, lockMovementX: true, lockMovementY: true });
                 canvas.setBackgroundImage(img, () => {
                     canvas.renderAll();
                     finalizeLoad();
@@ -4374,12 +4469,15 @@
                 'shapeType', 'rx', 'ry', 'strokeDashArray'
             ];
 
-            const json = JSON.stringify(canvas.toJSON(customProps));
+            const jsonObj = canvas.toJSON(customProps);
+            delete jsonObj.backgroundImage;
+            delete jsonObj.backgroundColor;
+            const json = JSON.stringify(jsonObj);
             canvas._objects = origObjects;
             return json;
         }
 
-        function pushCurrentToRecent() {
+        function pushCurrentToRecent(forceNew = false) {
             if (!hasActiveCanvas || !canvas) return;
             if (canvas.getObjects().length === 0 && !canvas.backgroundImage && (!canvas.backgroundColor || canvas.backgroundColor === 'transparent')) return;
 
@@ -4409,8 +4507,8 @@
                 }
             } catch (e) { /* fallback: jsonLight = null → 기존 json 사용 */ }
 
-            // ★ activeRecentIdx 항목 갱신 (복제 방지)
-            if (activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
+            // ★ forceNew가 아닐 때만 activeRecentIdx 항목 갱신 (복제 방지)
+            if (!forceNew && activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
                 recentList[activeRecentIdx].thumb = thumb;
                 recentList[activeRecentIdx].json = json;
                 recentList[activeRecentIdx].jsonLight = jsonLight;
@@ -4419,12 +4517,12 @@
                 recentList[activeRecentIdx].bgImgCache = bgImgCache;
                 recentList[activeRecentIdx].width = canvas.width;
                 recentList[activeRecentIdx].height = canvas.height;
-                renderRecentList();
+                updateRecentItemUI(activeRecentIdx);
                 return;
             }
 
-            // 중복 방지: 앞 항목과 동일하면 무시
-            if (recentList.length > 0 && recentList[0].json === json) return;
+            // forceNew가 아니면 중복 방지: 앞 항목과 동일하면 무시
+            if (!forceNew && recentList.length > 0 && recentList[0].json === json) return;
 
             recentList.unshift({ thumb, json, jsonLight, bgSrc, bgColor, bgImgCache, width: canvas.width, height: canvas.height, time: Date.now() });
             activeRecentIdx = 0;
@@ -4440,6 +4538,29 @@
             this.innerText = (recentSortOrder === 'desc' ? '최신순' : '과거순');
             renderRecentList();
         });
+
+        function updateRecentItemUI(realIdx) {
+            if (typeof triggerHistorySave === 'function') triggerHistorySave();
+            const container = document.getElementById('recent_list_container');
+            const items = container.querySelectorAll('.recent-item');
+            if (items.length !== recentList.length) {
+                renderRecentList();
+                return;
+            }
+            const itemObj = recentList[realIdx];
+            if (!itemObj) return;
+
+            const displayIdx = recentSortOrder === 'desc' ? realIdx : recentList.length - 1 - realIdx;
+            const targetEl = items[displayIdx];
+            if (targetEl) {
+                targetEl.style.backgroundImage = `url(${itemObj.thumb})`;
+                if (realIdx === activeRecentIdx) {
+                    targetEl.classList.add('active');
+                } else {
+                    targetEl.classList.remove('active');
+                }
+            }
+        }
 
         function renderRecentList() {
             if (typeof triggerHistorySave === 'function') triggerHistorySave();
@@ -4536,11 +4657,7 @@
             isHistoryAction = true;
             canvas.renderOnAddRemove = false;
 
-            // ★ 고속 경로: 캐시된 배경 Image 객체가 있으면 경량 JSON 사용
-            const useFastPath = item.bgImgCache && item.jsonLight;
-            const jsonToLoad = useFastPath ? item.jsonLight : item.json;
-
-            canvas.loadFromJSON(jsonToLoad, () => {
+            canvas.loadFromJSON(item.json, () => {
                 if (seq !== _recentLoadSeq) return;
                 restoreLinkedTexts();
                 restorePopoutLinks();
@@ -4552,6 +4669,14 @@
                 canvas.setHeight(h);
 
                 function finishLoad() {
+                    // 배경 이미지 선택 및 이동 방지 설정 보장
+                    if (canvas.backgroundImage) {
+                        canvas.backgroundImage.set({ selectable: false, evented: false, lockMovementX: true, lockMovementY: true });
+                    }
+                    // 배경색 복원
+                    if (item.bgColor) {
+                        canvas.setBackgroundColor(item.bgColor, () => {});
+                    }
                     syncFabricContainerSize();
                     canvas.calcOffset();
                     enableTools();
@@ -4563,12 +4688,19 @@
                     isHistoryAction = false;
                 }
 
-                if (useFastPath) {
-                    // 캐시된 Image 객체로 즉시 배경 복원 (Base64 디코딩 불필요)
+                // ★ getCanvasJSON()이 backgroundImage를 의도적으로 제거하므로,
+                //    별도 저장된 bgImgCache 또는 bgSrc에서 배경 이미지를 복원해야 함
+                if (item.bgImgCache) {
                     const fabricBg = new fabric.Image(item.bgImgCache, {
                         originX: 'left', originY: 'top', left: 0, top: 0
                     });
                     canvas.setBackgroundImage(fabricBg, () => { finishLoad(); });
+                } else if (item.bgSrc) {
+                    fabric.Image.fromURL(item.bgSrc, (bgImg) => {
+                        if (!bgImg) { finishLoad(); return; }
+                        bgImg.set({ originX: 'left', originY: 'top', left: 0, top: 0 });
+                        canvas.setBackgroundImage(bgImg, () => { finishLoad(); });
+                    });
                 } else {
                     finishLoad();
                 }
@@ -4680,11 +4812,7 @@
                 }
             }
 
-            canvas.backgroundImage = null;
-            canvas.backgroundColor = null;
             const json = getCanvasJSON();
-            canvas.backgroundImage = bgImg;
-            canvas.backgroundColor = bgColor;
 
             if (stateHistory.length > 0 &&
                 stateHistory[historyIndex].objects === json &&
@@ -4725,8 +4853,7 @@
             // 펜 브러시로 그린 선은 path:created에서 히스토리를 저장하므로 여기서 중복 저장 방지
             const isPenBrushPath = (activeTool === 'pen' && e.target.type === 'path' && !e.target.isTemp && canvas.isDrawingMode);
             if (!isHistoryAction && !e.target.isTemp && !isPenBrushPath) saveHistory();
-            // ★ 개체 추가 시 Fabric 내부 래퍼 크기 동기화 (하단 깜빡임 방지)
-            syncFabricContainerSize();
+            if (!e.target.isTemp) syncFabricContainerSize();
         });
         function normalizeScale(obj) {
             if (!obj || (obj.scaleX === 1 && obj.scaleY === 1)) return;
@@ -4805,6 +4932,16 @@
         }
 
         canvas.on('object:modified', (e) => {
+            if (e.target && (e.target.isMediaImage || e.target.type === 'image')) {
+                if (fabric.Image.filters && fabric.Image.filters.Resize) {
+                    try {
+                        if (!e.target.resizeFilter) {
+                            e.target.resizeFilter = new fabric.Image.filters.Resize({ resizeType: 'bilinear' });
+                        }
+                        e.target.applyFilters();
+                    } catch(err) {}
+                }
+            }
             // 핸들 드래그 완료 시 처리
             if (e.target && e.target.__isLineHandle) {
                 const parentLine = e.target.__handleParentLine;
@@ -5201,7 +5338,12 @@
                 ctxMenu.innerHTML = '';
 
                 if (target) {
-                    canvas.setActiveObject(target);
+                    const activeObj = canvas.getActiveObject();
+                    if (activeObj && activeObj.type === 'activeSelection' && ((typeof activeObj.contains === 'function' && activeObj.contains(target)) || (activeObj.getObjects && activeObj.getObjects().includes(target)))) {
+                        // 다중 선택 객체 내부의 요소를 우클릭 시 다중 선택 상태(activeSelection) 유지
+                    } else {
+                        canvas.setActiveObject(target);
+                    }
                     canvas.requestRenderAll();
 
                     ctxMenu.innerHTML = `
@@ -5723,12 +5865,41 @@
         let isEraserFatState = false; // 글로벌 DOM 연속 조작 방지 상태
 
 
+        // ★ 현재 활성 도구의 핀 고정 여부를 확인하는 헬퍼 함수
+        function isActiveToolPinned() {
+            const activeBtn = document.querySelector('.btn-tool.group-edit.active');
+            if (!activeBtn) return false;
+            const pin = activeBtn.querySelector('.pin-icon');
+            return !!(pin && pin.classList.contains('active'));
+        }
+
+        // ★ 핀 고정 상태에서 drawing mode를 복원하는 헬퍼 함수
+        function restorePinnedToolDrawingMode() {
+            if (activeTool === 'pen') {
+                const mode = document.querySelector('input[name="pen_mode"]:checked');
+                if (mode && mode.value === 'normal') {
+                    canvas.isDrawingMode = true;
+                    updatePenBrush();
+                }
+            } else if (activeTool === 'mosaic' && document.getElementById('mosaic_type') && document.getElementById('mosaic_type').value === 'freehand') {
+                canvas.isDrawingMode = true;
+                if (!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
+                    canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                }
+                canvas.freeDrawingBrush.color = 'rgba(128, 128, 128, 0.5)';
+                canvas.freeDrawingBrush.width = parseInt(document.getElementById('mosaic_weight').value) || 30;
+            }
+        }
+
         function deactivateActiveTool() {
             const activeBtn = document.querySelector('.btn-tool.group-edit.active');
             if (activeBtn) {
                 const pin = activeBtn.querySelector('.pin-icon');
-                if (pin && pin.classList.contains('active')) return;
-
+                if (pin && pin.classList.contains('active')) {
+                    // ★ 핀 고정 상태: 도구를 비활성화하지 않고, drawing mode를 복원
+                    restorePinnedToolDrawingMode();
+                    return;
+                }
                 activeBtn.classList.remove('active');
             }
 
@@ -5827,8 +5998,7 @@
             const toolbar = document.getElementById('toolbar');
             if (!sub || !toolbar) return;
 
-            sub.style.display = 'block';
-            sub.style.transform = 'none';
+            if (sub.style.display !== 'block') sub.style.display = 'block';
 
             const tbRect = toolbar.getBoundingClientRect();
             let topPos = tbRect.bottom + 10;
@@ -5851,8 +6021,10 @@
                 leftPos = minLeft;
             }
 
-            sub.style.top = topPos + 'px';
-            sub.style.left = leftPos + 'px';
+            const newTop = topPos + 'px';
+            const newLeft = leftPos + 'px';
+            if (sub.style.top !== newTop) sub.style.top = newTop;
+            if (sub.style.left !== newLeft) sub.style.left = newLeft;
         }
 
         const toolbar = document.getElementById('toolbar');
@@ -6035,14 +6207,16 @@
         window.receiveCapturedImage = function (base64Data) {
             if (base64Data) {
                 isHistoryAction = true;
-                fabric.Image.fromURL("data:image/webp;base64," + base64Data, (img) => {
+                if (hasActiveCanvas) {
                     pushCurrentToRecent(); // 이전 작업 보존
-                    activeRecentIdx = -1; // 새 항목 추가를 위해 인덱스 리셋
-                    stateHistory = []; historyIndex = -1;
-                    canvas.clear();
+                }
+                activeRecentIdx = -1; // 새 항목 추가를 위해 인덱스 리셋
+                stateHistory = []; historyIndex = -1;
+                canvas.clear();
+
+                fabric.Image.fromURL("data:image/webp;base64," + base64Data, (img) => {
                     img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
                     commitLoadToCanvas(img, img.width, img.height, null);
-                    // commitLoadToCanvas -> finalizeLoad -> saveHistory -> pushCurrentToRecent 자동 호출됨
 
                     setTimeout(() => {
                         checkAndTriggerAutoSave();
@@ -6629,7 +6803,18 @@
                         }, 2000);
                     }
                 }
-                else if (toolName.includes('이미지')) { activeTool = 'image'; document.getElementById('panel_image').classList.add('active'); }
+                else if (toolName.includes('이미지')) {
+                    activeTool = 'image';
+                    document.getElementById('panel_image').classList.add('active');
+                    // 최근 이미지가 있으면 바로 드래그 삽입 준비 상태로 진입
+                    if (pendingImageData) {
+                        preloadPendingImage();
+                        updateImagePanelUI(true);
+                        if (canvas) { canvas.defaultCursor = 'crosshair'; canvas.hoverCursor = 'crosshair'; }
+                    } else {
+                        updateImagePanelUI(false);
+                    }
+                }
                 else if (toolName.includes('지우개')) { activeTool = 'eraser'; document.getElementById('panel_eraser').classList.add('active'); }
                 else if (toolName.includes('모자이크')) { 
                     activeTool = 'mosaic'; 
@@ -7338,6 +7523,16 @@
             }
             document.getElementById('emoji_popup').style.display = 'none';
             pushRecentEmoji({ url: selectedEmojiUrl, unicode: selectedEmoji });
+            // ★ 이모티콘 선택 시 자동으로 이모티콘 도구 활성화
+            if (activeTool !== 'emoji') {
+                activeTool = 'emoji';
+                document.querySelectorAll('.btn-tool.group-edit').forEach(btn => btn.classList.remove('active'));
+                const emojiBtn = document.getElementById('btn_tool_emoji');
+                if (emojiBtn) emojiBtn.classList.add('active');
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel_emoji').classList.add('active');
+                updateGlobalCursor();
+            }
         });
 
         let recentEmojis = JSON.parse(localStorage.getItem('capcraft_recent_emojis') || '[]');
@@ -7375,6 +7570,16 @@
                         (selectedEmoji || "??");
                     document.getElementById('emoji_popup').style.display = 'none';
                     pushRecentEmoji(em);
+                    // ★ 최근 이모티콘 클릭 시 자동으로 이모티콘 도구 활성화
+                    if (activeTool !== 'emoji') {
+                        activeTool = 'emoji';
+                        document.querySelectorAll('.btn-tool.group-edit').forEach(btn => btn.classList.remove('active'));
+                        const emojiBtn = document.getElementById('btn_tool_emoji');
+                        if (emojiBtn) emojiBtn.classList.add('active');
+                        document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+                        document.getElementById('panel_emoji').classList.add('active');
+                        updateGlobalCursor();
+                    }
                 };
                 list.appendChild(item);
             });
@@ -7460,6 +7665,8 @@
                 img.src = f.target.result;
             };
             reader.readAsDataURL(file);
+            // ★ 같은 파일을 다시 선택할 수 있도록 input 값 리셋
+            this.value = '';
         });
 
 
@@ -7535,73 +7742,137 @@
             }
         });
 
-        // ★ 이미지 삽입 — 버튼 클릭 시 캔버스 중앙에 즉시 배치 (드래그 불필요)
-        function placeImageOnCanvas(src, cropX, cropY, cropW, cropH, frame) {
-            if (!src || !hasActiveCanvas) return;
-            closeModals();
-            fabric.Image.fromURL(src, (img) => {
-                // crop 적용
-                img.set({ cropX: cropX, cropY: cropY, width: cropW, height: cropH });
+        // ★ (미사용 placeImageOnCanvas, placeImageOnCanvasWithBounds 제거됨 — 드래그 방식으로 완전 대체)
 
-                // 클립 마스크 (원/타원)
-                if (frame === 'circle' || frame === 'ellipse') {
-                    img.set({
-                        clipPath: new fabric.Ellipse({
-                            originX: 'center', originY: 'center',
-                            rx: cropW / 2, ry: cropH / 2
-                        })
-                    });
+        let pendingImageData = null;
+        let recentInsertedImages = []; // 최근 삽입 이미지 목록 [{src, cropX, cropY, cropW, cropH, frame}]
+
+        // 이미지 패널 UI 업데이트 (최근 이미지 유무에 따라)
+        function updateImagePanelUI(hasImage) {
+            const readyLabel = document.getElementById('image_ready_label');
+            const emptyLabel = document.getElementById('image_empty_label');
+            const regionBtn = document.getElementById('btn_image_region_select');
+            if (hasImage && pendingImageData) {
+                readyLabel.style.display = 'inline';
+                emptyLabel.style.display = 'none';
+                regionBtn.style.display = 'inline-block';
+            } else {
+                readyLabel.style.display = 'none';
+                emptyLabel.style.display = 'inline';
+                regionBtn.style.display = 'none';
+            }
+            renderRecentImages();
+        }
+
+        function pushRecentImage(imgData) {
+            // 중복 제거 (같은 src)
+            recentInsertedImages = recentInsertedImages.filter(i => i.src !== imgData.src);
+            recentInsertedImages.unshift(imgData);
+            if (recentInsertedImages.length > 10) recentInsertedImages.pop();
+        }
+
+        function renderRecentImages() {
+            const list = document.getElementById('image_recent_list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (recentInsertedImages.length === 0) {
+                list.style.display = 'none';
+                return;
+            }
+            list.style.display = 'flex';
+            recentInsertedImages.forEach(imgData => {
+                const item = document.createElement('div');
+                item.style.cssText = 'width:40px; height:40px; border:2px solid var(--border-color); border-radius:6px; overflow:hidden; cursor:pointer; flex-shrink:0; background:#f1f5f9; transition:border-color 0.2s;';
+                if (pendingImageData && pendingImageData.src === imgData.src) {
+                    item.style.borderColor = 'var(--accent-blue)';
                 }
-
-                // 캔버스 80% 안에 들어오도록 스케일 조정
-                const maxScale = Math.min(
-                    (canvas.width * 0.8) / cropW,
-                    (canvas.height * 0.8) / cropH,
-                    1
-                );
-                img.set({
-                    originX: 'center', originY: 'center',
-                    left: canvas.width / 2,
-                    top: canvas.height / 2,
-                    scaleX: maxScale,
-                    scaleY: maxScale,
-                    selectable: true,
-                    evented: true,
-                    isMediaImage: true,
-                    frameType: frame
-                });
-
-                canvas.add(img);
-                canvas.setActiveObject(img);
-                canvas.bringToFront(img);
-                canvas.requestRenderAll();
-                saveHistory();
-
-                // 이미지 1회 삽입 완료 즉시 activeTool 해제 (연속 드래그 추가 방지)
-                deactivateActiveTool();
-
-                const imgBtn = document.getElementById('btn_tool_image');
-                if (imgBtn) {
-                    imgBtn.classList.remove('active');
-                    const sub = document.getElementById('sub_toolbar');
-                    if (sub) {
-                        sub.style.display = 'block';
-                        const tbRect = document.getElementById('toolbar').getBoundingClientRect();
-                        sub.style.top = (tbRect.bottom + 10) + 'px';
-                        const targetRect = imgBtn.getBoundingClientRect();
-                        sub.style.left = targetRect.left + 'px';
-                        sub.style.transform = 'none';
-                    }
-                    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
-                    const panelImg = document.getElementById('panel_image');
-                    if (panelImg) panelImg.classList.add('active');
-                }
+                const thumb = document.createElement('img');
+                thumb.src = imgData.src;
+                thumb.style.cssText = 'width:100%; height:100%; object-fit:cover;';
+                item.appendChild(thumb);
+                item.onmouseover = () => item.style.borderColor = 'var(--accent-blue)';
+                item.onmouseout = () => item.style.borderColor = (pendingImageData && pendingImageData.src === imgData.src) ? 'var(--accent-blue)' : 'var(--border-color)';
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    uploadedImageSrc = imgData.src;
+                    // 이미지 영역 선택 모달 열기
+                    const modalImg = new Image();
+                    modalImg.onload = () => {
+                        insertImgOrigW = modalImg.width; insertImgOrigH = modalImg.height;
+                        const container = document.getElementById('image_insert_preview_container');
+                        openModal('modal_image_insert');
+                        requestAnimationFrame(() => {
+                            const cW = container.clientWidth || 460;
+                            const cH = container.clientHeight || 350;
+                            insertScale = Math.min(cW / modalImg.width, cH / modalImg.height);
+                            if (insertScale > 1) insertScale = 1;
+                            const pImg = document.getElementById('image_insert_img');
+                            pImg.src = imgData.src;
+                            pImg.style.display = 'block';
+                            pImg.style.width = modalImg.width + 'px';
+                            pImg.style.height = modalImg.height + 'px';
+                            pImg.style.transform = `scale(${insertScale})`;
+                            pImg.style.left = (cW - modalImg.width * insertScale) / 2 + 'px';
+                            pImg.style.top = (cH - modalImg.height * insertScale) / 2 + 'px';
+                            document.getElementById('image_insert_selection').style.display = 'none';
+                            imageInsertData = { src: imgData.src, frame: document.getElementById('image_insert_frame').value || 'rect', sx: 0, sy: 0, sw: modalImg.width, sh: modalImg.height };
+                        });
+                    };
+                    modalImg.src = imgData.src;
+                };
+                list.appendChild(item);
             });
+        }
+
+        // ★ 파일 선택 버튼 → 숨겨진 file input 클릭
+        document.getElementById('btn_image_file_select').addEventListener('click', () => {
+            document.getElementById('image_upload').click();
+        });
+
+        // 이미지 프리로드: HTML Image를 미리 로드하여 캐시 (mousedown에서 동기적 fabric.Image 생성 가능)
+        let preloadedHtmlImg = null;
+        function preloadPendingImage() {
+            if (!pendingImageData) { preloadedHtmlImg = null; return; }
+            preloadedHtmlImg = null;
+            const htmlImg = new Image();
+            htmlImg.onload = () => { preloadedHtmlImg = htmlImg; };
+            htmlImg.src = pendingImageData.src;
+        }
+
+        function prepareImageInsertTool() {
+            if (!pendingImageData || !hasActiveCanvas) return;
+            activeTool = 'image';
+            document.querySelectorAll('.btn-tool').forEach(btn => btn.classList.remove('active'));
+            const imgBtn = document.getElementById('btn_tool_image');
+            if (imgBtn) imgBtn.classList.add('active');
+
+            if (canvas) {
+                canvas.defaultCursor = 'crosshair';
+                canvas.hoverCursor = 'crosshair';
+            }
+
+            // 이미지 프리로드
+            preloadPendingImage();
+            pushRecentImage(pendingImageData); // 최근 이미지 목록에 추가
+            updateImagePanelUI(true);
+
+            if (typeof showToast === 'function') {
+                showToast('캔버스 상에서 드래그하여 이미지를 삽입할 영역을 지정하세요.');
+            }
         }
 
         document.getElementById('btn_insert_original').addEventListener('click', () => {
             if (!uploadedImageSrc) { customAlert('이미지를 먼저 선택하세요.'); return; }
-            placeImageOnCanvas(uploadedImageSrc, 0, 0, insertImgOrigW, insertImgOrigH, 'rect');
+            pendingImageData = {
+                src: uploadedImageSrc,
+                cropX: 0,
+                cropY: 0,
+                cropW: insertImgOrigW,
+                cropH: insertImgOrigH,
+                frame: document.getElementById('image_insert_frame').value || 'rect'
+            };
+            closeModals();
+            prepareImageInsertTool();
         });
 
         document.getElementById('btn_confirm_image_insert').addEventListener('click', () => {
@@ -7609,12 +7880,44 @@
                 customAlert('이미지를 먼저 선택하고 영역을 지정하세요.');
                 return;
             }
-            placeImageOnCanvas(
-                imageInsertData.src,
-                imageInsertData.sx, imageInsertData.sy,
-                imageInsertData.sw, imageInsertData.sh,
-                imageInsertData.frame
-            );
+            pendingImageData = {
+                src: imageInsertData.src,
+                cropX: imageInsertData.sx,
+                cropY: imageInsertData.sy,
+                cropW: imageInsertData.sw,
+                cropH: imageInsertData.sh,
+                frame: imageInsertData.frame
+            };
+            closeModals();
+            prepareImageInsertTool();
+        });
+
+        // ★ 영역 선택 버튼: 최근 이미지의 영역을 다시 설정하기 위해 모달 열기
+        document.getElementById('btn_image_region_select').addEventListener('click', () => {
+            if (!uploadedImageSrc) { customAlert('이미지를 먼저 선택하세요.'); return; }
+            const img = new Image();
+            img.onload = () => {
+                insertImgOrigW = img.width; insertImgOrigH = img.height;
+                const container = document.getElementById('image_insert_preview_container');
+                openModal('modal_image_insert');
+                requestAnimationFrame(() => {
+                    const cW = container.clientWidth || 460;
+                    const cH = container.clientHeight || 350;
+                    insertScale = Math.min(cW / img.width, cH / img.height);
+                    if (insertScale > 1) insertScale = 1;
+                    const pImg = document.getElementById('image_insert_img');
+                    pImg.src = uploadedImageSrc;
+                    pImg.style.display = 'block';
+                    pImg.style.width = img.width + 'px';
+                    pImg.style.height = img.height + 'px';
+                    pImg.style.transform = `scale(${insertScale})`;
+                    pImg.style.left = (cW - img.width * insertScale) / 2 + 'px';
+                    pImg.style.top = (cH - img.height * insertScale) / 2 + 'px';
+                    document.getElementById('image_insert_selection').style.display = 'none';
+                    imageInsertData = { src: uploadedImageSrc, frame: document.getElementById('image_insert_frame').value || 'rect', sx: 0, sy: 0, sw: img.width, sh: img.height };
+                });
+            };
+            img.src = uploadedImageSrc;
         });
 
         document.getElementById('btn_clear_all').addEventListener('click', async () => {
@@ -8337,7 +8640,13 @@
                     // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
                     pathObj.set({ fill: finalBg, selectable: true, isTemp: false, objectCaching: true });
                     updateObjectSelectability();
-                    saveHistory(); deactivateActiveTool();
+                    saveHistory();
+                    if (isActiveToolPinned()) {
+                        restorePinnedToolDrawingMode();
+                    } else {
+                        deactivateActiveTool();
+                    }
+                    canvas.requestRenderAll();
                     return;
                 }
 
@@ -8353,21 +8662,50 @@
                     // 인식된 도형 생성
                     const newObj = _createRecognizedShape(recognized, sColor, sWidth, sDash, finalBg);
                     if (newObj) {
+                        const _wasPinned = isActiveToolPinned();
                         canvas.remove(pathObj);
                         canvas.add(newObj);
-                        canvas.setActiveObject(newObj);
+                        if (!_wasPinned) canvas.setActiveObject(newObj);
                         _showShapeRecogNotice(recognized.type);
                         updateObjectSelectability();
-                        saveHistory(); deactivateActiveTool();
+                        saveHistory();
+                        if (_wasPinned) {
+                            restorePinnedToolDrawingMode();
+                        } else {
+                            deactivateActiveTool();
+                        }
                         canvas.requestRenderAll();
                         return;
                     }
                 }
 
-                // 인식 실패 시 기존 동작 유지
-                pathObj.set({ selectable: true, isTemp: false });
+                // 곡선 보정 인식 실패 시: 곡선 보정만 적용
+                // ★ 핀 고정 상태에서도 펜을 계속 쓸 수 있도록 canvas.isDrawingMode를 복원
+                const smoothedPathStr = getSmoothCurvePath(_simplifyDP(pts, Math.hypot(_getBoundingBox(pts).w, _getBoundingBox(pts).h) * 0.02));
+                if (smoothedPathStr && pts.length > 2) {
+                    const smoothPath = new fabric.Path(smoothedPathStr, {
+                        fill: finalBg,
+                        stroke: pathObj.stroke,
+                        strokeWidth: pathObj.strokeWidth,
+                        strokeLineCap: 'round',
+                        strokeLineJoin: 'round',
+                        strokeDashArray: pathObj.strokeDashArray,
+                        selectable: true, isTemp: false, objectCaching: true
+                    });
+                    canvas.remove(pathObj);
+                    canvas.add(smoothPath);
+                    _showShapeRecogNotice('curve');
+                } else {
+                    pathObj.set({ fill: finalBg, selectable: true, isTemp: false });
+                }
                 updateObjectSelectability();
-                saveHistory(); deactivateActiveTool();
+                saveHistory();
+                if (isActiveToolPinned()) {
+                    restorePinnedToolDrawingMode();
+                } else {
+                    deactivateActiveTool();
+                }
+                canvas.requestRenderAll();
             }
         });
 
@@ -8548,6 +8886,50 @@
             return null;
         }
 
+        let isMultiDragSelecting = false;
+        let multiDragStartPt = null;
+        let tempMultiDragRect = null;
+        let _multiDragPrevSelected = []; // Ctrl+드래그 전 이미 선택된 개체 목록 보관
+
+        function getObjectsInRect(cvs, boxRect) {
+            if (!cvs || !boxRect) return [];
+            const objs = cvs.getObjects();
+            const result = [];
+            const boxRight = boxRect.left + boxRect.width;
+            const boxBottom = boxRect.top + boxRect.height;
+
+            objs.forEach(obj => {
+                if (!obj || obj.isTemp || obj.__isLineHandle || obj.isBgImage || (canvas && obj === canvas.backgroundImage) || !obj.selectable || !obj.evented) return;
+                const b = obj.getBoundingRect();
+                const objRight = b.left + b.width;
+                const objBottom = b.top + b.height;
+
+                const isIntersecting = !(b.left > boxRight || objRight < boxRect.left || b.top > boxBottom || objBottom < boxRect.top);
+                if (isIntersecting) {
+                    result.push(obj);
+                }
+            });
+            return result;
+        }
+
+        // Ctrl+클릭 다중 선택을 위해 Fabric.js 내부 처리 전에 현재 선택 상태를 저장
+        let _prevActiveBeforeMouseDown = [];
+        canvas.on('mouse:down:before', function(o) {
+            const isMultiKey = o.e && (o.e.ctrlKey || o.e.shiftKey || o.e.metaKey);
+            if (isMultiKey) {
+                const activeObj = canvas.getActiveObject();
+                if (activeObj && activeObj.type === 'activeSelection') {
+                    _prevActiveBeforeMouseDown = activeObj.getObjects().slice();
+                } else if (activeObj) {
+                    _prevActiveBeforeMouseDown = [activeObj];
+                } else {
+                    _prevActiveBeforeMouseDown = [];
+                }
+            } else {
+                _prevActiveBeforeMouseDown = [];
+            }
+        });
+
         canvas.on('mouse:down', o => {
             if (document.getElementById('emoji_popup').style.display === 'block') {
                 document.getElementById('emoji_popup').style.display = 'none';
@@ -8555,6 +8937,69 @@
             }
             const pointer = canvas.getPointer(o.e);
             lastMouseDownPoint = pointer;
+
+            const isMultiKey = o.e && (o.e.ctrlKey || o.e.shiftKey || o.e.metaKey);
+            const isBgTarget = !o.target || o.target.isBgImage || (canvas && o.target === canvas.backgroundImage);
+
+            // ── Ctrl+클릭 개별 다중 선택 처리 ──
+            // Fabric.js 내장 selectionKey가 비활성화되었으므로, 커스텀으로 다중 선택을 직접 관리.
+            // _prevActiveBeforeMouseDown: Fabric.js 내부 처리 전의 이전 선택 상태.
+            if (!activeTool && isMultiKey && !isBgTarget && o.target && o.target.selectable) {
+                const clickedObj = o.target;
+
+                // linkedShape가 있는 텍스트를 클릭 → 도형(shape)을 대신 다중 선택에 추가
+                let targetObj = clickedObj;
+                if (clickedObj.linkedShape) targetObj = clickedObj.linkedShape;
+
+                // Fabric.js가 이미 단일 선택으로 처리한 것을 무시하고, 이전 선택 + 클릭 개체로 구성
+                canvas.discardActiveObject();
+
+                const prevObjs = _prevActiveBeforeMouseDown.slice();
+                const alreadyIdx = prevObjs.indexOf(targetObj);
+
+                if (alreadyIdx >= 0) {
+                    // 이미 선택되어 있던 개체를 Ctrl+클릭 → 선택에서 제거 (토글)
+                    prevObjs.splice(alreadyIdx, 1);
+                } else {
+                    // 선택되어 있지 않던 개체를 Ctrl+클릭 → 선택에 추가
+                    prevObjs.push(targetObj);
+                }
+
+                if (prevObjs.length === 0) {
+                    // 모두 제거됨: 선택 없음
+                } else if (prevObjs.length === 1) {
+                    canvas.setActiveObject(prevObjs[0]);
+                } else {
+                    const sel = new fabric.ActiveSelection(prevObjs, { canvas: canvas });
+                    canvas.setActiveObject(sel);
+                }
+
+                _prevActiveBeforeMouseDown = [];
+                canvas.requestRenderAll();
+                isMultiDragSelecting = false;
+                multiDragStartPt = null;
+                return;
+            }
+
+            // ── Ctrl+드래그 영역 선택 시작 (빈 공간/배경 클릭) ──
+            if (!activeTool && isMultiKey && isBgTarget) {
+                // mouse:down:before에서 저장한 이전 선택 목록을 사용
+                // (Fabric.js 내부가 이미 기존 선택을 해제했을 수 있으므로)
+                _multiDragPrevSelected = _prevActiveBeforeMouseDown.slice();
+                _prevActiveBeforeMouseDown = [];
+
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+
+                isMultiDragSelecting = true;
+                multiDragStartPt = pointer;
+                canvas.selection = false; // Fabric.js 내장 드래그 선택 비활성화 (커스텀 영역 선택과 충돌 방지)
+                if (tempMultiDragRect) { canvas.remove(tempMultiDragRect); tempMultiDragRect = null; }
+            } else {
+                isMultiDragSelecting = false;
+                multiDragStartPt = null;
+                _multiDragPrevSelected = [];
+            }
 
             // 붙여넣기 좌표 갱신
             lastCanvasClick = { x: pointer.x, y: pointer.y };
@@ -8589,9 +9034,9 @@
                 }
             }
 
-            // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
+            // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집 (Ctrl/Shift 다중 선택 시에는 리다이렉트 스킵)
             const isControl = canvas._currentTransform && canvas._currentTransform.action && canvas._currentTransform.action !== 'drag';
-            if (!activeTool && o.target && o.target.linkedShape && !isControl) {
+            if (!activeTool && o.target && o.target.linkedShape && !isControl && !isMultiKey) {
                 // 클릭 대상이 텍스트 오브젝트인 경우
                 const shape = o.target.linkedShape;
                 if (_lastActiveShapeForLinkedText === shape) {
@@ -8611,7 +9056,7 @@
                     canvas.requestRenderAll();
                     return;
                 }
-            } else if (!activeTool && o.target && o.target.linkedText && !isControl) {
+            } else if (!activeTool && o.target && o.target.linkedText && !isControl && !isMultiKey) {
                 // 클릭 대상이 도형 자체인 경우 (선택 핸들이 텍스트를 덮어서 도형이 타겟이 됨)
                 const shape = o.target;
                 const textTarget = shape.linkedText;
@@ -8776,7 +9221,64 @@
                     } else {
                         currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(128,128,128,0.5)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true });
                     }
-                    canvas.add(currentShape);
+                } else if (activeTool === 'image') {
+                    if (!pendingImageData) return customAlert("삽입할 이미지를 먼저 선택하세요.");
+                    // ★ 프리로드된 HTML Image로 즉시 동기적 fabric.Image 생성 (부드러운 드래그)
+                    const createAndApplyImage = (imgElement) => {
+                        const fImg = new fabric.Image(imgElement, {
+                            cropX: pendingImageData.cropX,
+                            cropY: pendingImageData.cropY,
+                            width: pendingImageData.cropW,
+                            height: pendingImageData.cropH,
+                            originX: 'left', originY: 'top',
+                            left: origX, top: origY,
+                            scaleX: 0.01, scaleY: 0.01,
+                            selectable: false, evented: false,
+                            isTemp: true, isMediaImage: true,
+                            frameType: pendingImageData.frame,
+                            objectCaching: false
+                        });
+                        // 클립 마스크 (원/타원)
+                        if (pendingImageData.frame === 'circle' || pendingImageData.frame === 'ellipse') {
+                            fImg.set({
+                                clipPath: new fabric.Ellipse({
+                                    originX: 'center', originY: 'center',
+                                    rx: pendingImageData.cropW / 2, ry: pendingImageData.cropH / 2
+                                })
+                            });
+                        }
+                        liveEmojiImgObj = fImg;
+                        imageInsertData = pendingImageData;
+                        canvas.add(liveEmojiImgObj);
+                        canvas.requestRenderAll();
+                    };
+
+                    if (preloadedHtmlImg) {
+                        // 프리로드 완료: 완전 동기적으로 즉시 생성
+                        createAndApplyImage(preloadedHtmlImg);
+                    } else {
+                        // 프리로드 미완료 fallback: 비동기 로드
+                        const tmpImg = new Image();
+                        tmpImg.onload = () => {
+                            createAndApplyImage(tmpImg);
+                            // 비동기 로드 중 마우스가 이미 올라간 경우 즉시 확정
+                            if (!isDrawing && liveEmojiImgObj) {
+                                liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
+                                liveEmojiImgObj.setCoords();
+                                const maxScale = Math.min(
+                                    (canvas.width * 0.8) / pendingImageData.cropW,
+                                    (canvas.height * 0.8) / pendingImageData.cropH,
+                                    1
+                                );
+                                liveEmojiImgObj.set({ scaleX: maxScale, scaleY: maxScale });
+                                liveEmojiImgObj = null;
+                                updateObjectSelectability();
+                                canvas.requestRenderAll();
+                                saveHistory(); deactivateActiveTool();
+                            }
+                        };
+                        tmpImg.src = pendingImageData.src;
+                    }
                 } else if (activeTool === 'emoji') {
                     if (!selectedEmoji && !selectedEmojiUrl) return customAlert("이모티콘을 먼저 선택해주세요.");
                     const scaledSize = parseInt(document.getElementById('text_size_input').value) || 36;
@@ -8905,19 +9407,6 @@
                         }
                     };
                     emojiHtmlImg.src = emojiDataUrl;
-                } else if (activeTool === 'image') {
-                    if (!uploadedImageSrc) return customAlert("이미지 파일을 먼저 선택해주세요.");
-                    fabric.Image.fromURL(uploadedImageSrc, img => {
-                        const frame = imageInsertData.frame;
-                        img.set({ cropX: imageInsertData.sx, cropY: imageInsertData.sy, width: imageInsertData.sw, height: imageInsertData.sh });
-
-                        if (frame === 'circle' || frame === 'ellipse') {
-                            img.set({ clipPath: new fabric.Ellipse({ originX: 'center', originY: 'center', rx: imageInsertData.sw / 2, ry: imageInsertData.sh / 2 }) });
-                        }
-                        img.set({ originX: 'left', originY: 'top', left: origX, top: origY, scaleX: 0.01, scaleY: 0.01, selectable: false, isTemp: true, isMediaImage: true, frameType: frame });
-                        liveEmojiImgObj = img;
-                        canvas.add(liveEmojiImgObj);
-                    });
                 } else if (activeTool === 'shape') {
                     const weight = parseInt(document.getElementById('shape_weight').value);
                     const fColor = getFillOpacity();
@@ -8956,7 +9445,7 @@
 
         let lastEraserTarget = null;
         canvas.on('mouse:move', o => {
-            if (!activeTool && !isDrawing && !multiClickDrawing) return;
+            if (!activeTool && !isDrawing && !multiClickDrawing && !isMultiDragSelecting) return;
             if (activeTool === 'crop') { document.getElementById('guide_x').style.top = o.e.clientY + 'px'; document.getElementById('guide_y').style.left = o.e.clientX + 'px'; }
 
             // 지우개 애니메이션 연동 처리 (부드러운 최적화)
@@ -9113,6 +9602,32 @@
                 return;
             }
 
+            if (!activeTool && isMultiDragSelecting && multiDragStartPt) {
+                const w = Math.abs(pointer.x - multiDragStartPt.x);
+                const h = Math.abs(pointer.y - multiDragStartPt.y);
+                const left = Math.min(multiDragStartPt.x, pointer.x);
+                const top = Math.min(multiDragStartPt.y, pointer.y);
+
+                if (w > 5 || h > 5) {
+                    if (!tempMultiDragRect) {
+                        tempMultiDragRect = new fabric.Rect({
+                            left: left, top: top, width: w, height: h,
+                            fill: 'rgba(59, 130, 246, 0.15)',
+                            stroke: '#3b82f6',
+                            strokeDashArray: [4, 4],
+                            strokeWidth: 1.5,
+                            selectable: false,
+                            evented: false,
+                            isTemp: true
+                        });
+                        canvas.add(tempMultiDragRect);
+                    } else {
+                        tempMultiDragRect.set({ left: left, top: top, width: w, height: h });
+                    }
+                    canvas.requestRenderAll();
+                }
+            }
+
             if (!isDrawing) return;
 
             if (activeTool === 'crop') {
@@ -9133,11 +9648,12 @@
                     } else {
                         liveEmojiImgObj.scaleToWidth(newSize);
                     }
-                } else if (imageInsertData) {
-                    const sw = imageInsertData.sw || 1;
-                    const sh = imageInsertData.sh || 1;
-                    // 마우스 드래그 각도에 상관없이 원본 비율을 유지하도록 동일한 scale 적용
-                    let scale = Math.max(sizeW / sw, sizeH / sh);
+                } else if (activeTool === 'image' && (pendingImageData || imageInsertData)) {
+                    const data = pendingImageData || imageInsertData;
+                    const sw = data.cropW || data.sw || 1;
+                    const sh = data.cropH || data.sh || 1;
+                    // 마우스 드래그 영역에 비례 fit (원본 비율 유지)
+                    let scale = Math.min(sizeW / sw, sizeH / sh);
                     if (scale < 0.01) scale = 0.01;
                     liveEmojiImgObj.set({ scaleX: scale, scaleY: scale });
                 }
@@ -9215,6 +9731,61 @@
             updateSnapMarker(canvas, null);
             if (o.target) { o.target.__selectedThisClick = false; o.target.__shapeJustSelected = false; }
 
+            if (!activeTool && isMultiDragSelecting && multiDragStartPt) {
+                isMultiDragSelecting = false;
+                let boxRect = null;
+                if (tempMultiDragRect) {
+                    boxRect = {
+                        left: tempMultiDragRect.left,
+                        top: tempMultiDragRect.top,
+                        width: tempMultiDragRect.width,
+                        height: tempMultiDragRect.height
+                    };
+                    canvas.remove(tempMultiDragRect);
+                    tempMultiDragRect = null;
+                }
+                multiDragStartPt = null;
+
+                if (boxRect && (boxRect.width >= 5 || boxRect.height >= 5)) {
+                    let targets = getObjectsInRect(canvas, boxRect);
+                    // Ctrl 키로 영역 선택 시 기존 선택된 개체와 합치기
+                    if (_multiDragPrevSelected && _multiDragPrevSelected.length > 0) {
+                        // 기존 선택 + 새 영역 선택을 합집합(중복 제거)
+                        const merged = [..._multiDragPrevSelected];
+                        targets.forEach(obj => {
+                            if (!merged.includes(obj)) merged.push(obj);
+                        });
+                        targets = merged;
+                    }
+                    _multiDragPrevSelected = [];
+
+                    if (targets && targets.length > 0) {
+                        canvas.discardActiveObject();
+                        if (targets.length === 1) {
+                            canvas.setActiveObject(targets[0]);
+                        } else {
+                            const selGroup = new fabric.ActiveSelection(targets, { canvas: canvas });
+                            canvas.setActiveObject(selGroup);
+                        }
+                        canvas.requestRenderAll();
+                        return;
+                    }
+                } else {
+                    // 드래그 영역이 너무 작은 경우(거의 클릭만 한 경우) 이전 선택 복원
+                    if (_multiDragPrevSelected && _multiDragPrevSelected.length > 0) {
+                        if (_multiDragPrevSelected.length === 1) {
+                            canvas.setActiveObject(_multiDragPrevSelected[0]);
+                        } else {
+                            const selGroup = new fabric.ActiveSelection(_multiDragPrevSelected, { canvas: canvas });
+                            canvas.setActiveObject(selGroup);
+                        }
+                        canvas.requestRenderAll();
+                    }
+                    _multiDragPrevSelected = [];
+                }
+                canvas.selection = true; // Ctrl+드래그 영역 선택 완료 후 Fabric.js 내장 selection 복원
+            }
+
             if (multiClickDrawing) return;
             if (activeTool === 'text' && currentShape) { currentShape.isTemp = false; updateObjectSelectability(); saveHistory(); deactivateActiveTool(); currentShape = null; }
 
@@ -9261,6 +9832,10 @@
                 liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
                 liveEmojiImgObj.setCoords();
                 liveEmojiImgObj = null;
+                // pendingImageData는 유지 (최근 이미지 재사용 가능)
+                if (activeTool === 'image') {
+                    preloadPendingImage(); // 다음 삽입을 위해 프리로드 갱신
+                }
                 updateObjectSelectability();
                 canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
             }
@@ -9810,7 +10385,7 @@ window.createPopoutFromObject = function(obj) {
 };
 
 window.updatePopoutLine = function(popout) {
-    if (!popout || !popout.linkedOriginal || !popout.linkedLine) return;
+    if (!popout || !popout.linkedOriginal || !popout.linkedLine || !popout.canvas) return;
     if (!popout.showConnectionLine) {
         popout.linkedLine.set({ x1: 0, y1: 0, x2: 0, y2: 0 });
         popout.linkedLine.visible = false;
@@ -9824,7 +10399,13 @@ window.updatePopoutLine = function(popout) {
         x2: borderPoint.x, y2: borderPoint.y
     });
     popout.linkedLine.visible = true;
-    popout.canvas.sendBackwards(popout.linkedLine);
+    
+    const objs = popout.canvas.getObjects();
+    const popoutIdx = objs.indexOf(popout);
+    const lineIdx = objs.indexOf(popout.linkedLine);
+    if (lineIdx > popoutIdx && popoutIdx !== -1) {
+        popout.canvas.sendToBack(popout.linkedLine);
+    }
 };
 
 </script>
