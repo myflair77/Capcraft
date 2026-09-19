@@ -12,6 +12,23 @@ from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout, QLa
 from PyQt6.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QImage, QPixmap, QFont
 import ctypes
+from ctypes import wintypes
+
+
+def visible_window_bounds(hwnd):
+    """Physical screen bounds of the visible top-level frame, excluding resize margins."""
+    hwnd = win32gui.GetAncestor(hwnd, 2) or hwnd  # GA_ROOT, not the owner window
+    try:
+        get_attribute = ctypes.windll.dwmapi.DwmGetWindowAttribute
+        get_attribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+        get_attribute.restype = ctypes.c_long
+        rect = wintypes.RECT()
+        result = get_attribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect))
+        if result == 0 and rect.right > rect.left and rect.bottom > rect.top:
+            return rect.left, rect.top, rect.right, rect.bottom
+    except (AttributeError, OSError):
+        pass
+    return win32gui.GetWindowRect(hwnd)
 
 
 class CaptureOverlay(QWidget):
@@ -45,24 +62,30 @@ class CaptureOverlay(QWidget):
 
         self.v_left   = v_left
         self.v_top    = v_top
-        self.v_width  = v_right  - v_left
-        self.v_height = v_bottom - v_top
+        self.v_width  = v_right  - v_left + 1
+        self.v_height = v_bottom - v_top + 1
 
         self.setGeometry(v_left, v_top, self.v_width, self.v_height)
 
         self.screen_data = []
+
+        native_monitors = {}
+        for handle, _, _ in win32api.EnumDisplayMonitors():
+            info = win32api.GetMonitorInfo(handle)
+            native_monitors[info['Device']] = info['Monitor']
 
         with mss.mss() as sct:
             for screen in screens:
                 lr  = screen.geometry()   # 논리 픽셀 QRect (SetProcessDpiAwareness(2) 적용시 물리 픽셀과 동일)
                 dpr = screen.devicePixelRatio()
 
-                p_mon = {
-                    "left": lr.x(),
-                    "top": lr.y(),
-                    "width": lr.width(),
-                    "height": lr.height()
-                }
+                bounds = native_monitors.get(screen.name())
+                if bounds:
+                    left, top, right, bottom = bounds
+                    p_mon = dict(left=left, top=top, width=right-left, height=bottom-top)
+                else:
+                    p_mon = dict(left=lr.x(), top=lr.y(),
+                                 width=round(lr.width()*dpr), height=round(lr.height()*dpr))
 
                 try:
                     sct_img = sct.grab(p_mon)
@@ -120,7 +143,7 @@ class CaptureOverlay(QWidget):
         gly = ly + self.v_top
         for sd in self.screen_data:
             lr = sd['logical_rect']
-            if lr.contains(int(glx), int(gly)):
+            if sd['physical_rect'] is not None and lr.contains(int(glx), int(gly)):
                 rel_lx = glx - lr.x()
                 rel_ly = gly - lr.y()
                 px = sd['physical_rect']['left'] + int(rel_lx * sd['dpr'])
@@ -145,6 +168,9 @@ class CaptureOverlay(QWidget):
 
     # ─── 폴링 ───────────────────────────────────────────────────────────────
     def poll_mouse(self):
+        if win32api.GetAsyncKeyState(win32con.VK_ESCAPE) < 0:
+            self.close()
+            return
         try:
             px, py = win32api.GetCursorPos()
         except:
@@ -172,7 +198,8 @@ class CaptureOverlay(QWidget):
                 hwnd = win32gui.WindowFromPoint((px, py))
                 if hwnd:
                     try:
-                        l, t, r, b = win32gui.GetWindowRect(hwnd)
+                        l, t, r, b = (visible_window_bounds(hwnd) if self.mode == 'window'
+                                      else win32gui.GetWindowRect(hwnd))
                         self.target_rect_physical = (l, t, r - l, b - t)
                         llx, lly = self.physical_to_logical(l, t)
                         lrx, lry = self.physical_to_logical(r, b)
@@ -326,7 +353,7 @@ class CaptureOverlay(QWidget):
             w, h = self.size_w, self.size_h
             rect = QRect(cp.x()-w//2, cp.y()-h//2, w, h)
             px1, py1 = self.logical_to_physical(rect.left(), rect.top())
-            px2, py2 = self.logical_to_physical(rect.right(), rect.bottom())
+            px2, py2 = self.logical_to_physical(rect.x() + rect.width(), rect.y() + rect.height())
             self.perform_capture((px1, py1, px2-px1, py2-py1))
 
         elif self.mode == 'full':
@@ -521,15 +548,22 @@ class CaptureEngine:
         overlay.raise_()
         overlay.activateWindow()
 
-        while overlay.isVisible():
-            QApplication.processEvents()
-            time.sleep(0.01)
+        try:
+            while overlay.isVisible():
+                QApplication.processEvents()
+                time.sleep(0.01)
+            result = overlay.result_img
+        finally:
+            if hasattr(overlay, 'timer'):
+                overlay.timer.stop()
+            overlay.close()
+            overlay.deleteLater()
 
-        if mode == 'scroll' and isinstance(overlay.result_img, QPoint):
+        if mode == 'scroll' and isinstance(result, QPoint):
             time.sleep(0.3) # 오버레이가 완전히 닫힐 때까지 대기
-            return self.run_scroll_capture(overlay.result_img, quality_mode)
+            return self.run_scroll_capture(result, quality_mode)
 
-        return overlay.result_img
+        return result
 
     def run_scroll_capture(self, pos, quality_mode='normal'):
         hwnd = win32gui.WindowFromPoint((pos.x(), pos.y()))
@@ -566,6 +600,7 @@ class CaptureEngine:
             def wait_stable(timeout=1.5):
                 t0 = time.time()
                 prev = grab()
+                cur = prev
                 while time.time() - t0 < timeout:
                     if stop_flag[0]: break
                     QApplication.processEvents()
@@ -647,7 +682,7 @@ class CaptureEngine:
                     continue
                 no_change_cnt = 0
 
-                if i == 0:
+                if full_image is None:
                     fixed_top, fixed_bot = get_fixed_bounds(last_clean, new_clean, img_h, img_w)
                     full_image = last_clean[:img_h - fixed_bot, :]
 

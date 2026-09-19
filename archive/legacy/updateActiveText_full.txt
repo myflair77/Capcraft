@@ -1,0 +1,50 @@
+        function updateActiveText(skipSelection = false) {
+            const obj = canvas.getActiveObject();
+            if (!obj) return;
+            const targetText = obj.linkedText || (['i-text', 'textbox', 'text'].includes(obj.type) && !obj.isEmoji ? obj : null);
+            if (targetText) {
+                // UI 버튼 상태에서 직접 값을 읽어옴 (txtB, txtI, txtU 전역 변수 충돌 방지)
+                const isB = document.getElementById('btn_txt_b') && document.getElementById('btn_txt_b').classList.contains('active');
+                const isI = document.getElementById('btn_txt_i') && document.getElementById('btn_txt_i').classList.contains('active');
+                const isU = document.getElementById('btn_txt_u') && document.getElementById('btn_txt_u').classList.contains('active');
+                
+                const fw = isB ? 'bold' : 'normal';
+                const fst = isI ? 'italic' : 'normal';
+                const und = !!isU;
+                
+                const fs = parseInt(document.getElementById('text_size_input').value) || 50;
+                let alignVal = 'center';
+                if (document.getElementById('text_align')) alignVal = document.getElementById('text_align').value;
+                if (document.getElementById('edit_text_align')) alignVal = document.getElementById('edit_text_align').value;
+
+                if (!skipSelection && targetText.isEditing && targetText.selectionStart !== targetText.selectionEnd) {
+                    targetText.setSelectionStyles({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor });
+                } else {
+                    targetText.set({ fontWeight: fw, fontStyle: fst, underline: und, fontSize: fs, fill: textColor, backgroundColor: getTextBgOpacity(), textAlign: alignVal });
+                }
+                if (targetText.linkedShape) targetText.fire('changed');
+                canvas.requestRenderAll();
+            }
+        }
+        ['b','i','u'].forEach(type => { 
+            const topBtn = document.getElementById('btn_txt_'+type);
+            const editBtn = document.getElementById('edit_btn_'+type);
+            if (topBtn) {
+                topBtn.addEventListener('mousedown', e => e.preventDefault());
+                topBtn.addEventListener('click', function() { 
+                    this.classList.toggle('active'); 
+                    if (editBtn) editBtn.classList.toggle('active', this.classList.contains('active'));
+                    updateActiveText(); 
+                }); 
+            }
+            if (editBtn) {
+                editBtn.addEventListener('mousedown', e => e.preventDefault());
+                editBtn.addEventListener('click', function() { 
+                    this.classList.toggle('active'); 
+                    if (topBtn) topBtn.classList.toggle('active', this.classList.contains('active'));
+                    updateActiveText();
+                }); 
+            }
+        });
+        
+        document.querySelectorAll('.btn-align').forEach(btn => {

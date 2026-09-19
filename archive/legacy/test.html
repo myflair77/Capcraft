@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <i data-lucide="pin" class="pin-icon" id="mypin"></i>
+    <script>
+        lucide.createIcons();
+        document.querySelectorAll('.pin-icon').forEach(pin => {
+            console.log("Found pin:", pin.tagName);
+            pin.addEventListener('click', function(e) {
+                console.log("Pin clicked!");
+            });
+        });
+    </script>
+</body>
+</html>

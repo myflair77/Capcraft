@@ -4,3 +4,10 @@ __pycache__/
 *.spec
 *.pdf
 graphify-out/
+node_modules/
+.venv/
+test-results/
+dist-dev/
+!Capcraft_v1.2.spec
+.ocr-deps/
+models/ocr/*.onnx

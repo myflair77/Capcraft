@@ -1,0 +1,100 @@
+3451: window.applyObjectEdit = function() {
+3452: if (!editingObject) return;
+3453: const isText = (editingObject.type === 'i-text' || editingObject.type === 'text' || editingObject.type === 'textbox');
+3454: const isEmoji = editingObject.isEmoji || (isText && !editingObject.text.match(/[a-zA-Z가-힣0-9]/));
+3455: const isImage = (editingObject.type === 'image') || editingObject.isMediaImage || editingObject.isEmoji || editingObject.isMosaic;
+3456: const isArrow = (editingObject.type === 'group');
+3457: const isRectEllipse = (editingObject.type === 'rect' || editingObject.type === 'ellipse' || editingObject.type === 'polygon' || editingObject.type === 'circle');
+3458: const isLinePath = (editingObject.type === 'line' || editingObject.type === 'path' || editingObject.type === 'polyline' || isArrow);
+3459: 
+3460: if (isEmoji) {
+3461: const size = parseInt(document.getElementById('edit_emoji_size').value);
+3462: if (editingObject.baseFontSize) { // Image로 변환된 새 이모티콘
+3463: const scale = size / editingObject.baseFontSize;
+3464: editingObject.set({ scaleX: scale, scaleY: scale });
+3465: } else { // 예전 버전 호환성 (fabric.Text로 저장된 경우)
+3466: editingObject.set({ fontSize: size });
+3467: }
+3468: editingObject.setCoords();
+3469: } else if (isImage) {
+3470: const newW = parseInt(document.getElementById('edit_image_w').value);
+3471: const newH = parseInt(document.getElementById('edit_image_h').value);
+3472: let baseW = editingObject.type === 'group' ? editingObject.getObjects()[0].width : editingObject.width;
+3473: let baseH = editingObject.type === 'group' ? editingObject.getObjects()[0].height : editingObject.height;
+3474: editingObject.set({ scaleX: newW / baseW, scaleY: newH / baseH });
+3475: editingObject.setCoords();
+3476: } else if (isText && !isEmoji) {
+3477: const size = parseInt(document.getElementById('edit_text_size').value);
+3478: const tColor = document.getElementById('edit_text_color').style.backgroundColor;
+3479: let bColor = document.getElementById('edit_text_bg').style.backgroundColor;
+3480: if(bColor === 'rgba(0, 0, 0, 0)') bColor = 'transparent';
+3481: 
+3482: editingObject.set({
+3483: text: document.getElementById('edit_text_content').value,
+3484: fontSize: size, fill: tColor, backgroundColor: bColor === 'transparent' ? '' : bColor,
+3485: fontWeight: document.getElementById('edit_btn_b').classList.contains('active') ? 'bold' : 'normal',
+3486: fontStyle: document.getElementById('edit_btn_i').classList.contains('active') ? 'italic' : 'normal',
+3487: underline: document.getElementById('edit_btn_u').classList.contains('active'),
+3488: textAlign: document.getElementById('edit_text_align').value
+3489: });
+3490: editingObject.setCoords();
+3491: } else if (isRectEllipse) {
+3492: const newW = parseInt(document.getElementById('edit_shape_w').value);
+3493: const newH = parseInt(document.getElementById('edit_shape_h').value);
+3494: const size = parseInt(document.getElementById('edit_shape_weight').value);
+3495: const sColor = document.getElementById('edit_shape_stroke').style.backgroundColor;
+3496: const isDashed = document.getElementById('edit_shape_dashed').checked;
+3497: const dashArr = isDashed ? [size * 3, size * 3] : null;
+3498: 
+3499: let rawFColor = document.getElementById('edit_shape_fill').style.backgroundColor;
+3500: let finalFill = 'transparent';
+3501: if(rawFColor !== 'rgba(0, 0, 0, 0)' && rawFColor !== 'transparent' && rawFColor !== '') {
+3502: finalFill = new fabric.Color(rawFColor).setAlpha(sysShapeOpacity).toRgba();
+3503: }
+3504: 
+3505: if (editingObject.type === 'rect') {
+3506: editingObject.set({ width: newW, height: newH, scaleX: 1, scaleY: 1, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill });
+3507: } else if (editingObject.type === 'ellipse') {
+3508: editingObject.set({ rx: newW/2, ry: newH/2, scaleX: 1, scaleY: 1, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill });
+3509: } else if (editingObject.type === 'circle') {
+3510: editingObject.set({ radius: newW/2, scaleX: 1, scaleY: 1, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill });
+3511: } else if (editingObject.type === 'polygon') {
+3512: // Polygon scaling
+3513: const scaleX = (editingObject.width > 0) ? newW / editingObject.width : 1;
+3514: const scaleY = (editingObject.height > 0) ? newH / editingObject.height : 1;
+3515: let m = editingObject.calcTransformMatrix();
+3516: let minX = Math.min(...editingObject.points.map(p=>p.x)), minY = Math.min(...editingObject.points.map(p=>p.y));
+3517: let newPts = editingObject.points.map(pt => {
+3518: return { x: minX + (pt.x - minX) * scaleX, y: minY + (pt.y - minY) * scaleY };
+3519: });
+3520: editingObject.set({ points: newPts, scaleX: 1, scaleY: 1, width: newW, height: newH, strokeWidth: size, strokeDashArray: dashArr, stroke: sColor, fill: finalFill });
+3521: }
+3522: editingObject.setCoords();
+3523: } else if (isLinePath) {
+3524: const size = parseInt(document.getElementById('edit_line_weight').value);
+3525: const sColor = document.getElementById('edit_line_stroke').style.backgroundColor;
+3526: const isDashed = document.getElementById('edit_line_dashed').checked;
+3527: const dashArr = isDashed ? [size * 3, size * 3] : null;
+3528: 
+3529: let rawLineFColor = document.getElementById('edit_line_fill').style.backgroundColor;
+3530: let finalLineFill = 'transparent';
+3531: if(rawLineFColor !== 'rgba(0, 0, 0, 0)' && rawLineFColor !== 'transparent' && rawLineFColor !== '') {
+3532: finalLineFill = new fabric.Color(rawLineFColor).setAlpha(sysShapeOpacity).toRgba();
+3533: }
+3534: 
+3535: const newW = parseInt(document.getElementById('edit_line_w').value);
+3536: const newH = parseInt(document.getElementById('edit_line_h').value);
+3537: const scaleX = (editingObject.width  > 0) ? newW / editingObject.width  : 1;
+3538: const scaleY = (editingObject.height > 0) ? newH / editingObject.height : 1;
+3539: 
+3540: if (isArrow || editingObject.type === 'path') {
+3541: let oldBody = isArrow ? editingObject.getObjects().find(o => o.isArrowBody) : editingObject;
+3542: let m = oldBody.calcTransformMatrix();
+3543: let po = oldBody.pathOffset || { x: 0, y: 0 };
+3544: 
+3545: let absPoints = [];
+3546: oldBody.path.forEach(cmd => {
+3547: if(cmd[0] === 'M' || cmd[0] === 'L') absPoints.push(fabric.util.transformPoint({x: cmd[1] - po.x, y: cmd[2] - po.y}, m));
+3548: else if(cmd[0] === 'C') absPoints.push(fabric.util.transformPoint({x: cmd[5] - po.x, y: cmd[6] - po.y}, m));
+3549: else if(cmd[0] === 'Q') absPoints.push(fabric.util.transformPoint({x: cmd[3] - po.x, y: cmd[4] - po.y}, m));
+3550: });

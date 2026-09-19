@@ -1,0 +1,700 @@
+        canvas.on('selection:created', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
+        canvas.on('selection:updated', e => { if (e.selected) e.selected.forEach(obj => { obj.__selectedThisClick = true; }); });
+
+        canvas.on('mouse:down', o => {
+            if (document.getElementById('emoji_popup').style.display === 'block') { document.getElementById('emoji_popup').style.display = 'none'; return; }
+            const pointer = canvas.getPointer(o.e);
+            lastMouseDownPoint = pointer;
+
+            // 붙여넣기 좌표 갱신
+            lastCanvasClick = { x: pointer.x, y: pointer.y };
+
+            // === 텍스트 편집 모드 보호 및 드래그 선택 강화 ===
+            if (!activeTool && o.target) {
+                let editingText = null;
+                if (o.target.isEditing) editingText = o.target;
+                else if (o.target.linkedText && o.target.linkedText.isEditing) editingText = o.target.linkedText;
+
+                if (editingText) {
+                    canvas._currentTransform = null; // 이동 방지 (4방향 커서 방지)
+                    if (canvas.getActiveObject() !== editingText) {
+                        canvas.setActiveObject(editingText);
+                    }
+                    if (o.target !== editingText) {
+                        // 도형의 빈 공간을 클릭한 경우, 텍스트 객체에 직접 마우스 이벤트를 전달한 효과를 줌
+                        if (typeof editingText.setCursorByClick === 'function') {
+                            try { editingText.setCursorByClick(o.e); } catch (e) { }
+                        }
+                        if (typeof editingText.initMouseMoveHandler === 'function') {
+                            try { editingText.initMouseMoveHandler(o.e); } catch (e) { }
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
+            const isControl = canvas._currentTransform && canvas._currentTransform.action && canvas._currentTransform.action !== 'drag';
+            if (!activeTool && o.target && o.target.linkedShape && !isControl) {
+                // 클릭 대상이 텍스트 오브젝트인 경우
+                const shape = o.target.linkedShape;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // 두 번째 클릭: 텍스트 편집 모드 직접 진입
+                    _lastActiveShapeForLinkedText = null;
+                    const textTarget = o.target;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 첫 번째 클릭: 도형 선택으로 리다이렉트
+                    o.target.__shapeJustSelected = true;
+                    _lastActiveShapeForLinkedText = shape;
+                    canvas.setActiveObject(shape);
+                    canvas.requestRenderAll();
+                    return;
+                }
+            } else if (!activeTool && o.target && o.target.linkedText && !isControl) {
+                // 클릭 대상이 도형 자체인 경우 (선택 핸들이 텍스트를 덮어서 도형이 타겟이 됨)
+                const shape = o.target;
+                const textTarget = shape.linkedText;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // 두 번째 클릭: 텍스트 편집 모드 진입
+                    _lastActiveShapeForLinkedText = null;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 첫 번째 클릭 또는 일반 도형 클릭
+                    _lastActiveShapeForLinkedText = shape;
+                }
+            } else {
+                // 다른 곳 클릭 시 리셋
+                _lastActiveShapeForLinkedText = null;
+            }
+
+            if (activeTool === 'text') {
+                if (Date.now() - lastTextEditExitTime < 200) return;
+                const activeObj = canvas.getActiveObject();
+                if (activeObj && activeObj.isEditing) { canvas.discardActiveObject(); canvas.requestRenderAll(); return; }
+                if (o.target && (o.target.type === 'i-text' || o.target.type === 'text' || o.target.type === 'textbox')) return;
+
+                const fColor = getTextBgOpacity();
+                const scaledSize = parseInt(document.getElementById('text_size_input').value);
+                const textAlignVal = document.getElementById('text_align').value;
+                currentShape = new fabric.Textbox('', {
+                    left: pointer.x, top: pointer.y, fontSize: scaledSize,
+                    cursorWidth: 2, cursorColor: textColor, textAlign: textAlignVal,
+                    fill: textColor, backgroundColor: fColor, fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontFamily: 'Pretendard',
+                    originX: 'left', originY: 'top', splitByGrapheme: true, isWidthFixed: false
+                });
+                currentShape.on('changed', function () {
+                    if (!this.isWidthFixed) {
+                        const ctx = this.canvas.getContext();
+                        ctx.font = (this.fontStyle || 'normal') + ' ' + (this.fontWeight || 'normal') + ' ' + this.fontSize + 'px ' + this.fontFamily;
+                        let maxW = 50;
+                        const lines = this.text.split('\n');
+                        for (let i = 0; i < lines.length; i++) {
+                            const w = ctx.measureText(lines[i]).width;
+                            if (w > maxW) maxW = w;
+                        }
+                        this.set({ width: maxW + 10 });
+                    }
+                });
+                currentShape.on('resizing', function () { this.isWidthFixed = true; });
+                currentShape.on('scaling', function () { this.isWidthFixed = true; });
+
+                currentShape.isTemp = true; canvas.add(currentShape); canvas.setActiveObject(currentShape); currentShape.enterEditing(); return;
+            }
+
+            if (activeTool === 'eraser') {
+                const target = canvas.findTarget(o.e, false);
+                if (target && target.evented) { canvas.remove(target); canvas.requestRenderAll(); saveHistory(); }
+                return;
+            }
+
+            if (activeTool === 'pen' && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                isDrawing = true; origX = pointer.x; origY = pointer.y;
+                const weight = parseInt(document.getElementById('pen_weight').value) || 5;
+                const isDashed = document.getElementById('pen_dashed').checked;
+                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                currentShape = new fabric.Path(`M ${origX} ${origY} L ${origX} ${origY}`, {
+                    fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
+                    strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
+                    selectable: false, isTemp: true, objectCaching: false
+                });
+                canvas.add(currentShape);
+                return;
+            }
+
+            // 도구가 활성화되어 있지 않고 대상이 있다면 (선택 이동 & 맨 앞으로 가져오기)
+            if (!activeTool && o.target && o.target.selectable) {
+                // 텍스트 편집 중에는 Fabric.js 내장 IText 핸들러에 완전히 위임 (드래그 블록지정, 커서 이동 등)
+                if (o.target.isEditing) return;
+
+                if (o.target._skipBringToFront) {
+                    delete o.target._skipBringToFront;
+                } else if (canvas.getActiveObject() !== o.target) {
+                    if (o.target.linkedText) {
+                        canvas.bringToFront(o.target);
+                        canvas.bringToFront(o.target.linkedText);
+                    } else if (o.target.linkedShape) {
+                        canvas.bringToFront(o.target.linkedShape);
+                        canvas.bringToFront(o.target);
+                    } else {
+                        canvas.bringToFront(o.target);
+                    }
+                }
+                saveHistory();
+                return;
+            }
+
+            const shapeType = document.getElementById('shape_type').value;
+            const lineRadio = document.querySelector('input[name="line_type"]:checked');
+            const isLineShape = (shapeType === 'line' || shapeType === 'arrow');
+
+            if (isLineShape && activeTool === 'shape') {
+                floatingTooltip.style.display = 'block';
+                if (!multiClickDrawing) {
+                    multiClickDrawing = true;
+                    clickPoints = [{ x: pointer.x, y: pointer.y }, { x: pointer.x, y: pointer.y }];
+
+                    const weight = parseInt(document.getElementById('shape_weight').value);
+                    const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
+                    const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                    if (lineRadio && lineRadio.value === 'curve') {
+                        currentShape = new fabric.Path(getSmoothCurvePath(clickPoints), { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, isTemp: true, isArrowBody: true });
+                    } else {
+                        currentShape = new fabric.Path(`M ${clickPoints[0].x} ${clickPoints[0].y} L ${clickPoints[1].x} ${clickPoints[1].y}`, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
+                    }
+                    canvas.add(currentShape);
+                    if (shapeType === 'arrow') {
+                        arrowHead = createArrowHead(pointer.x, pointer.y, 0, sysArrowType, sysArrowSize, strokeColor, weight);
+                        canvas.add(arrowHead);
+                    }
+                } else {
+                    if (!lineRadio || lineRadio.value !== 'normal') {
+                        clickPoints[clickPoints.length - 1] = { x: pointer.x, y: pointer.y };
+                        clickPoints.push({ x: pointer.x, y: pointer.y });
+                    }
+                }
+                return;
+            }
+
+            if (['shape', 'emoji', 'image', 'crop', 'mosaic'].includes(activeTool)) {
+                isDrawing = true; origX = pointer.x; origY = pointer.y;
+
+                if (activeTool === 'crop') {
+                    capStartX = o.e.clientX; capStartY = o.e.clientY;
+                } else if (activeTool === 'mosaic') {
+                    currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(0,0,0,0.0)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true }); canvas.add(currentShape);
+                } else if (activeTool === 'emoji') {
+                    if (!selectedEmoji && !selectedEmojiUrl) return customAlert("이모티콘을 먼저 선택해주세요.");
+                    const scaledSize = parseInt(document.getElementById('text_size_input').value) || 36;
+
+                    if (selectedEmojiUrl) {
+                        const customHtmlImg = new Image();
+                        customHtmlImg.onload = function () {
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = customHtmlImg.width;
+                            tempCanvas.height = customHtmlImg.height;
+                            const ctx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                            ctx.drawImage(customHtmlImg, 0, 0);
+                            const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                            const data = imageData.data;
+                            let top = 0, bottom = tempCanvas.height, left = 0, right = tempCanvas.width;
+                            outer1: for (let y = 0; y < tempCanvas.height; y++) {
+                                for (let x = 0; x < tempCanvas.width; x++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { top = y; break outer1; }
+                                }
+                            }
+                            outer2: for (let y = tempCanvas.height - 1; y >= 0; y--) {
+                                for (let x = 0; x < tempCanvas.width; x++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { bottom = y + 1; break outer2; }
+                                }
+                            }
+                            outer3: for (let x = 0; x < tempCanvas.width; x++) {
+                                for (let y = 0; y < tempCanvas.height; y++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { left = x; break outer3; }
+                                }
+                            }
+                            outer4: for (let x = tempCanvas.width - 1; x >= 0; x--) {
+                                for (let y = 0; y < tempCanvas.height; y++) {
+                                    if (data[(y * tempCanvas.width + x) * 4 + 3] !== 0) { right = x + 1; break outer4; }
+                                }
+                            }
+                            let trimW = right - left; let trimH = bottom - top;
+                            if (trimW <= 0 || trimH <= 0) { trimW = 1; trimH = 1; left = 0; top = 0; }
+                            const trimCanvas = document.createElement('canvas');
+                            trimCanvas.width = trimW; trimCanvas.height = trimH;
+                            trimCanvas.getContext('2d').putImageData(ctx.getImageData(left, top, trimW, trimH), 0, 0);
+
+                            const croppedImg = new Image();
+                            croppedImg.onload = function () {
+                                liveEmojiImgObj = new fabric.Image(croppedImg, {
+                                    left: origX, top: origY,
+                                    originX: 'left', originY: 'top',
+                                    isTemp: true, selectable: false, evented: false,
+                                    isEmoji: true,
+                                    hasBorders: true, hasControls: true,
+                                    borderColor: '#3b82f6', borderScaleFactor: 2,
+                                    objectCaching: false
+                                });
+                                liveEmojiImgObj.scaleToWidth(10);
+                                canvas.add(liveEmojiImgObj);
+                                liveEmojiImgObj.setCoords();
+                                canvas.requestRenderAll();
+                                if (!isDrawing) {
+                                    liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
+                                    liveEmojiImgObj.setCoords();
+                                    liveEmojiImgObj = null;
+                                    updateObjectSelectability();
+                                    canvas.requestRenderAll();
+                                    saveHistory(); deactivateActiveTool();
+                                }
+                            };
+                            croppedImg.src = trimCanvas.toDataURL();
+                        };
+                        customHtmlImg.src = selectedEmojiUrl;
+                        return;
+                    }
+
+                    // 캔버스를 이용해 이모티콘의 정확한 경계(Bounding Box)를 측정하여 SVG 벡터로 삽입 (픽셀화 방지 및 타이트한 외곽선 유지)
+                    const tempCanvas = document.createElement('canvas');
+                    const tCtx = tempCanvas.getContext('2d');
+                    const renderSize = 128; // 측정 기준 크기
+                    const fontFamilyStr = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+                    tCtx.font = `${renderSize}px ${fontFamilyStr}`;
+                    const metrics = tCtx.measureText(selectedEmoji);
+
+                    let w = Math.ceil(metrics.actualBoundingBoxRight + metrics.actualBoundingBoxLeft);
+                    if (isNaN(w) || w <= 0) w = Math.ceil(metrics.width) || renderSize;
+
+                    let h = Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+                    if (isNaN(h) || h <= 0) h = renderSize;
+
+                    const drawX = metrics.actualBoundingBoxLeft || 0;
+                    const drawY = metrics.actualBoundingBoxAscent || (renderSize * 0.8);
+
+                    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+                        <text x="${drawX}" y="${drawY}" font-size="${renderSize}px" font-family='${fontFamilyStr}' dominant-baseline="alphabetic">${selectedEmoji}</text>
+                    </svg>`;
+
+                    const emojiDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+                    const emojiHtmlImg = new Image();
+                    emojiHtmlImg.onload = function () {
+                        liveEmojiImgObj = new fabric.Image(emojiHtmlImg, {
+                            left: origX,
+                            top: origY,
+                            originX: 'left',
+                            originY: 'top',
+                            selectable: false,
+                            evented: false,
+                            isTemp: true,
+                            isEmoji: true,
+                            baseFontSize: renderSize, // 편집 시 기준 크기
+                            scaleX: scaledSize / renderSize,
+                            scaleY: scaledSize / renderSize,
+                            hasBorders: true,
+                            hasControls: true,
+                            borderColor: '#3b82f6',
+                            borderScaleFactor: 2,
+                            objectCaching: false
+                        });
+                        canvas.add(liveEmojiImgObj);
+                        liveEmojiImgObj.setCoords();
+                        canvas.requestRenderAll();
+
+                        // 비동기 이미지 로드 중 마우스가 이미 올라간 경우(드래그 없이 클릭만) 즉시 확정 대응
+                        if (!isDrawing) {
+                            liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
+                            liveEmojiImgObj.setCoords();
+                            liveEmojiImgObj = null;
+                            updateObjectSelectability();
+                            canvas.requestRenderAll();
+                            saveHistory(); deactivateActiveTool();
+                        }
+                    };
+                    emojiHtmlImg.src = emojiDataUrl;
+                } else if (activeTool === 'image') {
+                    if (!uploadedImageSrc) return customAlert("이미지 파일을 먼저 선택해주세요.");
+                    fabric.Image.fromURL(uploadedImageSrc, img => {
+                        const frame = imageInsertData.frame;
+                        img.set({ cropX: imageInsertData.sx, cropY: imageInsertData.sy, width: imageInsertData.sw, height: imageInsertData.sh });
+
+                        if (frame === 'circle' || frame === 'ellipse') {
+                            img.set({ clipPath: new fabric.Ellipse({ originX: 'center', originY: 'center', rx: imageInsertData.sw / 2, ry: imageInsertData.sh / 2 }) });
+                        }
+                        img.set({ originX: 'left', originY: 'top', left: origX, top: origY, scaleX: 0.01, scaleY: 0.01, selectable: false, isTemp: true, isMediaImage: true, frameType: frame });
+                        liveEmojiImgObj = img;
+                        canvas.add(liveEmojiImgObj);
+                    });
+                } else if (activeTool === 'shape') {
+                    const weight = parseInt(document.getElementById('shape_weight').value);
+                    const fColor = getFillOpacity();
+                    const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
+                    const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                    if (shapeType === 'rect') {
+                        currentShape = new fabric.Rect({ left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true }); canvas.add(currentShape);
+                    } else if (shapeType === 'ellipse') {
+                        currentShape = new fabric.Ellipse({ left: origX, top: origY, originX: 'center', originY: 'center', fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, isTemp: true }); canvas.add(currentShape);
+                    } else if (shapeType === 'rhombus') {
+                        currentShape = new fabric.Polygon([
+                            { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }
+                        ], { left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true, objectCaching: false });
+                        canvas.add(currentShape);
+                    }
+                }
+            }
+        });
+
+        let lastEraserTarget = null;
+        canvas.on('mouse:move', o => {
+            if (!activeTool && !isDrawing && !multiClickDrawing) return;
+            if (activeTool === 'crop') { document.getElementById('guide_x').style.top = o.e.clientY + 'px'; document.getElementById('guide_y').style.left = o.e.clientX + 'px'; }
+
+            // 지우개 애니메이션 연동 처리 (부드러운 최적화)
+            if (activeTool === 'eraser') {
+                const target = canvas.findTarget(o.e, false);
+
+                if (target && target.evented) {
+                    if (!isEraserFatState) { updateEraserCursor(true); isEraserFatState = true; }
+                    // 마우스 누른 채 이동 시 지우기
+                    if (isDrawing) {
+                        if (lastEraserTarget && lastEraserTarget !== target) {
+                            lastEraserTarget.set('opacity', 1);
+                        }
+                        canvas.remove(target);
+                        lastEraserTarget = null;
+                        saveHistory();
+                        canvas.requestRenderAll();
+                    } else if (lastEraserTarget !== target) {
+                        if (lastEraserTarget) lastEraserTarget.set('opacity', 1);
+                        target.set('opacity', 0.4);
+                        lastEraserTarget = target;
+                        canvas.requestRenderAll();
+                    }
+                } else {
+                    if (isEraserFatState) { updateEraserCursor(false); isEraserFatState = false; }
+                    if (lastEraserTarget) {
+                        lastEraserTarget.set('opacity', 1);
+                        lastEraserTarget = null;
+                        canvas.requestRenderAll();
+                    }
+                }
+            }
+
+            const pointer = canvas.getPointer(o.e);
+
+            if (activeTool === 'pen' && isDrawing && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                let endX = pointer.x; let endY = pointer.y;
+
+                let angleDeg = Math.atan2(endY - origY, endX - origX) * 180 / Math.PI;
+                let normAngle = (angleDeg + 360) % 360;
+
+                const snapTolerance = 2;
+                if (Math.abs(normAngle - 0) <= snapTolerance || Math.abs(normAngle - 360) <= snapTolerance) { endY = origY; }
+                else if (Math.abs(normAngle - 90) <= snapTolerance) { endX = origX; }
+                else if (Math.abs(normAngle - 180) <= snapTolerance) { endY = origY; }
+                else if (Math.abs(normAngle - 270) <= snapTolerance) { endX = origX; }
+
+                const weight = parseInt(document.getElementById('pen_weight').value) || 5;
+                const isDashed = document.getElementById('pen_dashed').checked;
+                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                canvas.remove(currentShape);
+                currentShape = new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`, {
+                    fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
+                    strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
+                    selectable: false, isTemp: true, objectCaching: false
+                });
+                canvas.add(currentShape);
+                canvas.requestRenderAll();
+                return;
+            }
+
+            if (multiClickDrawing) {
+                floatingTooltip.style.left = o.e.clientX + 'px';
+                floatingTooltip.style.top = o.e.clientY + 'px';
+
+                let snapX = pointer.x; let snapY = pointer.y;
+                if (clickPoints.length > 2) {
+                    const dist = Math.hypot(pointer.x - clickPoints[0].x, pointer.y - clickPoints[0].y);
+                    if (dist < 15) { snapX = clickPoints[0].x; snapY = clickPoints[0].y; }
+                }
+
+                clickPoints[clickPoints.length - 1] = { x: snapX, y: snapY };
+                const lineRadio = document.querySelector('input[name="line_type"]:checked');
+
+                const weight = parseInt(document.getElementById('shape_weight').value);
+                const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
+                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                let renderPoints = [...clickPoints];
+
+                if (arrowHead && clickPoints.length > 1) {
+                    let p2 = clickPoints[clickPoints.length - 1]; let p1 = clickPoints[clickPoints.length - 2];
+                    for (let i = clickPoints.length - 2; i >= 0; i--) {
+                        if (Math.hypot(clickPoints[i].x - p2.x, clickPoints[i].y - p2.y) > 3) {
+                            p1 = clickPoints[i]; break;
+                        }
+                    }
+                    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const w = weight * sizeMult + 8;
+
+                    let pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
+                    let lineEndX = p2.x - Math.cos(angle) * pullBack;
+                    let lineEndY = p2.y - Math.sin(angle) * pullBack;
+                    renderPoints[renderPoints.length - 1] = { x: lineEndX, y: lineEndY };
+
+                    canvas.remove(arrowHead);
+                    arrowHead = createArrowHead(p2.x, p2.y, angle, sysArrowType, sysArrowSize, strokeColor, weight);
+                    canvas.add(arrowHead);
+                }
+
+                let newPathStr = (lineRadio.value === 'curve') ? getSmoothCurvePath(renderPoints) : renderPoints.reduce((acc, pt, idx) => acc + (idx === 0 ? 'M' : 'L') + ` ${pt.x} ${pt.y} `, '');
+
+                canvas.remove(currentShape);
+                currentShape = new fabric.Path(newPathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
+                canvas.add(currentShape);
+
+                canvas.requestRenderAll();
+                return;
+            }
+
+            if (!isDrawing) return;
+
+            if (activeTool === 'crop') {
+                const box = document.getElementById('selection_box'); box.style.display = 'block';
+                box.style.width = Math.abs(capStartX - o.e.clientX) + 'px'; box.style.height = Math.abs(capStartY - o.e.clientY) + 'px';
+                box.style.left = Math.min(capStartX, o.e.clientX) + 'px'; box.style.top = Math.min(capStartY, o.e.clientY) + 'px';
+            }
+            else if (['emoji', 'image'].includes(activeTool) && liveEmojiImgObj) {
+                const sizeW = Math.abs(origX - pointer.x);
+                const sizeH = Math.abs(origY - pointer.y);
+                const size = Math.max(sizeW, sizeH);
+                liveEmojiImgObj.set({ left: Math.min(origX, pointer.x), top: Math.min(origY, pointer.y) });
+                if (activeTool === 'emoji') {
+                    const newSize = Math.max(10, size);
+                    if (liveEmojiImgObj.baseFontSize) {
+                        const s = newSize / liveEmojiImgObj.baseFontSize;
+                        liveEmojiImgObj.set({ scaleX: s, scaleY: s });
+                    } else {
+                        liveEmojiImgObj.scaleToWidth(newSize);
+                    }
+                } else if (imageInsertData) {
+                    const frame = imageInsertData.frame;
+                    const sw = imageInsertData.sw || 1;
+                    const sh = imageInsertData.sh || 1;
+                    if (frame === 'square' || frame === 'circle') {
+                        let scale = Math.max(size / sw, size / sh);
+                        liveEmojiImgObj.set({ scaleX: scale, scaleY: scale });
+                    } else {
+                        liveEmojiImgObj.set({
+                            scaleX: sizeW > 0 ? sizeW / sw : 0.01,
+                            scaleY: sizeH > 0 ? sizeH / sh : 0.01
+                        });
+                    }
+                }
+                canvas.requestRenderAll();
+            }
+            else if (['mosaic', 'shape'].includes(activeTool) && currentShape) {
+                const shapeType = document.getElementById('shape_type').value;
+                const lineRadio = document.querySelector('input[name="line_type"]:checked');
+                const isNormalLine = (shapeType === 'line' || shapeType === 'arrow') && lineRadio && lineRadio.value === 'normal';
+
+                if (shapeType === 'rect' || activeTool === 'mosaic') { currentShape.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y) }); if (origX > pointer.x) currentShape.set({ left: pointer.x }); if (origY > pointer.y) currentShape.set({ top: pointer.y }); }
+                else if (shapeType === 'ellipse') { currentShape.set({ rx: Math.abs(origX - pointer.x) / 2, ry: Math.abs(origY - pointer.y) / 2 }); currentShape.set({ left: (origX + pointer.x) / 2, top: (origY + pointer.y) / 2 }); }
+                else if (shapeType === 'rhombus') {
+                    let minX = Math.min(origX, pointer.x);
+                    let maxX = Math.max(origX, pointer.x);
+                    let minY = Math.min(origY, pointer.y);
+                    let maxY = Math.max(origY, pointer.y);
+                    let w = maxX - minX; let h = maxY - minY;
+                    if (w > 0 && h > 0) {
+                        currentShape.set({
+                            left: minX, top: minY, width: w, height: h,
+                            points: [{ x: w / 2, y: 0 }, { x: w, y: h / 2 }, { x: w / 2, y: h }, { x: 0, y: h / 2 }]
+                        });
+                        currentShape._calcDimensions();
+                        currentShape.pathOffset = { x: w / 2, y: h / 2 };
+                        currentShape.setCoords();
+                    }
+                }
+                else if (isNormalLine) {
+                    // 일반 화살표도 곡선/다중 클릭과 100% 동일한 알고리즘을 사용하도록 수학적 위치 갱신 도입
+                    let angle = Math.atan2(pointer.y - origY, pointer.x - origX);
+                    const weight = parseInt(document.getElementById('shape_weight').value);
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const w = weight * sizeMult + 8;
+                    let pullBack = (shapeType === 'arrow') ? ((sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w) : 0;
+
+                    let endX = pointer.x - Math.cos(angle) * pullBack;
+                    let endY = pointer.y - Math.sin(angle) * pullBack;
+
+                    let pathStr = `M ${origX} ${origY} L ${endX} ${endY}`;
+                    const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
+                    const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+
+                    canvas.remove(currentShape);
+                    currentShape = new fabric.Path(pathStr, { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineCap: 'round', strokeLineJoin: 'round', isTemp: true, isArrowBody: true });
+                    canvas.add(currentShape);
+
+                    if (shapeType === 'arrow' && arrowHead) {
+                        canvas.remove(arrowHead);
+                        arrowHead = createArrowHead(pointer.x, pointer.y, angle, sysArrowType, sysArrowSize, strokeColor, weight);
+                        canvas.add(arrowHead);
+                    }
+                }
+                canvas.requestRenderAll();
+            }
+        });
+
+        canvas.on('mouse:up', async o => {
+            if (o.target) { o.target.__selectedThisClick = false; o.target.__shapeJustSelected = false; }
+
+            if (multiClickDrawing) return;
+            if (activeTool === 'text' && currentShape) { currentShape.isTemp = false; updateObjectSelectability(); saveHistory(); deactivateActiveTool(); currentShape = null; }
+
+            if (activeTool === 'eraser' && isDrawing) { isDrawing = false; return; }
+
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            // 자르기 도구는 엣지 드래그 오버레이로 처리됨 (mouse:up에서 제외)
+            if (activeTool === 'crop') { isDrawing = false; return; }
+
+            if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                currentShape.setCoords();
+                currentShape.set({ selectable: true, isTemp: false });
+                currentShape = null;
+                updateObjectSelectability();
+                canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
+                return;
+            }
+
+            if (activeTool === 'mosaic' && currentShape) {
+                let mLeft = Math.floor(currentShape.left);
+                let mTop = Math.floor(currentShape.top);
+                let mWidth = Math.floor(currentShape.width);
+                let mHeight = Math.floor(currentShape.height);
+
+                canvas.remove(currentShape); currentShape = null;
+
+                if (mLeft < 0) { mWidth += mLeft; mLeft = 0; }
+                if (mTop < 0) { mHeight += mTop; mTop = 0; }
+                if (mLeft + mWidth > canvas.width) mWidth = canvas.width - mLeft;
+                if (mTop + mHeight > canvas.height) mHeight = canvas.height - mTop;
+
+                if (mWidth > 10 && mHeight > 10) {
+                    let oldClip = canvas.clipPath;
+                    canvas.clipPath = null;
+                    canvas.renderAll();
+
+                    const cropData = canvas.toDataURL({ left: mLeft, top: mTop, width: mWidth, height: mHeight, format: 'png', multiplier: 1 });
+
+                    canvas.clipPath = oldClip;
+                    canvas.renderAll();
+
+                    const imgObj = new Image();
+                    imgObj.onload = function () {
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = mWidth; tempCanvas.height = mHeight;
+                        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+                        tempCtx.drawImage(imgObj, 0, 0, mWidth, mHeight);
+                        const imgData = tempCtx.getImageData(0, 0, mWidth, mHeight).data;
+
+                        const outCanvas = document.createElement('canvas');
+                        outCanvas.width = mWidth; outCanvas.height = mHeight;
+                        const outCtx = outCanvas.getContext('2d');
+
+                        let k = Math.max(1, window.sysMosaicPx);
+                        if (k > 20) k = 20;
+
+                        const cols = Math.ceil(mWidth / k);
+                        const rows = Math.ceil(mHeight / k);
+                        let cellColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
+
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                let cx = Math.min(c * k + Math.floor(k / 2), mWidth - 1);
+                                let cy = Math.min(r * k + Math.floor(k / 2), mHeight - 1);
+                                let idx = (cy * mWidth + cx) * 4;
+                                cellColors[r][c] = {
+                                    r: imgData[idx], g: imgData[idx + 1], b: imgData[idx + 2], a: imgData[idx + 3]
+                                };
+                            }
+                        }
+
+                        let finalColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
+                        let processed = new Array(rows).fill(0).map(() => new Array(cols).fill(false));
+
+                        let setIndex = 0;
+                        for (let r = 0; r < rows - 1; r += 2) {
+                            for (let c = 0; c < cols - 1; c += 2) {
+                                let type = setIndex % 4;
+                                let p00 = cellColors[r][c], p01 = cellColors[r][c + 1];
+                                let p10 = cellColors[r + 1][c], p11 = cellColors[r + 1][c + 1];
+
+                                if (type === 0 || type === 2) {
+                                    finalColors[r][c] = p11; finalColors[r + 1][c + 1] = p00;
+                                    finalColors[r][c + 1] = p10; finalColors[r + 1][c] = p01;
+                                } else if (type === 1) {
+                                    finalColors[r][c + 1] = p00; finalColors[r + 1][c + 1] = p01;
+                                    finalColors[r + 1][c] = p11; finalColors[r][c] = p10;
+                                } else if (type === 3) {
+                                    finalColors[r + 1][c] = p00; finalColors[r + 1][c + 1] = p10;
+                                    finalColors[r][c + 1] = p11; finalColors[r][c] = p01;
+                                }
+                                processed[r][c] = processed[r][c + 1] = processed[r + 1][c] = processed[r + 1][c + 1] = true;
+                                setIndex++;
+                            }
+                        }
+
+                        let flatCells = [];
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                if (!processed[r][c]) flatCells.push({ r, c });
+                            }
+                        }
+                        for (let i = 0; i < flatCells.length - 1; i += 2) {
+                            let p1 = flatCells[i]; let p2 = flatCells[i + 1];
+                            finalColors[p1.r][p1.c] = cellColors[p2.r][p2.c];
+                            finalColors[p2.r][p2.c] = cellColors[p1.r][p1.c];
+                        }
+                        if (flatCells.length % 2 !== 0) {
+                            let p = flatCells[flatCells.length - 1];
+                            finalColors[p.r][p.c] = cellColors[p.r][p.c];
+                        }
+
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                let col = finalColors[r][c];
+                                if (col.a > 0) {
+                                    outCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${col.a / 255})`;
+                                    outCtx.fillRect(c * k, r * k, k, k);
+                                }
+                            }
+                        }
+
+                        fabric.Image.fromURL(outCanvas.toDataURL('image/png'), (patchImg) => {
+                            patchImg.set({ left: mLeft, top: mTop, selectable: true, isMosaic: true });
+                            canvas.add(patchImg); canvas.bringToFront(patchImg);
+                            updateObjectSelectability();
+                            canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
+                        });
+                    };
+                    imgObj.src = cropData;
+                }
+            }
+            else if (['emoji', 'image'].includes(activeTool) && liveEmojiImgObj) {
+                liveEmojiImgObj.set({ selectable: true, evented: true, isTemp: false });
+                liveEmojiImgObj.setCoords();

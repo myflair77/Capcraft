@@ -1,0 +1,52 @@
+5502: async function performEdgeCrop() {
+5503: if (!hasActiveCanvas || !cropAdjusted) return;
+5504: const cLeft = cropL, cTop = cropT;
+5505: const newW = cropR - cropL, newH = cropB - cropT;
+5506: if (newW < 20 || newH < 20) return;
+5507: 
+5508: hideCropOverlay();
+5509: canvas.discardActiveObject();
+5510: 
+5511: // 1. 개체 목록 복사 후 캔버스에서 일시 제거 (배경만 남김)
+5512: const objects = canvas.getObjects().slice();
+5513: objects.forEach(o => canvas.remove(o));
+5514: canvas.renderAll();
+5515: 
+5516: // 2. 배경 영역만 toDataURL로 추출
+5517: const bgData = canvas.toDataURL({
+5518: left: cLeft, top: cTop, width: newW, height: newH,
+5519: format: 'png', multiplier: 1
+5520: });
+5521: 
+5522: // 3. 배경 이미지 교체
+5523: fabric.Image.fromURL(bgData, (img) => {
+5524: isHistoryAction = true;
+5525: img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
+5526: canvas.setWidth(newW);
+5527: canvas.setHeight(newH);
+5528: canvas.setBackgroundImage(img, () => {
+5529: // 4. 개체 위치 보정 후 재추가 (경계 걸치거나 내부 개체만)
+5530: objects.forEach(o => {
+5531: o.set({ left: o.left - cLeft, top: o.top - cTop });
+5532: o.setCoords();
+5533: const br = o.getBoundingRect();
+5534: // 완전히 바깥인 개체만 제외, 나머지 모두 유지
+5535: if (br.left + br.width > 0 && br.left < newW &&
+5536: br.top + br.height > 0 && br.top < newH) {
+5537: o.set({ selectable: true, evented: true });
+5538: canvas.add(o);
+5539: }
+5540: });
+5541: panX = 0; panY = 0;
+5542: applyFitZoom(); applyCanvasClipping();
+5543: canvas.renderAll();
+5544: isHistoryAction = false; saveHistory();
+5545: // 자르기 도구 비활성화
+5546: document.getElementById('btn_tool_crop').click();
+5547: });
+5548: });
+5549: }
+5550: 
+5551: </script>
+5552: </body>
+5553: </html>

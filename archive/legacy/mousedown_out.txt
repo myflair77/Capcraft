@@ -1,0 +1,70 @@
+        canvas.on('mouse:down', o => {
+            if (document.getElementById('emoji_popup').style.display === 'block') { document.getElementById('emoji_popup').style.display = 'none'; return; }
+            const pointer = canvas.getPointer(o.e);
+            lastMouseDownPoint = pointer;
+            
+            // 遺숈뿬?ｊ린 醫뚰몴 媛깆떊
+            lastCanvasClick = { x: pointer.x, y: pointer.y };
+
+            // ?꾪삎 ??湲?곸옄: 泥??대┃? ?꾪삎 ?좏깮, ??踰덉㎏ ?대┃? ?띿뒪???몄쭛
+            if (!activeTool && o.target && o.target.linkedShape) {
+                // ?대┃ ??곸씠 ?띿뒪???ㅻ툕?앺듃??寃쎌슦
+                const shape = o.target.linkedShape;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // ??踰덉㎏ ?대┃: ?띿뒪???몄쭛 紐⑤뱶 吏곸젒 吏꾩엯
+                    _lastActiveShapeForLinkedText = null;
+                    const textTarget = o.target;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 泥?踰덉㎏ ?대┃: ?꾪삎 ?좏깮?쇰줈 由щ떎?대젆??                    o.target.__shapeJustSelected = true;
+                    _lastActiveShapeForLinkedText = shape;
+                    canvas.setActiveObject(shape);
+                    canvas.requestRenderAll();
+                    return;
+                }
+            } else if (!activeTool && o.target && o.target.linkedText) {
+                // ?대┃ ??곸씠 ?꾪삎 ?먯껜??寃쎌슦 (?좏깮 ?몃뱾???띿뒪?몃? ??뼱???꾪삎???寃잛씠 ??
+                const shape = o.target;
+                const textTarget = shape.linkedText;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // ??踰덉㎏ ?대┃: ?띿뒪???몄쭛 紐⑤뱶 吏꾩엯
+                    _lastActiveShapeForLinkedText = null;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 泥?踰덉㎏ ?대┃ ?먮뒗 ?쇰컲 ?꾪삎 ?대┃
+                    _lastActiveShapeForLinkedText = shape;
+                }
+            } else {
+                // ?ㅻⅨ 怨??대┃ ??由ъ뀑
+                _lastActiveShapeForLinkedText = null;
+            }
+
+            if (activeTool === 'text') {
+                if (Date.now() - lastTextEditExitTime < 200) return; 
+                const activeObj = canvas.getActiveObject();
+                if (activeObj && activeObj.isEditing) { canvas.discardActiveObject(); canvas.requestRenderAll(); return; }
+                if (o.target && (o.target.type === 'i-text' || o.target.type === 'text' || o.target.type === 'textbox')) return;
+                
+                const fColor = getTextBgOpacity();
+                const scaledSize = parseInt(document.getElementById('text_size_input').value);
+                const textAlignVal = document.getElementById('text_align').value;
+                currentShape = new fabric.Textbox('', {
+                    left: pointer.x, top: pointer.y, fontSize: scaledSize,
+                    cursorWidth: 2, cursorColor: textColor, textAlign: textAlignVal,
+                    fill: textColor, backgroundColor: fColor, fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontFamily: 'Pretendard',
+                    originX: 'left', originY: 'top', splitByGrapheme: true, isWidthFixed: false
+                }); 
+                currentShape.on('changed', function() {
+                    if (!this.isWidthFixed) {
+                        const ctx = this.canvas.getContext();
+                        ctx.font = (this.fontStyle || 'normal') + ' ' + (this.fontWeight || 'normal') + ' ' + this.fontSize + 'px ' + this.fontFamily;
+                        let maxW = 50;
+                        const lines = this.text.split('\n');

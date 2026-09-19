@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>Capcraft v1.2</title>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+    <script defer src="vendor/emoji-picker.js"></script>
     <style>
         emoji-picker::part(skintone-picker) {
             display: none;
@@ -301,6 +301,7 @@
         /* 서브 툴바 */
         #sub_toolbar {
             position: fixed;
+            width: max-content;
             background: white;
             padding: 8px 15px;
             border-radius: 12px;
@@ -515,17 +516,6 @@
         }
 
         /* 작업 영역 */
-        /* QWebEngine compositor를 상시 활성 상태로 유지하는 미세 애니메이션 (레이아웃 비침범) */
-        @keyframes _keepCompositorAlive {
-            from {
-                transform: translateZ(0);
-            }
-
-            to {
-                transform: translateZ(0.1px);
-            }
-        }
-
         #workspace {
             position: absolute;
             top: 60px;
@@ -535,8 +525,6 @@
             overflow: hidden;
             cursor: grab;
             background-color: #d1d5db;
-            animation: _keepCompositorAlive 2s infinite alternate;
-            will-change: transform;
         }
 
         #workspace:active {
@@ -598,7 +586,6 @@
             display: none;
             position: relative;
             overflow: hidden;
-            will-change: transform;
             contain: layout style;
         }
 
@@ -607,13 +594,10 @@
             display: block !important;
             line-height: 0;
             font-size: 0;
-            transform: translateZ(0);
-            backface-visibility: hidden;
         }
 
         #canvas_container canvas {
-            transform: translateZ(0);
-            backface-visibility: hidden;
+            /* Keep the lower drawing canvas and upper selection canvas in one layer. */
         }
 
         /* 우측 사이드바 */
@@ -628,8 +612,6 @@
             max-width: var(--sidebar-width);
             flex-shrink: 0;
             background: var(--bg-panel);
-            transform: translateZ(0);
-            backface-visibility: hidden;
             border-left: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
@@ -640,8 +622,6 @@
         }
 
         #toolbar, #sub_toolbar {
-            transform: translateZ(0);
-            backface-visibility: hidden;
             box-sizing: border-box;
         }
 
@@ -1105,7 +1085,7 @@
             pointer-events: none;
         }
     </style>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="vendor/lucide.min.js"></script>
 </head>
 
 <body>
@@ -1191,7 +1171,7 @@
 
     <div id="sub_toolbar">
         <div id="panel_shape" class="sub-panel">
-            <div class="custom-select-group" id="shape_type_group">
+            <div class="custom-select-group" id="shape_type_group" style="display:grid;grid-template-columns:repeat(3,auto);gap:3px;">
                 <button class="active" data-val="rect">직사각형</button>
                 <button data-val="rhombus">마름모</button>
                 <button data-val="ellipse">타원</button>
@@ -1199,20 +1179,20 @@
                 <button data-val="arrow">화살표</button>
             </div>
             <input type="hidden" id="shape_type" value="rect">
-            <div id="shape_options_container"
-                style="display: flex; gap: 8px; align-items: center; margin: 0 5px; padding: 0 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc;">
+            <div class="custom-select-group" id="shape_pen_type_group" style="display:grid;grid-template-columns:repeat(3,auto);gap:3px;padding-left:10px;border-left:1px solid var(--border-color);">
+                <button class="active" data-val="ballpoint">볼펜</button><button data-val="highlighter">형광펜</button><button data-val="pencil">연필</button>
+                <button data-val="brush">붓</button><button data-val="charcoal">목탄</button>
             </div>
+            <input type="hidden" id="shape_pen_type" value="ballpoint">
+            <div id="shape_options_container" style="display:flex;gap:8px;align-items:center;margin:0 5px;padding:0 8px;border-left:1px solid var(--border-color);border-right:1px solid var(--border-color);"></div>
+            <div style="display:flex;flex-direction:column;gap:7px;"><div style="display:flex;align-items:center;gap:6px;">
+                <span>선 굵기:</span><input type="number" id="shape_weight" value="3" min="1" style="width:40px;padding:4px;">
+                <span>선 색상:</span><div id="btn_stroke_color" class="color-btn" style="background-color:#E03C31;"></div>
+            </div><div style="display:flex;align-items:center;gap:6px;">
+                <span id="label_fill_color">배경 색상:</span><div id="btn_fill_color" class="color-btn" style="background-color:transparent;background-image:linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%,#ccc);background-size:10px 10px;"></div>
+                <span>배경 투명도:</span><input type="number" id="shape_bg_opacity_input" value="85" min="0" max="100" style="width:40px;padding:4px;">
+            </div></div>
 
-            <span>선굵기:</span><input type="number" id="shape_weight" value="3" min="1"
-                style="width: 40px; padding: 4px;">
-            <span>선:</span>
-            <div id="btn_stroke_color" class="color-btn" style="background-color: #E03C31;"></div>
-            <span id="label_fill_color">배경 색상:</span>
-            <div id="btn_fill_color" class="color-btn"
-                style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;">
-            </div>
-            <span style="margin-left:8px;">배경 투명도:</span><input type="number" id="shape_bg_opacity_input" value="85"
-                min="0" max="100" style="width: 40px; padding: 4px;">
         </div>
         <div id="panel_text" class="sub-panel">
             <span>크기:</span><input type="number" id="text_size_input" value="50" min="10"
@@ -1239,30 +1219,40 @@
                 max="100" style="width: 40px; padding: 4px;">
         </div>
         <div id="panel_pen" class="sub-panel">
-            <div class="custom-select-group" id="pen_type_group">
+            <div class="custom-select-group" id="pen_type_group" style="display:grid;grid-template-columns:repeat(3,auto);gap:3px;">
                 <button class="active" data-val="ballpoint">볼펜</button>
                 <button data-val="highlighter">형광펜</button>
+                <button data-val="pencil">연필</button>
+                <button data-val="brush">붓</button>
+                <button data-val="charcoal">목탄</button>
             </div>
             <input type="hidden" id="pen_type" value="ballpoint">
 
-            <label style="margin-left:8px;"><input type="checkbox" id="pen_dashed"> 점선</label>
+            <div style="display:grid;grid-template-columns:auto auto;gap:8px;margin-left:8px;padding-left:10px;border-left:1px solid var(--border-color);">
+            <label><input type="checkbox" id="pen_dashed"> 점선</label>
+            <label><input type="checkbox" id="pen_wave"> 물결선</label>
+            <label><input type="checkbox" id="pen_arrow"> 화살표</label>
+            </div>
 
             <div
-                style="display: flex; gap: 8px; margin-left: 8px; padding-left: 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding-right: 8px;">
+                style="display: flex; flex-direction:column; gap: 8px; margin-left: 8px; padding-left: 8px; border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding-right: 8px;">
                 <label><input type="radio" name="pen_mode" value="normal" checked> 일반</label>
                 <label><input type="radio" name="pen_mode" value="straight"> 줄긋기</label>
             </div>
 
+            <div style="display:flex;flex-direction:column;gap:7px;"><div style="display:flex;align-items:center;gap:6px;">
             <span style="margin-left:8px;">선 굵기:</span><input type="number" id="pen_weight" value="3" min="1"
                 style="width: 40px; padding: 4px;">
             <span>선 색상:</span>
             <div id="btn_pen_color" class="color-btn" style="background-color: #E03C31;"></div>
+            </div><div style="display:flex;align-items:center;gap:6px;">
             <span style="margin-left:8px;">배경 색상:</span>
             <div id="btn_pen_bg" class="color-btn"
                 style="background-color: transparent; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc); background-size: 10px 10px;">
             </div>
             <span style="margin-left:8px;">배경 투명도:</span><input type="number" id="pen_bg_opacity_input" value="85"
                 min="0" max="100" style="width: 40px; padding: 4px;">
+            </div></div>
             <span id="label_pen_highlighter_intensity" style="margin-left:8px; display:none;">형광펜 농도:</span><input
                 type="number" id="pen_highlighter_intensity_input" value="30" min="0" max="100"
                 style="width: 40px; padding: 4px; display:none;">
@@ -1291,8 +1281,8 @@
                 <button data-val="freehand" title="자유선">자유선</button>
             </div>
             <input type="hidden" id="mosaic_type" value="rect">
-            <span style="font-weight:bold;">모자이크 크기:</span>
-            <input type="number" id="mosaic_intensity" min="1" max="20" value="3" style="width: 50px;">
+            <span style="font-weight:bold;">모자이크 강도:</span>
+            <input type="number" id="mosaic_intensity" min="1" max="20" value="5" style="width: 50px;">
             <span id="lbl_mosaic_weight" style="font-weight:bold; margin-left:10px; display:none;">선 굵기:</span>
             <input type="number" id="mosaic_weight" min="1" max="100" value="30" style="width: 50px; display:none;">
         </div>
@@ -1306,10 +1296,11 @@
             <span>세로축:</span><input type="number" id="popout_skew_y" min="-45" max="45" value="0" style="width: 40px;">
             
             <span style="margin-left:5px;">테두리색:</span><div id="btn_popout_border_color" class="color-btn" style="background-color: #ffffff; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;"></div>
-            <input type="number" id="popout_border" min="0" max="30" value="8" style="width: 35px;" title="테두리 두께">
+            <span>테두리 두께:</span><input type="number" id="popout_border" min="0" max="30" value="4" style="width: 35px;" title="테두리 두께">
             
             <span style="margin-left:5px;">그림자색:</span><div id="btn_popout_shadow_color" class="color-btn" style="background-color: #000000; width:16px; height:16px; margin:0; border:1px solid #ccc; cursor:pointer;"></div>
             <input type="number" id="popout_shadow" min="0" max="100" value="50" style="width: 35px;" title="그림자 강도">
+            <span>선명도:</span><input type="number" id="popout_sharpness" min="0" max="100" value="35" style="width:45px;" title="0이면 선명화 끄기 (원본은 유지)">
         </div>
 
         <div id="panel_crop" class="sub-panel" style="gap:8px; align-items:center;">
@@ -1430,6 +1421,13 @@
 
             <!-- 선분/화살표 전용 폼 -->
             <div id="form_edit_line" style="display:none;">
+                <div id="edit_arrow_options" style="display:none;">
+                    <div class="row">
+                        <label>화살표 끝 모양: <select id="edit_arrow_type"><option value="triangle">삼각형</option><option value="stealth">스텔스</option><option value="open">오픈</option></select></label>
+                        <label>끝 크기: <select id="edit_arrow_size"><option value="xs">아주 작게</option><option value="s">작게</option><option value="m">보통</option><option value="l">크게</option><option value="xl">아주 크게</option></select></label>
+                    </div>
+                    <div class="row"><label><input type="checkbox" id="edit_arrow_reverse"> 방향 전환 (시점과 종점 바꾸기)</label></div>
+                </div>
                 <div class="row">
                     <span>크기:</span> <input type="number" id="edit_line_w" style="width: 60px;"> <span>x</span> <input
                         type="number" id="edit_line_h" style="width: 60px;">
@@ -1666,7 +1664,7 @@
                 <div id="set_pen_highlighter_color" class="color-btn" style="background-color: rgba(255, 255, 0, 0.3);">
                 </div>
                 <span style="margin-left:3px;">형광펜 색상 농도:</span> <input type="number" id="set_pen_highlighter_opacity"
-                    value="30" min="0" max="100" style="width:45px;">
+                    value="30" min="0" max="100" style="width:60px;">
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span>배경 색상:</span>
@@ -1727,10 +1725,11 @@
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span>테두리 색상:</span>
                 <div id="set_popout_border_color" class="color-btn" style="background-color: #ffffff;"></div>
-                <span>테두리 두께:</span> <input type="number" id="set_popout_border" value="8" min="0" max="30" style="width:50px;">
+                <span>테두리 두께:</span> <input type="number" id="set_popout_border" value="4" min="0" max="30" style="width:50px;">
                 <span>그림자 색상:</span>
                 <div id="set_popout_shadow_color" class="color-btn" style="background-color: #000000;"></div>
                 <span>그림자 강도:</span> <input type="number" id="set_popout_shadow" value="50" min="0" max="100" style="width:50px;">
+                <span>선명도:</span> <input type="number" id="set_popout_sharpness" value="35" min="0" max="100" style="width:50px;" title="0이면 선명화 끄기">
             </div>
         </div>
 
@@ -1753,7 +1752,7 @@
             style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
             <div style="display: flex; gap: 15px; align-items: center;">
                 <div>
-                    <span>모자이크 블록 크기:</span> <input type="number" id="set_mosaic_px" value="3" min="1" max="20" style="width:60px;">
+                    <span>모자이크 강도:</span> <input type="number" id="set_mosaic_px" value="5" min="1" max="20" style="width:60px;">
                 </div>
                 <div>
                     <span>자유선 굵기:</span> <input type="number" id="set_mosaic_freehand_weight" value="30" min="1" max="100" style="width:60px;">
@@ -1888,6 +1887,7 @@
                 <div class="recent-title-row">
                     <div class="recent-title">최근 목록</div>
                     <button class="btn-sort" id="btn_recent_sort" data-order="desc">최신순</button>
+                    <button class="btn-sort" id="btn_recent_clear" style="color:#dc2626;border-color:#fca5a5;" title="모든 캡처 삭제">모두 삭제</button>
                 </div>
             </div>
             <div class="recent-list" id="recent_list_container"></div>
@@ -1896,8 +1896,14 @@
 
     <div id="canvas_context_menu"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="vendor/fabric.min.js"></script>
+    <script src="natural-pens.js"></script>
+    <script src="shape-pens.js"></script>
+    <script src="stroke-effects.js"></script>
+    <script src="line-anchors.js"></script>
+    <script src="vendor/jspdf.umd.min.js"></script>
+    <script src="vendor/purify.min.js"></script>
+    <script src="popout-quality.js"></script>
 
     <script>
         // Chromium/Fabric.js textBaseline 버그 패치 ('alphabetical' -> 'alphabetic')
@@ -1923,7 +1929,8 @@
         // 커스텀 속성 직렬화 (Undo/Redo 및 JSON 로드 시 속성 손실 방지)
         const originalToObject = fabric.Object.prototype.toObject;
         fabric.Object.prototype.toObject = function (additionalProperties) {
-            return originalToObject.call(this, ['id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize', 'isPopout', 'isPopoutLine', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'tiltX', 'tiltY', 'showConnectionLine', 'linkedOriginalId', 'linkedLineId', '_croppedBgDataUrl', '_baseLeft', '_baseTop'].concat(additionalProperties || []));
+            additionalProperties = ['_popoutTightBounds', '_popoutTightBoundsKey'].concat(additionalProperties || []);
+            return originalToObject.call(this, ['_popoutSourceWidth', '_popoutSourceHeight', 'popoutSharpness', '_penFillColor', 'id', 'linkedTextId', 'linkedShapeId', 'isLinkedText', 'isPlaceholder', 'originalFill', 'originalWidth', 'originalHeight', 'originalScaleX', 'originalScaleY', '_initHeight', 'isArrowBody', 'isArrowHead', 'isEmoji', 'isMosaic', 'strokeDashArray', 'isMediaImage', 'arrowType', 'arrowSize', 'isPopout', 'isPopoutLine', 'popoutBorder', 'popoutBorderColor', 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 'tiltX', 'tiltY', 'showConnectionLine', 'linkedOriginalId', 'linkedLineId', '_croppedBgDataUrl', '_baseLeft', '_baseTop'].concat(additionalProperties || []));
         };
 
         // 한글(IME) 입력 시 커서 위치 보정
@@ -1973,7 +1980,7 @@
         window.addEventListener('scroll', () => { window.scrollTo(0, 0); });
         document.getElementById('workspace').addEventListener('scroll', function () { this.scrollLeft = 0; this.scrollTop = 0; });
 
-        window.sysMosaicPx = 3;
+        window.sysMosaicPx = 5;
 
         window.isLineOrArrow = function(obj) {
             if (!obj) return false;
@@ -2097,9 +2104,8 @@
 
             // 모든 개체에 대해 strokeUniform 설정 (크기 조절 시 선 굵기 유지)
             fabric.Object.prototype.strokeUniform = true;
-            fabric.Object.prototype.noScaleCache = false;
-            // 줌 및 크기 조절 시 선명도 유지를 위해 글로벌 개체 캐싱 해제
-            fabric.Object.prototype.objectCaching = false;
+            fabric.Object.prototype.noScaleCache = true;
+            fabric.Object.prototype.objectCaching = true;
 
             // 기본 컨트롤 숨기기
             fabric.Object.prototype.set({
@@ -2604,6 +2610,15 @@
             enableRetinaScaling: true
         });
 
+        // Fabric 5 renders exports through renderCanvas(), which cancels the pending
+        // visible frame. Preserve that request across thumbnail/export rendering.
+        const originalToCanvasElement = canvas.toCanvasElement;
+        canvas.toCanvasElement = function(...args) {
+            const pending = !!this.isRendering;
+            try { return originalToCanvasElement.apply(this, args); }
+            finally { if (pending) this.requestRenderAll(); }
+        };
+
         // Ctrl 및 Shift 키를 누른 상태에서의 다중 선택(Multi-selection) 지원
         // Fabric.js 내장 selectionKey 처리를 비활성화하고, mouse:down 커스텀 핸들러에서 직접 관리
         canvas.selectionKey = null;
@@ -2730,7 +2745,8 @@
                 document.getElementById('popout_skew_x').value = obj.tiltX || 0;
                 document.getElementById('popout_skew_y').value = obj.tiltY || 0;
                 if (document.getElementById('btn_popout_border_color')) document.getElementById('btn_popout_border_color').style.backgroundColor = obj.popoutBorderColor || '#ffffff';
-                if (document.getElementById('popout_border')) document.getElementById('popout_border').value = obj.popoutBorder !== undefined ? obj.popoutBorder : 8;
+                if (document.getElementById('popout_border')) document.getElementById('popout_border').value = obj.popoutBorder !== undefined ? obj.popoutBorder : 4;
+                document.getElementById('popout_sharpness').value = obj.popoutSharpness ?? 0;
                 if (document.getElementById('btn_popout_shadow_color')) document.getElementById('btn_popout_shadow_color').style.backgroundColor = obj.popoutShadowColor || '#000000';
                 if (document.getElementById('popout_shadow')) document.getElementById('popout_shadow').value = obj.popoutShadow !== undefined ? obj.popoutShadow : 50;
 
@@ -2780,6 +2796,9 @@
                             chkDashed.checked = !!hasDash;
                         }
 
+                        const shapePenType=obj.shapePen||'ballpoint';
+                        document.getElementById('shape_pen_type').value=shapePenType;
+                        document.querySelectorAll('#shape_pen_type_group button').forEach(button=>button.classList.toggle('active',button.dataset.val===shapePenType));
                         let fCol = propSource.fill;
                         if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') fCol = 'transparent';
                         if (fCol && fCol !== 'transparent') {
@@ -2810,6 +2829,8 @@
                         if (obj.strokeWidth !== undefined) document.getElementById('pen_weight').value = obj.strokeWidth;
                         if (obj.stroke) document.getElementById('btn_pen_color').style.backgroundColor = obj.stroke;
                         document.getElementById('pen_dashed').checked = (obj.strokeDashArray && obj.strokeDashArray.length > 0);
+                        document.getElementById('pen_wave').checked = !!obj.waveLine;
+                        document.getElementById('pen_arrow').checked = !!obj.penArrow;
                         
                         let fCol = obj.fill;
                         if (fCol === 'rgba(0,0,0,0)' || fCol === 'rgba(0, 0, 0, 0)') fCol = 'transparent';
@@ -2839,7 +2860,10 @@
             if (e.selected && e.selected.length === 1 && e.selected[0].__capcraftPoints) {
                 if (typeof makeLineControls === 'function') makeLineControls(e.selected[0]);
             }
-            canvas.requestRenderAll(); 
+            // Selection feedback must be painted in the same input turn. In
+            // QWebEngine a queued frame can otherwise remain behind the live
+            // mouse cursor until the next input event.
+            canvas.renderAll();
         });
         canvas.on('selection:updated', (e) => {
             toggleEdgeGlow({ deselected: e.deselected }, false);
@@ -2865,7 +2889,7 @@
             if (!selectedHandle && e.selected && e.selected.length === 1 && e.selected[0].__capcraftPoints) {
                 if (typeof makeLineControls === 'function') makeLineControls(e.selected[0]);
             }
-            canvas.requestRenderAll();
+            canvas.renderAll();
         });
         canvas.on('selection:cleared', (e) => {
             const deselected = e.deselected || canvas.getObjects();
@@ -3031,11 +3055,11 @@
 
         // 모자이크 서브툴바 ↔ 설정 모달 동기화
         document.getElementById('mosaic_intensity').addEventListener('input', (e) => {
-            sysMosaicPx = parseInt(e.target.value) || 3;
+            sysMosaicPx = parseInt(e.target.value) || 5;
             document.getElementById('set_mosaic_px').value = sysMosaicPx;
         });
         document.getElementById('set_mosaic_px').addEventListener('input', (e) => {
-            sysMosaicPx = parseInt(e.target.value) || 3;
+            sysMosaicPx = parseInt(e.target.value) || 5;
             document.getElementById('mosaic_intensity').value = sysMosaicPx;
         });
 
@@ -3046,6 +3070,16 @@
                 btn.classList.add('active');
                 const type = btn.getAttribute('data-val');
                 document.getElementById('mosaic_type').value = type;
+                if(hasActiveCanvas){
+                    canvas.discardActiveObject();canvas.isDrawingMode=false;
+                    document.querySelectorAll('.btn-tool.group-edit').forEach(button=>button.classList.remove('active'));
+                    document.querySelectorAll('.sub-panel').forEach(panel=>panel.classList.remove('active'));
+                    document.getElementById('btn_tool_mosaic').classList.add('active');
+                    document.getElementById('panel_mosaic').classList.add('active');
+                    activeTool='mosaic';
+                    updateObjectSelectability();updateGlobalCursor();
+                    updateSubToolbarPosition(document.getElementById('btn_tool_mosaic'));
+                }
                 
                 const isFreehand = (type === 'freehand');
                 document.getElementById('lbl_mosaic_weight').style.display = isFreehand ? 'inline-block' : 'none';
@@ -3106,13 +3140,13 @@
             });
         }
 
-        function customConfirm(msg) {
+        function customConfirm(msg, okLabel = '예', cancelLabel = '아니오') {
             return new Promise(resolve => {
                 document.getElementById('dialog_title').innerText = '확인 필요';
                 document.getElementById('dialog_msg').innerText = msg;
                 document.getElementById('dialog_btn_cancel').style.display = 'block';
-                document.getElementById('dialog_btn_ok').innerText = '예';
-                document.getElementById('dialog_btn_cancel').innerText = '아니오';
+                document.getElementById('dialog_btn_ok').innerText = okLabel;
+                document.getElementById('dialog_btn_cancel').innerText = cancelLabel;
                 openModal('modal_custom_dialog');
                 document.getElementById('dialog_btn_ok').onclick = () => { closeDialog(); resolve(true); };
                 document.getElementById('dialog_btn_cancel').onclick = () => { closeDialog(); resolve(false); };
@@ -3136,6 +3170,29 @@
         let hasActiveCanvas = false;
         let currentZoom = 1.0;
         let panX = 0; let panY = 0;
+
+        // Reserve a separate viewport below the floating toolbar. Panning and
+        // fit calculations then use its actual unobscured height.
+        function updateWorkspaceInset() {
+            const toolbar=document.getElementById('sub_toolbar');
+            const visible=getComputedStyle(toolbar).display!=='none';
+            if(visible){
+                const bounds=toolbar.getBoundingClientRect();
+                const right=Math.min(workspace.getBoundingClientRect().right,document.getElementById('sidebar').getBoundingClientRect().left);
+                const left=Math.max(5,Math.min(bounds.left,right-bounds.width-5));
+                if(Math.abs(bounds.left-left)>.5)toolbar.style.left=left+'px';
+            }
+            const inset=visible?Math.max(60,Math.ceil(toolbar.getBoundingClientRect().bottom)+12):60;
+            const top=Math.min(inset,Math.max(60,window.innerHeight-120));
+            if(workspace.style.top!==top+'px'){
+                workspace.style.top=top+'px';workspace.style.height=`calc(100vh - ${top}px)`;
+                if(canvas)canvas.calcOffset();
+            }
+        }
+        const toolbarInsetObserver=new ResizeObserver(updateWorkspaceInset);
+        toolbarInsetObserver.observe(document.getElementById('sub_toolbar'));
+        new MutationObserver(updateWorkspaceInset).observe(document.getElementById('sub_toolbar'),{attributes:true,attributeFilter:['style','class']});
+        window.addEventListener('resize',updateWorkspaceInset);
 
         function applyCanvasClipping() {
             canvas.clipPath = null;
@@ -3417,6 +3474,7 @@
         function syncAllLineLinkedIds() {
             if (!canvas) return;
             const objs = canvas.getObjects();
+            objs.forEach(LineAnchors.ensure);
             objs.forEach(obj => {
                 if (!obj.id) {
                     obj.id = 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -3460,12 +3518,14 @@
                     if (obj.endLinkedObjId && idMap[obj.endLinkedObjId]) {
                         obj.endLinkedObj = idMap[obj.endLinkedObjId];
                     }
+                    LineAnchors.ensure(obj);
                 }
             });
         }
 
         // ★ Undo/Redo 후 팝아웃의 linkedOriginal / linkedLine 객체 참조를 ID 기반으로 복원
         function restorePopoutLinks() {
+            restoreLineLinks();
             const objs = canvas.getObjects();
             const idMap = {};
             objs.forEach(o => { if (o.id) idMap[o.id] = o; });
@@ -3487,7 +3547,8 @@
                     }
                     // ★ _croppedBg가 이미 로드된 경우에만 그림자+기울기 재적용
                     if (o._croppedBg) {
-                        if (typeof applyPopoutTilt === 'function') applyPopoutTilt(o);
+                        if (o._restoredRaster) CapcraftPopout.adopt(o);
+                        else if (typeof applyPopoutTilt === 'function') applyPopoutTilt(o);
                     }
                     // 연결선 위치 갱신
                     if (typeof updatePopoutLine === 'function') updatePopoutLine(o);
@@ -3499,7 +3560,7 @@
             const obj = e.target;
             if (obj.linkedText) {
                 syncShapeToText(obj, e.transform);
-                if (obj.canvas) obj.canvas.renderAll();
+                if (obj.canvas) obj.canvas.requestRenderAll();
             }
         });
 
@@ -3535,13 +3596,13 @@
                 const center = obj.getCenterPoint();
                 obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
                 obj.linkedText.setCoords();
-                canvas.renderAll(); // Use synchronous render to prevent 1-frame visual lag
+                canvas.requestRenderAll();
             } else if (obj.linkedShape) {
                 const center = obj.getCenterPoint();
                 obj.linkedShape.set({ angle: obj.angle });
                 obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
                 obj.linkedShape.setCoords();
-                canvas.renderAll();
+                canvas.requestRenderAll();
             }
         });
 
@@ -3604,170 +3665,33 @@
         };
 
         window.regeneratePopoutBase = function(img) {
-            if (!img._croppedBg) return;
-            const borderW = img.popoutBorder !== undefined ? img.popoutBorder : 8;
-            const pad = borderW + 2; 
-            
-            const baseW = img._croppedBg.width;
-            const baseH = img._croppedBg.height;
-            const cw = baseW + pad * 2;
-            const ch = baseH + pad * 2;
-            
-            const flatCanvas = document.createElement('canvas');
-            flatCanvas.width = cw; flatCanvas.height = ch;
-            const flatCtx = flatCanvas.getContext('2d');
-            
-            const obj = img.linkedOriginal;
-            if (!obj) return;
-            
-            const oldStroke = obj.stroke;
-            const oldWidth = obj.strokeWidth;
-            const oldFill = obj.fill;
-            const oldShadow = obj.shadow;
-            const oldLeft = obj.left;
-            const oldTop = obj.top;
-            const oldOriginX = obj.originX;
-            const oldOriginY = obj.originY;
-            
-            obj.stroke = 'transparent';
-            obj.strokeWidth = 0;
-            obj.fill = 'black';
-            obj.shadow = null;
-            obj.left = cw / 2;
-            obj.top = ch / 2;
-            obj.originX = 'center';
-            obj.originY = 'center';
-            obj.render(flatCtx);
-            
-            flatCtx.globalCompositeOperation = 'source-in';
-            flatCtx.drawImage(img._croppedBg, pad, pad);
-            
-            if (borderW > 0) {
-                flatCtx.globalCompositeOperation = 'source-over';
-                obj.fill = 'transparent';
-                obj.stroke = img.popoutBorderColor || 'white';
-                obj.strokeWidth = borderW;
-                obj.render(flatCtx);
-            }
-            
-            obj.stroke = oldStroke;
-            obj.strokeWidth = oldWidth;
-            obj.fill = oldFill;
-            obj.shadow = oldShadow;
-            obj.left = oldLeft;
-            obj.top = oldTop;
-            obj.originX = oldOriginX;
-            obj.originY = oldOriginY;
-            
-            const tiltX = img.tiltX || 0;
-            const tiltY = img.tiltY || 0;
-            
-            let finalCanvas = flatCanvas;
-            let ow = cw, oh = ch;
-            
-            if (tiltX !== 0 || tiltY !== 0) {
-                const w = cw;
-                const h = ch;
-                const D = Math.max(w, h) * 1.5;
-                const margin = Math.max(w, h) * 0.5;
-                ow = w + margin * 2;
-                oh = h + margin * 2;
-                
-                const offCanvas = document.createElement('canvas');
-                offCanvas.width = ow; offCanvas.height = oh;
-                const offCtx = offCanvas.getContext('2d');
-                
-                if (tiltX !== 0) {
-                    const radX = tiltX * Math.PI / 180;
-                    for (let y = 0; y < h; y += 2) {
-                        let dy = y - h/2;
-                        let z = dy * Math.sin(radX);
-                        let scale = D / (D - z);
-                        let new_y = dy * Math.cos(radX) * scale;
-                        let new_w = w * scale;
-                        let dy_next = (y + 2) - h/2;
-                        let z_next = dy_next * Math.sin(radX);
-                        let scale_next = D / (D - z_next);
-                        let new_y_next = dy_next * Math.cos(radX) * scale_next;
-                        let new_h = new_y_next - new_y;
-                        offCtx.drawImage(flatCanvas, 0, y, w, 2, ow/2 - new_w/2, oh/2 + new_y, new_w, new_h + 0.5);
-                    }
-                } else {
-                    offCtx.drawImage(flatCanvas, ow/2 - w/2, oh/2 - h/2, w, h);
-                }
-                
-                finalCanvas = document.createElement('canvas');
-                finalCanvas.width = ow; finalCanvas.height = oh;
-                const finalCtx = finalCanvas.getContext('2d');
-                
-                if (tiltY !== 0) {
-                    const radY = tiltY * Math.PI / 180;
-                    for (let x = 0; x < ow; x += 2) {
-                        let dx = x - ow/2;
-                        let z = dx * Math.sin(radY);
-                        let scale = D / (D + z);
-                        let new_x = dx * Math.cos(radY) * scale;
-                        let new_h = oh * scale;
-                        let dx_next = (x + 2) - ow/2;
-                        let z_next = dx_next * Math.sin(radY);
-                        let scale_next = D / (D + z_next);
-                        let new_x_next = dx_next * Math.cos(radY) * scale_next;
-                        let new_w = new_x_next - new_x;
-                        finalCtx.drawImage(offCanvas, x, 0, 2, oh, ow/2 + new_x, oh/2 - new_h/2, new_w + 0.5, new_h);
-                    }
-                } else {
-                    finalCtx.drawImage(offCanvas, 0, 0, ow, oh);
-                }
-            }
-            
-            // Trim transparent pixels
-            const pixels = finalCanvas.getContext('2d').getImageData(0, 0, ow, oh);
-            let l = ow, r = 0, t = oh, b = 0;
-            const data = pixels.data;
-            for(let y=0; y<oh; y++) {
-                for(let x=0; x<ow; x++) {
-                    if(data[(y*ow+x)*4+3] > 0) {
-                        if(x < l) l = x; if(x > r) r = x;
-                        if(y < t) t = y; if(y > b) b = y;
-                    }
-                }
-            }
-            
-            if (l > r || t > b) {
-                img._element = finalCanvas;
-                img._originalElement = finalCanvas;
-                img.set({width: ow, height: oh});
-                return;
-            }
-            
-            const trimmedW = r - l + 1;
-            const trimmedH = b - t + 1;
-            const trimmedCanvas = document.createElement('canvas');
-            trimmedCanvas.width = trimmedW; trimmedCanvas.height = trimmedH;
-            trimmedCanvas.getContext('2d').drawImage(finalCanvas, l, t, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
-            
-            const shiftX = (l + r) / 2 - ow / 2;
-            const shiftY = (t + b) / 2 - oh / 2;
-            
-            if (img._baseLeft === undefined) {
-                img._baseLeft = img.left;
-                img._baseTop = img.top;
-            }
-            img._currentShiftX = shiftX;
-            img._currentShiftY = shiftY;
-            
-            img.set({
-                left: img._baseLeft + shiftX,
-                top: img._baseTop + shiftY,
-                width: trimmedW,
-                height: trimmedH
-            });
-            img._element = trimmedCanvas;
-            img._originalElement = trimmedCanvas;
-            img.setCoords();
+            CapcraftPopout.regenerate(img);
         };
 
         const OriginalImageRender = fabric.Image.prototype._render;
+        const originalImageSrc = fabric.Image.prototype.getSrc;
+        fabric.Image.prototype.getSrc = function(filtered) {
+            const element = filtered ? this._element : this._originalElement;
+            if (!this.isPopout || !element?.toDataURL) return originalImageSrc.call(this, filtered);
+            if (this._popoutEncodedElement !== element) {
+                this._popoutEncodedSrc = element.toDataURL();
+                this._popoutEncodedElement = element;
+            }
+            return this._popoutEncodedSrc;
+        };
+        const originalImageSVG = fabric.Image.prototype._toSVG;
+        fabric.Image.prototype._toSVG = function() {
+            if (!this.isPopout) return originalImageSVG.call(this);
+            return ['<image ', 'COMMON_PARTS', 'xlink:href="', this.getSvgSrc(true),
+                '" x="', -this.width / 2, '" y="', -this.height / 2,
+                '" width="', this.width, '" height="', this.height, '" />\n'];
+        };
+        const originalImageFill = fabric.Image.prototype._renderFill;
+        fabric.Image.prototype._renderFill = function(ctx) {
+            if (this.isPopout && this._element) {
+                ctx.drawImage(this._element, -this.width / 2, -this.height / 2, this.width, this.height);
+            } else originalImageFill.call(this, ctx);
+        };
         fabric.Image.prototype._render = function(ctx) {
             if (ctx) {
                 ctx.imageSmoothingEnabled = true;
@@ -3828,13 +3752,27 @@
         function bindPopoutInput(id, propName, parser, callback) {
             const el = document.getElementById(id);
             if (!el) return;
+            let timer, pending;
+            const flush = () => {
+                clearTimeout(timer);
+                const obj = pending; pending = null;
+                if (obj?.canvas !== canvas) return;
+                if (callback) callback(obj);
+                obj.setCoords();
+                updatePopoutLine(obj);
+                canvas.requestRenderAll();
+            };
+            el.addEventListener('change', () => {
+                flush();
+                if (canvas.getActiveObject()?.isPopout) saveHistory();
+            });
             el.addEventListener('input', function(e) {
                 const obj = canvas.getActiveObject();
                 if (obj && obj.isPopout) {
                     obj[propName] = parser(this.value);
-                    obj.dirty = true;
-                    if (callback) callback(obj);
-                    canvas.requestRenderAll();
+                    pending = obj;
+                    clearTimeout(timer);
+                    timer = setTimeout(flush, 120);
                 }
             });
         }
@@ -3842,10 +3780,11 @@
         bindPopoutInput('popout_skew_x', 'tiltX', parseFloat, applyPopoutTilt);
         bindPopoutInput('popout_skew_y', 'tiltY', parseFloat, applyPopoutTilt);
         bindPopoutInput('popout_border', 'popoutBorder', parseFloat, regeneratePopoutBase);
+        bindPopoutInput('popout_sharpness', 'popoutSharpness', v => Math.max(0, Math.min(100, Number(v))), regeneratePopoutBase);
         bindPopoutInput('popout_shadow', 'popoutShadow', parseFloat, applyPopoutTilt);
         bindPopoutInput('popout_line_weight', 'popoutLineWeight', parseFloat, obj => {
             if (obj.linkedLine) {
-                obj.linkedLine.strokeWidth = obj.popoutLineWeight;
+                obj.linkedLine.set('strokeWidth', obj.popoutLineWeight);
             }
         });
         
@@ -3857,6 +3796,7 @@
                     obj.showConnectionLine = this.checked;
                     updatePopoutLine(obj);
                     canvas.requestRenderAll();
+                    saveHistory();
                 }
             });
         }
@@ -3916,6 +3856,13 @@
         canvas.on('object:removed', function(e) {
             // Undo/Redo (loadFromJSON→canvas.clear) 중에는 연쇄 삭제를 건너뜀
             if (isHistoryAction) return;
+            canvas.getObjects().forEach(o => {
+                if (o.isPopout && o.linkedLine === e.target) {
+                    o.linkedLine = null;
+                    o.linkedLineId = null;
+                    o.showConnectionLine = false;
+                }
+            });
             if (e.target.isPopout && e.target.linkedLine) {
                 canvas.remove(e.target.linkedLine);
             } else {
@@ -3935,6 +3882,9 @@
             for (let i = 0; i < objs.length; i++) {
                 const lineObj = objs[i];
                 if (!lineObj || lineObj === movedObj) continue;
+                // ActiveSelection already transforms its members. Rebuilding a member
+                // from world-space endpoints here would apply the selection transform twice.
+                if (lineObj.group?.type === 'activeSelection') continue;
                 if (!lineObj.__capcraftPoints || !Array.isArray(lineObj.__capcraftPoints) || lineObj.__capcraftPoints.length < 2) continue;
 
                 let isLinked = false;
@@ -3945,12 +3895,12 @@
                 // 이동된 객체에 연결된 포인트만 업데이트
                 let pts = lineObj.__capcraftPoints;
                 if (lineObj.startLinkedObj === movedObj) {
-                    let snapData = calculateBoundarySnap(pts[0], canvas, lineObj, movedObj);
-                    if (snapData && snapData.pt) pts[0] = snapData.pt;
+                    LineAnchors.ensure(lineObj);
+                    pts[0] = LineAnchors.point(movedObj,lineObj.startAnchor);
                 }
                 if (lineObj.endLinkedObj === movedObj) {
-                    let snapData = calculateBoundarySnap(pts[pts.length - 1], canvas, lineObj, movedObj);
-                    if (snapData && snapData.pt) pts[pts.length - 1] = snapData.pt;
+                    LineAnchors.ensure(lineObj);
+                    pts[pts.length - 1] = LineAnchors.point(movedObj,lineObj.endAnchor);
                 }
 
                 if (typeof updateLineGeometryInPlace === 'function') {
@@ -3962,15 +3912,27 @@
         }
 
         function createLineShapeFromPoints(lineObj, newPts, forceStart, forceEnd) {
+            // Older/newly drawn groups may keep arrow metadata only on their shaft.
+            // Never rebuild such a group as a plain path: the group renderer needs _objects.
+            if (lineObj.type === 'group' && isLineOrArrow(lineObj)) {
+                const body = lineObj.getObjects().find(o => o.isArrowBody) || lineObj.getObjects()[0];
+                lineObj = Object.assign({}, lineObj, {
+                    isArrowGroup: true,
+                    arrowType: lineObj.arrowType || body?.arrowType || 'triangle',
+                    arrowSize: lineObj.arrowSize || body?.arrowSize || 'm'
+                });
+            }
             let startLinked = forceStart !== undefined ? forceStart : lineObj.startLinkedObj;
             let endLinked = forceEnd !== undefined ? forceEnd : lineObj.endLinkedObj;
 
             if (startLinked) {
-                let snapData = calculateBoundarySnap(newPts[0], canvas, lineObj, startLinked);
+                let snapData = lineObj.startAnchor && lineObj.startAnchor.targetId===startLinked.id
+                    ? {pt:LineAnchors.point(startLinked,lineObj.startAnchor)} : calculateBoundarySnap(newPts[0], canvas, lineObj, startLinked);
                 if (snapData) { newPts[0] = snapData.pt; } else { startLinked = null; }
             }
             if (endLinked) {
-                let snapData = calculateBoundarySnap(newPts[newPts.length - 1], canvas, lineObj, endLinked);
+                let snapData = lineObj.endAnchor && lineObj.endAnchor.targetId===endLinked.id
+                    ? {pt:LineAnchors.point(endLinked,lineObj.endAnchor)} : calculateBoundarySnap(newPts[newPts.length - 1], canvas, lineObj, endLinked);
                 if (snapData) { newPts[newPts.length - 1] = snapData.pt; } else { endLinked = null; }
             }
 
@@ -3997,7 +3959,7 @@
                     let sysArrowSize = lineObj.arrowSize || (lineObj.isArrowGroup ? lineObj.arrowSize : null);
                     let pullBack = 0;
                     if (sysArrowType) {
-                        const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                        const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : sysArrowSize === 'xl' ? 5 : 3;
                         const w = weight * sizeMult + 8;
                         pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
                         arrowHeadObj = createArrowHead(endX, endY, angle, sysArrowType, sysArrowSize, strokeColor, weight);
@@ -4020,7 +3982,7 @@
                         if (Math.hypot(renderPts[j].x - p2.x, renderPts[j].y - p2.y) > 3) { p1 = renderPts[j]; break; }
                     }
                     let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : sysArrowSize === 'xl' ? 5 : 3;
                     const w = weight * sizeMult + 8;
                     let pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
                     
@@ -4043,7 +4005,15 @@
                 finalObj.arrowSize = lineObj.arrowSize || (lineObj.isArrowGroup ? lineObj.arrowSize : null);
             }
             finalObj.startLinkedObj = startLinked;
+            if (lineObj.naturalPen) finalObj.naturalPen = lineObj.naturalPen;
+            finalObj.naturalDensity=lineObj.naturalDensity;
+            finalObj.penArrowType=lineObj.penArrowType;finalObj.penArrowSize=lineObj.penArrowSize;
+            if (lineObj.penArrow) {const center=finalObj.getCenterPoint();finalObj.penArrow=true;finalObj.setPositionByOrigin(center,'center','center');}
             finalObj.endLinkedObj = endLinked;
+            if(lineObj.shapePen)ShapePens.apply(finalObj,lineObj.shapePen,lineObj.shapeDensity);
+            if(lineObj.waveLine){StrokeEffects.apply(finalObj,true);finalObj.waveHeight=lineObj.waveHeight;finalObj.waveSpacing=lineObj.waveSpacing;if(finalObj.type==='group')finalObj.getObjects().filter(o=>!o.isArrowHead).forEach(o=>o.set({waveHeight:lineObj.waveHeight,waveSpacing:lineObj.waveSpacing}));}
+            finalObj.startAnchor = startLinked ? LineAnchors.capture(startLinked,newPts[0]) : null;
+            finalObj.endAnchor = endLinked ? LineAnchors.capture(endLinked,newPts[newPts.length-1]) : null;
             return finalObj;
         }
 
@@ -4065,6 +4035,8 @@
             
             target.startLinkedObj = newObj.startLinkedObj;
             target.endLinkedObj = newObj.endLinkedObj;
+            target.startAnchor = newObj.startAnchor;
+            target.endAnchor = newObj.endAnchor;
 
             if (target.linkedText) {
                 const center = typeof getLineMidpoint === 'function' ? getLineMidpoint(target) : target.getCenterPoint();
@@ -4086,6 +4058,14 @@
             let finalObj = createLineShapeFromPoints(lineObj, newPts, startLinked, endLinked);
             if (!finalObj) return;
 
+            finalObj.id = lineObj.id;
+            finalObj.isPopoutLine = lineObj.isPopoutLine;
+            canvas.getObjects().forEach(o => {
+                if (o.isPopout && o.linkedLine === lineObj) o.linkedLine = finalObj;
+            });
+            finalObj.linkedTextId = lineObj.linkedTextId;
+            finalObj.startLinkedObjId = startLinked ? startLinked.id : null;
+            finalObj.endLinkedObjId = endLinked ? endLinked.id : null;
             finalObj.__capcraftPoints = newPts;
             finalObj.__capcraftLineType = lineObj.__capcraftLineType;
             finalObj.__shapeJustSelected = lineObj.__shapeJustSelected;
@@ -4216,6 +4196,20 @@
             }
         });
 
+        canvas.on('before:transform', (e) => {
+            canvas.getObjects().forEach(LineAnchors.ensure);
+            const obj = e.transform && e.transform.target;
+            if (!obj) return;
+            obj._capcraftBaseLeft = obj.left;
+            obj._capcraftBaseTop = obj.top;
+            const members = obj.type === 'activeSelection' ? obj.getObjects() : [obj];
+            members.forEach(member => {
+                if (member.__capcraftPoints) {
+                    member._capcraftBasePts = member.__capcraftPoints.map(p => ({ ...p }));
+                }
+            });
+        });
+
         canvas.on('object:moving', (e) => {
             const obj = e.target;
 
@@ -4241,9 +4235,11 @@
                     if (idx === 0) {
                         parentLine.startLinkedObj = snapData.target;
                         parentLine.startLinkedObjId = snapData.target.id;
+                        parentLine.startAnchor = LineAnchors.capture(snapData.target,snapData.pt);
                     } else {
                         parentLine.endLinkedObj = snapData.target;
                         parentLine.endLinkedObjId = snapData.target.id;
+                        parentLine.endAnchor = LineAnchors.capture(snapData.target,snapData.pt);
                     }
                     updateSnapMarker(canvas, snapData.pt);
                 } else {
@@ -4251,9 +4247,11 @@
                     if (idx === 0) {
                         parentLine.startLinkedObj = null;
                         parentLine.startLinkedObjId = null;
+                        parentLine.startAnchor = null;
                     } else if (idx === parentLine.__capcraftPoints.length - 1) {
                         parentLine.endLinkedObj = null;
                         parentLine.endLinkedObjId = null;
+                        parentLine.endAnchor = null;
                     }
                     updateSnapMarker(canvas, null);
                 }
@@ -4372,8 +4370,15 @@
                     }
 
                     if (subObj.__capcraftPoints) {
-                        subObj.startLinkedObj = null;
-                        subObj.endLinkedObj = null;
+                        // Targets travelling in this selection retain their fixed local anchors.
+                        for (const side of ['start','end']) {
+                            const linked = subObj[side+'LinkedObj'];
+                            if (linked && !selectedSubObjs.includes(linked)) {
+                                subObj[side+'LinkedObj'] = null;
+                                subObj[side+'LinkedObjId'] = null;
+                                subObj[side+'Anchor'] = null;
+                            }
+                        }
                         if (subObj._capcraftBasePts) {
                             for (let i = 0; i < subObj.__capcraftPoints.length; i++) {
                                 subObj.__capcraftPoints[i].x = subObj._capcraftBasePts[i].x + dx;
@@ -4404,6 +4409,7 @@
         });
 
         function commitLoadToCanvas(img, w, h, bgColor) {
+            cancelRecentLoad();
             prepareCanvasDisplay();
             canvas.setWidth(w);
             canvas.setHeight(h);
@@ -4417,12 +4423,9 @@
                 applyCanvasClipping();
                 isHistoryAction = false;
                 canvas.renderAll();
-                setTimeout(() => {
-                    canvas.requestRenderAll();
-                    saveHistory();
-                    pushCurrentToRecent(true); // ★ 새로 캡처된 이미지를 썸네일 카드로 강제 신규 등록
-                    renderRecentList();
-                }, 50);
+                // Commit this capture before another load can replace the canvas.
+                saveHistory();
+                pushCurrentToRecent(true);
             }
 
             if (img) {
@@ -4474,7 +4477,7 @@
             updateCanvasTransform();
         }
 
-        function getCanvasJSON() {
+        function getCanvasJSON(includeBackground = false) {
             if (!canvas) return '{}';
             if (typeof syncAllLineLinkedIds === 'function') syncAllLineLinkedIds();
 
@@ -4482,6 +4485,7 @@
             canvas._objects = origObjects.filter(o => o && !o.__isLineHandle && !o.isTemp);
 
             const customProps = [
+                '_popoutSourceWidth', '_popoutSourceHeight', 'popoutSharpness',
                 'id', 
                 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 
                 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 
@@ -4497,21 +4501,28 @@
                 'shapeType', 'rx', 'ry', 'strokeDashArray'
             ];
 
-            const jsonObj = canvas.toJSON(customProps);
-            delete jsonObj.backgroundImage;
-            delete jsonObj.backgroundColor;
-            const json = JSON.stringify(jsonObj);
-            canvas._objects = origObjects;
-            return json;
+            try {
+                const jsonObj = canvas.toJSON(customProps);
+                if (includeBackground) {
+                    jsonObj.width = canvas.width;
+                    jsonObj.height = canvas.height;
+                } else {
+                    delete jsonObj.backgroundImage;
+                    delete jsonObj.backgroundColor;
+                }
+                return JSON.stringify(jsonObj);
+            } finally {
+                canvas._objects = origObjects;
+            }
         }
 
-        function pushCurrentToRecent(forceNew = false) {
+        function pushCurrentToRecent(forceNew = false, snapshotJSON = null) {
             if (!hasActiveCanvas || !canvas) return;
             if (canvas.getObjects().length === 0 && !canvas.backgroundImage && (!canvas.backgroundColor || canvas.backgroundColor === 'transparent')) return;
 
             const thumbMult = Math.min(200 / Math.max(10, canvas.width), 1.0);
             const thumb = canvas.toDataURL({ format: 'png', multiplier: thumbMult });
-            const json = getCanvasJSON();
+            const json = snapshotJSON || getCanvasJSON();
 
             // 배경 이미지 URL 및 배경색 추출
             const bgImg = canvas.backgroundImage;
@@ -4537,6 +4548,7 @@
 
             // ★ forceNew가 아닐 때만 activeRecentIdx 항목 갱신 (복제 방지)
             if (!forceNew && activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
+                if (window.invalidateOCRSource) window.invalidateOCRSource(recentList[activeRecentIdx],bgSrc);
                 recentList[activeRecentIdx].thumb = thumb;
                 recentList[activeRecentIdx].json = json;
                 recentList[activeRecentIdx].jsonLight = jsonLight;
@@ -4550,7 +4562,9 @@
             }
 
             // forceNew가 아니면 중복 방지: 앞 항목과 동일하면 무시
-            if (!forceNew && recentList.length > 0 && recentList[0].json === json) return;
+            if (!forceNew && recentList.length > 0 && recentList[0].json === json &&
+                recentList[0].bgSrc === bgSrc && recentList[0].bgColor === bgColor &&
+                recentList[0].width === canvas.width && recentList[0].height === canvas.height) return;
 
             recentList.unshift({ thumb, json, jsonLight, bgSrc, bgColor, bgImgCache, width: canvas.width, height: canvas.height, time: Date.now() });
             activeRecentIdx = 0;
@@ -4561,10 +4575,35 @@
         }
 
         let recentSortOrder = 'desc'; // desc: 최신순, asc: 오래된순
+        document.getElementById('btn_recent_clear').addEventListener('click', async () => {
+            if (!recentList.length) return;
+            if (!await customConfirm('모두 삭제하시겠습니까?', '확인', '취소')) return;
+            cancelRecentLoad();
+            cancelPendingThumbnail();
+            deactivateActiveTool();
+            isHistoryAction = true;
+            try {
+                recentList = [];
+                activeRecentIdx = -1;
+                hasActiveCanvas = false;
+                canvas.discardActiveObject();
+                canvas.clear();
+                canvas.backgroundColor = 'transparent';
+                canvas.backgroundImage = null;
+                stateHistory = [];
+                historyIndex = -1;
+            } finally { isHistoryAction = false; }
+            updateUndoRedoUI();
+            document.querySelectorAll('.btn-tool').forEach(btn => btn.classList.add('disabled'));
+            document.getElementById('sub_toolbar').style.display = 'none';
+            document.getElementById('modal_edit').style.display = 'none';
+            canvas.renderAll();
+            renderRecentList();
+        });
         document.getElementById('btn_recent_sort').addEventListener('click', function () {
             recentSortOrder = (recentSortOrder === 'desc' ? 'asc' : 'desc');
             this.innerText = (recentSortOrder === 'desc' ? '최신순' : '과거순');
-            renderRecentList();
+            renderRecentList(false);
         });
 
         function updateRecentItemUI(realIdx) {
@@ -4590,8 +4629,10 @@
             }
         }
 
-        function renderRecentList() {
-            if (typeof triggerHistorySave === 'function') triggerHistorySave();
+        function renderRecentList(persist = true) {
+            if (window.pruneOCRJobs) window.pruneOCRJobs();
+            document.getElementById('btn_recent_clear').disabled = recentList.length === 0;
+            if (persist && typeof triggerHistorySave === 'function') triggerHistorySave();
             const container = document.getElementById('recent_list_container');
             container.innerHTML = '';
 
@@ -4620,6 +4661,7 @@
                 delBtn.innerText = 'X';
                 delBtn.onclick = (e) => {
                     e.stopPropagation();
+                    cancelRecentLoad();
                     const isDeletingActive = (realIdx === activeRecentIdx);
                     recentList.splice(realIdx, 1);
 
@@ -4646,8 +4688,9 @@
                     renderRecentList();
                 };
                 div.appendChild(delBtn);
+                if (window.appendOCRButton) window.appendOCRButton(div, item);
 
-                div.onmousedown = (e) => { if (e.button !== 0) return; loadRecentItem(realIdx); };
+                div.onclick = (e) => { if (e.button !== 0) return; loadRecentItem(realIdx); };
 
                 container.appendChild(div);
             });
@@ -4655,91 +4698,160 @@
             // 활성 아이템 스크롤 중앙 정렬 기능 제거 (수동 스크롤만 사용)
         }
 
-        function flushThumbDebounce() {
-            if (window._thumbDebounce) {
-                clearTimeout(window._thumbDebounce);
-                window._thumbDebounce = null;
-                if (activeRecentIdx >= 0) pushCurrentToRecent();
-            }
+        function cancelPendingThumbnail() {
+            if (window._thumbDebounce) clearTimeout(window._thumbDebounce);
+            window._thumbDebounce = null;
+            window._pendingThumbnail = null;
         }
 
-        // ── 썸네일 즉시 로드 (플래그/큐 방식 제거, 단순·고속) ─────────────
-        let _recentLoadSeq = 0; // 최신 요청만 반영 (이전 요청 무시)
+        function updateRecentSnapshotWithoutRendering(json) {
+            if (activeRecentIdx < 0 || activeRecentIdx >= recentList.length) return;
+            const item = recentList[activeRecentIdx];
+            item.json = json;
+            try {
+                const parsed = JSON.parse(json);
+                delete parsed.backgroundImage;
+                item.jsonLight = JSON.stringify(parsed);
+            } catch (e) {
+                item.jsonLight = null;
+            }
+            const bgImg = canvas.backgroundImage;
+            if (window.invalidateOCRSource) window.invalidateOCRSource(item,bgImg && bgImg.getSrc ? bgImg.getSrc() : null);
+            item.bgSrc = bgImg && bgImg.getSrc ? bgImg.getSrc() : null;
+            item.bgColor = canvas.backgroundColor;
+            item.bgImgCache = bgImg && bgImg._element ? bgImg._element : null;
+            item.width = canvas.width;
+            item.height = canvas.height;
+            if (typeof triggerHistorySave === 'function') triggerHistorySave();
+        }
+
+        function scheduleCurrentThumbnail(json) {
+            cancelPendingThumbnail();
+            if (activeRecentIdx < 0 || activeRecentIdx >= recentList.length) return;
+            const item = recentList[activeRecentIdx];
+            window._pendingThumbnail = { item, json };
+            window._thumbDebounce = setTimeout(() => {
+                const pending = window._pendingThumbnail;
+                window._thumbDebounce = null;
+                window._pendingThumbnail = null;
+                // Never export a different document after a recent-item switch.
+                if (!pending || recentList[activeRecentIdx] !== pending.item || pending.item.json !== pending.json) return;
+                pushCurrentToRecent(false, pending.json);
+            }, 250);
+        }
+
+        // Restore offscreen: obsolete decodes must never touch the live canvas.
+        let _recentLoadSeq = 0;
+        let _recentLoading = false;
+        let _recentPending = null;
+        let _recentOwnsHistory = false;
+
+        function cancelRecentLoad() {
+            ++_recentLoadSeq;
+            _recentPending = null;
+            if (_recentOwnsHistory) isHistoryAction = false;
+            _recentOwnsHistory = false;
+            canvas.upperCanvasEl.style.pointerEvents = '';
+        }
 
         function loadRecentItem(idx) {
             const item = recentList[idx];
-            if (!item || idx === activeRecentIdx) return;
-            flushThumbDebounce();
-
-            prepareCanvasDisplay();
-
-            // ★ 떠나기 전에 현재 캔버스 상태를 무조건 저장
-            if (activeRecentIdx >= 0 && hasActiveCanvas) {
-                pushCurrentToRecent();
+            if (!item || (!_recentLoading && idx === activeRecentIdx)) return;
+            cancelPendingThumbnail();
+            if (!_recentOwnsHistory) {
+                // saveHistory already detects unchanged content; never save an in-flight restore.
+                saveHistory();
+                _recentOwnsHistory = true;
             }
-
-            activeRecentIdx = idx;
-            renderRecentList();
-
-            const seq = ++_recentLoadSeq;
+            _recentPending = { item, seq: ++_recentLoadSeq };
             isHistoryAction = true;
-            canvas.renderOnAddRemove = false;
+            canvas.upperCanvasEl.style.pointerEvents = 'none';
+            if (!_recentLoading) drainRecentLoads();
+        }
 
-            canvas.loadFromJSON(item.json, () => {
-                if (seq !== _recentLoadSeq) return;
-                restoreLinkedTexts();
-                restorePopoutLinks();
-
-                canvas.renderOnAddRemove = true;
-                const w = item.width || canvas.width;
-                const h = item.height || canvas.height;
-                canvas.setWidth(w);
-                canvas.setHeight(h);
-
-                function finishLoad() {
-                    // 배경 이미지 선택 및 이동 방지 설정 보장
-                    if (canvas.backgroundImage) {
-                        canvas.backgroundImage.set({ selectable: false, evented: false, lockMovementX: true, lockMovementY: true });
-                    }
-                    // 배경색 복원
-                    if (item.bgColor) {
-                        canvas.setBackgroundColor(item.bgColor, () => {});
-                    }
-                    syncFabricContainerSize();
-                    canvas.calcOffset();
-                    enableTools();
-                    applyFitZoom();
-                    applyCanvasClipping();
-                    restoreLineLinks();
-                    canvas.renderAll();
-                    initHistory();
+        async function drainRecentLoads() {
+            _recentLoading = true;
+            try {
+                while (_recentPending) {
+                    const {item, seq} = _recentPending;
+                    _recentPending = null;
+                    if (recentList[activeRecentIdx] === item) continue;
+                    const staging = new fabric.StaticCanvas(null, {
+                        width: item.width || 800, height: item.height || 600,
+                        renderOnAddRemove: false, enableRetinaScaling: false
+                    });
+                    // loadFromJSON calls renderAll internally; no need to paint a staging surface.
+                    staging.renderAll = function() { return this; };
+                    try {
+                        await new Promise((resolve, reject) => {
+                            try { staging.loadFromJSON(item.jsonLight || item.json, resolve, window.popoutReviver); }
+                            catch (error) { reject(error); }
+                        });
+                        if (seq !== _recentLoadSeq || !recentList.includes(item)) continue;
+                        let background = staging.backgroundImage;
+                        if (item.bgImgCache) {
+                            background = new fabric.Image(item.bgImgCache);
+                        } else if (item.bgSrc) {
+                            background = await new Promise(resolve => fabric.Image.fromURL(item.bgSrc, resolve));
+                            if (!background) throw new Error('Background image could not be decoded');
+                            item.bgImgCache = background._element;
+                        }
+                        if (seq !== _recentLoadSeq || !recentList.includes(item)) continue;
+                        const objects = staging.getObjects().slice();
+                        staging._objects = [];
+                        staging.backgroundImage = null;
+                        const oldRender = canvas.renderOnAddRemove;
+                        canvas.renderOnAddRemove = false;
+                        try {
+                            canvas.discardActiveObject();
+                            canvas.clear();
+                            canvas.setDimensions({width: item.width || 800, height: item.height || 600});
+                            canvas.backgroundImage = background || null;
+                            canvas.backgroundColor = item.bgColor || staging.backgroundColor || 'transparent';
+                            if (background) background.set({left:0,top:0,originX:'left',originY:'top',selectable:false,evented:false});
+                            canvas.add(...objects);
+                            // Ownership changes only after all objects and background are ready.
+                            activeRecentIdx = recentList.indexOf(item);
+                            restoreLinkedTexts();
+                            restorePopoutLinks();
+                            restoreLineLinks();
+                            prepareCanvasDisplay();
+                            syncFabricContainerSize();
+                            canvas.calcOffset();
+                            enableTools();
+                            applyFitZoom();
+                            applyCanvasClipping();
+                            initHistory();
+                            const nodes = document.querySelectorAll('#recent_list_container .recent-item');
+                            nodes.forEach((node, displayIdx) => {
+                                const realIdx = recentSortOrder === 'desc' ? displayIdx : recentList.length-1-displayIdx;
+                                node.classList.toggle('active', realIdx === activeRecentIdx);
+                            });
+                        } finally { canvas.renderOnAddRemove = oldRender; }
+                        canvas.requestRenderAll();
+                    } catch (error) {
+                        if (seq === _recentLoadSeq) showToast('최근 항목을 불러오지 못했습니다. 기존 화면을 유지합니다.');
+                        console.warn('Recent restore failed:', error.message);
+                    } finally { staging.dispose(); }
+                }
+            } finally {
+                _recentLoading = false;
+                if (_recentOwnsHistory) {
                     isHistoryAction = false;
+                    _recentOwnsHistory = false;
                 }
-
-                // ★ getCanvasJSON()이 backgroundImage를 의도적으로 제거하므로,
-                //    별도 저장된 bgImgCache 또는 bgSrc에서 배경 이미지를 복원해야 함
-                if (item.bgImgCache) {
-                    const fabricBg = new fabric.Image(item.bgImgCache, {
-                        originX: 'left', originY: 'top', left: 0, top: 0
-                    });
-                    canvas.setBackgroundImage(fabricBg, () => { finishLoad(); });
-                } else if (item.bgSrc) {
-                    fabric.Image.fromURL(item.bgSrc, (bgImg) => {
-                        if (!bgImg) { finishLoad(); return; }
-                        bgImg.set({ originX: 'left', originY: 'top', left: 0, top: 0 });
-                        canvas.setBackgroundImage(bgImg, () => { finishLoad(); });
-                    });
-                } else {
-                    finishLoad();
-                }
-            }, window.popoutReviver);
+                canvas.upperCanvasEl.style.pointerEvents = '';
+            }
         }
         // 현재 활성 항목 인덱스
         let activeRecentIdx = -1;
 
         
         window.popoutReviver = function(o, obj) {
+            obj._popoutTightBounds = o._popoutTightBounds;
+            obj._popoutTightBoundsKey = o._popoutTightBoundsKey;
             const customProps = [
+                '_popoutSourceWidth', '_popoutSourceHeight', 'popoutSharpness',
                 'id', 'isPopout', 'isPopoutLine', '_croppedBgDataUrl', 
                 'linkedOriginalId', 'linkedLineId', 'popoutBorder', 'popoutBorderColor', 
                 'popoutShadow', 'popoutShadowColor', 'popoutLineWeight', 'popoutLineColor', 
@@ -4756,17 +4868,22 @@
             });
 
             if (o.isPopout) {
+                obj._restoredRaster = !!o.src;
+                obj._lastBorder = obj.popoutBorder;
+                obj._currentShiftX = obj.left - (obj._baseLeft ?? obj.left);
+                obj._currentShiftY = obj.top - (obj._baseTop ?? obj.top);
                 if (obj._croppedBgDataUrl && !obj._croppedBg) {
                     const img = new Image();
-                    img.src = obj._croppedBgDataUrl;
                     img.onload = () => {
                         obj._croppedBg = img;
                         if (obj.linkedOriginal) {
-                            if (typeof applyPopoutTilt === 'function') applyPopoutTilt(obj);
+                            if (obj._restoredRaster) CapcraftPopout.adopt(obj);
+                            else if (typeof applyPopoutTilt === 'function') applyPopoutTilt(obj);
                             if (typeof updatePopoutLine === 'function') updatePopoutLine(obj);
                         }
                         if (obj.canvas) obj.canvas.renderAll();
                     };
+                    img.src = obj._croppedBgDataUrl;
                 }
             }
             if (o.isPopoutLine) {
@@ -4812,11 +4929,7 @@
                 }
             }
 
-            canvas.backgroundImage = null;
-            canvas.backgroundColor = null;
             const json = getCanvasJSON();
-            canvas.backgroundImage = bgImg;
-            canvas.backgroundColor = bgColor;
 
             stateHistory = [{ objects: json, width: canvas.width, height: canvas.height, bgData: initBgData }];
             historyIndex = 0;
@@ -4858,7 +4971,11 @@
 
             // ★ 캔버스 상태 변경 시 recentList[activeRecentIdx] 항목의 JSON 및 썸네일을 즉시 갱신
             if (activeRecentIdx >= 0 && activeRecentIdx < recentList.length) {
-                pushCurrentToRecent();
+                // JSON persistence is cheap and immediate. Thumbnail rendering
+                // is deliberately delayed so it cannot steal the selection or
+                // property-change frame currently being presented.
+                updateRecentSnapshotWithoutRendering(json);
+                scheduleCurrentThumbnail(json);
             }
         }
 
@@ -4871,6 +4988,11 @@
 
         canvas.on('object:added', (e) => {
             const target = e.target;
+            if(!target.isPopout&&!target.isPopoutLine&&!target.isArrowHead&&!target.__isLineHandle&&['rect','ellipse','polygon','path','group'].includes(target.type)){
+                if(activeTool==='shape'&&document.getElementById('chk_wave')?.checked)StrokeEffects.apply(target,true);
+                if(activeTool==='pen'&&document.getElementById('pen_wave').checked)StrokeEffects.apply(target,true);
+            }
+            if(activeTool==='shape'&&!target.shapePen&&!target.isPopout&&!target.isPopoutLine&&!target.__isLineHandle&&!target.isLinkedText&&['rect','ellipse','polygon','path','group'].includes(target.type))ShapePens.apply(target,document.getElementById('shape_pen_type').value);
             if (target.isEmoji || target.isMediaImage || target.isMosaic) {
                 target.set('lockUniScaling', true);
             }
@@ -4884,7 +5006,7 @@
             if (!e.target.isTemp) syncFabricContainerSize();
         });
         function normalizeScale(obj) {
-            if (!obj || (obj.scaleX === 1 && obj.scaleY === 1)) return;
+            if (!obj || obj.shapePen || obj.naturalPen || obj.penArrow || obj.waveLine || (obj.scaleX === 1 && obj.scaleY === 1)) return;
             const isArrow = (obj.type === 'group' && obj.getObjects().find(o => o.isArrowBody));
             const isPath = (obj.type === 'path' && !obj.isArrowBody);
 
@@ -4931,7 +5053,7 @@
                     let arrowType = oldBody.arrowType || obj.arrowType || sysArrowType;
                     let arrowSize = oldBody.arrowSize || obj.arrowSize || sysArrowSize;
                     let angle = Math.atan2(finalP.y - prevP.y, finalP.x - prevP.x);
-                    let sizeMult = arrowSize === 'xs' ? 1.5 : arrowSize === 's' ? 2 : arrowSize === 'l' ? 4 : 3;
+                    let sizeMult = arrowSize === 'xs' ? 1.5 : arrowSize === 's' ? 2 : arrowSize === 'l' ? 4 : arrowSize === 'xl' ? 5 : 3;
                     let w = size * sizeMult + 8;
                     let pullBack = (arrowType === 'stealth') ? w * 0.6 : (arrowType === 'open') ? 0 : w;
 
@@ -4960,15 +5082,13 @@
         }
 
         canvas.on('object:modified', (e) => {
-            if (e.target && (e.target.isMediaImage || e.target.type === 'image')) {
-                if (fabric.Image.filters && fabric.Image.filters.Resize) {
-                    try {
-                        if (!e.target.resizeFilter) {
-                            e.target.resizeFilter = new fabric.Image.filters.Resize({ resizeType: 'bilinear' });
-                        }
-                        e.target.applyFilters();
-                    } catch(err) {}
-                }
+            if (e.target?.isPopout) {
+                // Fabric already positioned the scaled object around the fixed
+                // opposite handle. Keep that position when rebaking higher-res pixels.
+                e.target._baseLeft = e.target.left - (e.target._currentShiftX || 0);
+                e.target._baseTop = e.target.top - (e.target._currentShiftY || 0);
+                regeneratePopoutBase(e.target);
+                updatePopoutLine(e.target);
             }
             // 핸들 드래그 완료 시 처리
             if (e.target && e.target.__isLineHandle) {
@@ -5023,21 +5143,12 @@
 
             if (!isHistoryAction) {
                 saveHistory();
-                // 썸네일 갱신 (디바운스 800ms)
-                clearTimeout(window._thumbDebounce);
-                window._thumbDebounce = setTimeout(() => {
-                    if (activeRecentIdx >= 0) pushCurrentToRecent();
-                }, 800);
             }
             syncFabricContainerSize();
         });
         canvas.on('object:removed', (e) => {
             if (!isHistoryAction && !e.target.isTemp) {
                 saveHistory();
-                clearTimeout(window._thumbDebounce);
-                window._thumbDebounce = setTimeout(() => {
-                    if (activeRecentIdx >= 0) pushCurrentToRecent();
-                }, 800);
             }
             syncFabricContainerSize();
         });
@@ -5128,7 +5239,7 @@
         let sysPenBgOpacity = 85;
         let penCurrentColor = sysPenBallpointColor;
 
-        function updateActiveShapeProperties(updates) {
+        function updateActiveShapeProperties(updates, recordHistory = true) {
             const rawActive = canvas ? canvas.getActiveObject() : null;
             if (!rawActive) return;
 
@@ -5151,8 +5262,8 @@
 
                 activeObj.set(updates);
                 activeObj.set('dirty', true);
-                activeObj._cacheCanvas = null;
-                activeObj._cacheContext = null;
+                // Preserve Fabric's cache context and its matching size/transform metadata.
+                // dirty redraws pixels; replacing only the canvas loses the cache transform.
 
                 if (activeObj.type === 'group' && typeof activeObj.getObjects === 'function') {
                     activeObj.getObjects().forEach(child => {
@@ -5168,8 +5279,6 @@
                         if ('fill' in updates && !child.isArrowHead) childUpdates.fill = updates.fill;
                         child.set(childUpdates);
                         child.set('dirty', true);
-                        child._cacheCanvas = null;
-                        child._cacheContext = null;
                     });
                 }
 
@@ -5180,7 +5289,7 @@
             if (updatedAny && canvas) {
                 canvas.requestRenderAll();
                 canvas.renderAll();
-                if (typeof saveHistory === 'function') saveHistory();
+                if (recordHistory && typeof saveHistory === 'function') saveHistory();
             }
         }
 
@@ -5191,6 +5300,23 @@
             if (c.h === 'transparent') cell.style.backgroundImage = 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)';
             cell.addEventListener('mousedown', e => e.preventDefault());
             cell.addEventListener('click', () => {
+                // Selecting a visible color must leave the fully transparent state.
+                // Preserve partial transparency, but restore a usable default at 100%.
+                const backgroundOpacityControls = {
+                    fill: ['shape_bg_opacity_input', 'set_shape_opacity_val'],
+                    edit_shape_fill: ['edit_shape_bg_opacity', 'set_shape_opacity_val'],
+                    edit_line_fill: ['edit_line_bg_opacity', 'set_pen_bg_opacity'],
+                    text_bg: ['text_bg_opacity_input', 'set_txt_bg_opacity'],
+                    btn_pen_bg: ['pen_bg_opacity_input', 'set_pen_bg_opacity']
+                };
+                const opacityControls = backgroundOpacityControls[targetColorBtn];
+                if (c.h !== 'transparent' && opacityControls) {
+                    const input = document.getElementById(opacityControls[0]);
+                    if (input && Number(input.value) >= 100) {
+                        const fallback = Number(document.getElementById(opacityControls[1])?.value);
+                        input.value = Number.isFinite(fallback) && fallback >= 0 && fallback < 100 ? fallback : 0;
+                    }
+                }
                 const bgImg = c.h === 'transparent' ? cell.style.backgroundImage : 'none';
                 if (targetColorBtn === 'stroke' || targetColorBtn === 'edit_shape_stroke' || targetColorBtn === 'edit_line_stroke' || targetColorBtn === 'set_shape_stroke') {
                     const elId = targetColorBtn === 'stroke' ? 'btn_stroke_color' : targetColorBtn === 'set_shape_stroke' ? 'set_shape_stroke_color' : targetColorBtn;
@@ -5230,9 +5356,19 @@
                         }
                     }
                     sysPenBgColor = c.h;
+                } else if (NaturalPens.kinds.some(kind=>targetColorBtn==='set_pen_'+kind)) {
+                    const kind=targetColorBtn.slice('set_pen_'.length);
+                    document.getElementById(targetColorBtn+'_color').style.backgroundColor=c.h;
+                    NaturalPens.readSettings();
+                    if(document.getElementById('pen_type').value===kind){penCurrentColor=NaturalPens.defaults[kind].color;updatePenBrush();}
                 } else if (targetColorBtn === 'pen' || targetColorBtn === 'set_pen_ballpoint' || targetColorBtn === 'set_pen_highlighter') {
                     const elId = targetColorBtn === 'pen' ? 'btn_pen_color' : targetColorBtn === 'set_pen_ballpoint' ? 'set_pen_ballpoint_color' : 'set_pen_highlighter_color';
                     let finalColor = c.h;
+                    const naturalKind=document.getElementById('pen_type').value;
+                    if(targetColorBtn==='pen'&&NaturalPens.kinds.includes(naturalKind)){
+                        document.getElementById('set_pen_'+naturalKind+'_color').style.backgroundColor=c.h;
+                        NaturalPens.readSettings();finalColor=NaturalPens.defaults[naturalKind].color;
+                    }
                     if (targetColorBtn === 'set_pen_highlighter' || (targetColorBtn === 'pen' && document.getElementById('pen_type').value === 'highlighter')) {
                         let opInput = targetColorBtn === 'pen' ? 'pen_highlighter_intensity_input' : 'set_pen_highlighter_opacity';
                         let parsed = parseInt(document.getElementById(opInput).value);
@@ -5242,7 +5378,8 @@
                     document.getElementById(elId).style.backgroundColor = finalColor;
                     if (targetColorBtn === 'pen') {
                         penCurrentColor = finalColor;
-                        if (document.getElementById('pen_type').value === 'ballpoint') sysPenBallpointColor = finalColor;
+                        if (NaturalPens.kinds.includes(document.getElementById('pen_type').value)) NaturalPens.defaults[document.getElementById('pen_type').value].color = finalColor;
+                        else if (document.getElementById('pen_type').value === 'ballpoint') sysPenBallpointColor = finalColor;
                         else sysPenHighlighterColor = finalColor;
                         updatePenBrush();
                     }
@@ -5266,7 +5403,7 @@
                     if (obj && obj.isPopout && targetColorBtn.startsWith('popout_')) {
                         if (targetColorBtn === 'popout_line_c') {
                             obj.popoutLineColor = c.h;
-                            if (obj.linkedLine) obj.linkedLine.stroke = c.h;
+                            if (obj.linkedLine) obj.linkedLine.set('stroke', c.h);
                         } else if (targetColorBtn === 'popout_border_c') {
                             obj.popoutBorderColor = c.h;
                             regeneratePopoutBase(obj);
@@ -5325,8 +5462,6 @@
                             activeObj.set({ fill: fColor, dirty: true });
                         }
                         activeObj.setCoords();
-                        activeObj._cacheCanvas = null;
-                        activeObj._cacheContext = null;
                         canvas.requestRenderAll();
                         canvas.renderAll();
                     }
@@ -5437,6 +5572,17 @@
         bindCP('btn_pen_color', 'pen');
         bindCP('btn_pen_bg', 'set_pen_bg'); bindCP('set_pen_bg_color', 'set_pen_bg');
         bindCP('set_pen_ballpoint_color', 'set_pen_ballpoint'); bindCP('set_pen_highlighter_color', 'set_pen_highlighter');
+        NaturalPens.kinds.forEach(kind=>{
+            bindCP('set_pen_'+kind+'_color','set_pen_'+kind);
+            for(const property of ['weight','opacity'])document.getElementById('set_pen_'+kind+'_'+property).addEventListener('input',()=>{
+                NaturalPens.readSettings();
+                if(document.getElementById('pen_type').value===kind){
+                    const preset=NaturalPens.defaults[kind];penCurrentColor=preset.color;
+                    document.getElementById('pen_weight').value=preset.width;
+                    document.getElementById('btn_pen_color').style.backgroundColor=preset.color;updatePenBrush();
+                }
+            });
+        });
         bindCP('edit_shape_stroke', 'edit_shape_stroke'); bindCP('edit_shape_fill', 'edit_shape_fill');
         bindCP('edit_popout_line_color', 'edit_popout_line_c'); bindCP('edit_popout_border_color', 'edit_popout_border_c'); bindCP('edit_popout_shadow_color', 'edit_popout_shadow_c');
         bindCP('edit_line_stroke', 'edit_line_stroke'); bindCP('edit_line_fill', 'edit_line_fill');
@@ -5462,19 +5608,44 @@
             if (opacityInput) opacityInput.style.display = isLineShape ? 'none' : 'inline-block';
             if (opacityLabel && opacityLabel.tagName === 'SPAN') opacityLabel.style.display = isLineShape ? 'none' : 'inline-block';
 
-            if (['rect', 'ellipse', 'rhombus'].includes(type)) {
-                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>';
-            } else {
-                container.innerHTML = '<label><input type="checkbox" id="chk_dashed"> 점선</label>' +
-                    '<label><input type="radio" name="line_type" value="normal" checked> 일반</label>' +
-                    '<label><input type="radio" name="line_type" value="poly"> 꺾은 선</label>' +
-                    '<label><input type="radio" name="line_type" value="curve"> 곡선</label>';
-            }
+            const dashed=document.getElementById('chk_dashed')?.checked||false,wave=document.getElementById('chk_wave')?.checked||false;
+            container.innerHTML='<div style="display:flex;flex-direction:column;gap:8px;"><label><input type="checkbox" id="chk_dashed"> 점선</label><label><input type="checkbox" id="chk_wave"> 물결선</label></div>';
+            if(isLineShape)container.innerHTML+='<div style="display:grid;grid-template-columns:auto auto;gap:8px;padding-left:10px;border-left:1px solid var(--border-color);"><label style="grid-column:1 / -1;"><input type="radio" name="line_type" value="normal" checked> 일반</label><label><input type="radio" name="line_type" value="poly"> 꺾은 선</label><label><input type="radio" name="line_type" value="curve"> 곡선</label></div>';
+            document.getElementById('chk_dashed').checked=dashed;document.getElementById('chk_wave').checked=wave;
         }
         document.getElementById('shape_type').addEventListener('change', updateShapeOptions);
+        document.getElementById('shape_pen_type').addEventListener('change',e=>{
+            const kind=e.target.value;
+            if(!ShapePens.kinds.includes(kind))return;
+            const prefix='set_pen_'+kind;
+            const width=Math.max(1,Number(document.getElementById(prefix+'_weight').value)||1);
+            // ShapePens applies density during rendering. Keep the base RGB here
+            // so a translucent settings swatch does not apply its alpha twice.
+            const color=new fabric.Color(document.getElementById(prefix+'_color').style.backgroundColor).toRgb();
+            document.getElementById('shape_weight').value=width;
+            document.getElementById('btn_stroke_color').style.backgroundColor=color;
+            strokeColor=color;
+            const raw=canvas.getActiveObject();
+            const targets=raw?.type==='activeSelection'?raw.getObjects():raw?[raw.linkedShape||raw]:[];
+            targets.forEach(selected=>{
+                if(!selected.isPopout&&['rect','ellipse','polygon','path','group','line','polyline','circle'].includes(selected.type))ShapePens.apply(selected,kind);
+            });
+            updateActiveShapeProperties({strokeWidth:width,stroke:color},false);
+            // Regenerate arrow heads for the new width, preserving logical
+            // endpoints and their attachments rather than scaling the whole line.
+            targets.forEach(selected=>{
+                if(selected.__capcraftPoints&&raw?.type!=='activeSelection')recalculateAndRedrawLine(selected,false);
+            });
+            canvas.requestRenderAll();
+            if(targets.length)saveHistory();
+        });
         updateShapeOptions();
 
         document.getElementById('shape_options_container').addEventListener('change', (e) => {
+            if(e.target?.id==='chk_wave'){
+                const raw=canvas.getActiveObject(),obj=raw?.linkedShape||raw;
+                if(obj&&!obj.isPopout){StrokeEffects.apply(obj,e.target.checked);canvas.requestRenderAll();saveHistory();}
+            }
             if (e.target && e.target.id === 'chk_dashed') {
                 const isChecked = e.target.checked;
                 const rawActive = canvas ? canvas.getActiveObject() : null;
@@ -5482,7 +5653,7 @@
                 if (activeObj && !activeObj.isPopout) {
                     const propSource = (activeObj.type === 'group' && activeObj._objects && activeObj._objects[0]) ? activeObj._objects[0] : activeObj;
                     const sw = propSource.strokeWidth || parseInt(document.getElementById('shape_weight').value) || 3;
-                    const dashArray = isChecked ? [sw * 3, sw * 3] : null;
+                    const dashArray = isChecked ? StrokeEffects.dash(sw) : null;
                     updateActiveShapeProperties({ strokeDashArray: dashArray });
                 }
             }
@@ -5541,7 +5712,7 @@
                 'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity', 'set_pen_bg_opacity',
-                'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size', 'set_popout_line_toggle', 'set_popout_line_weight', 'set_popout_angle', 'set_popout_skew_x', 'set_popout_skew_y', 'set_popout_border', 'set_popout_shadow',
+                'set_shape_weight', 'set_shape_opacity_val', 'set_arrow_type', 'set_arrow_size', 'set_popout_line_toggle', 'set_popout_line_weight', 'set_popout_angle', 'set_popout_skew_x', 'set_popout_skew_y', 'set_popout_border', 'set_popout_shadow', 'set_popout_sharpness',
                 'set_eraser_fat', 'set_mosaic_px', 'set_mosaic_freehand_weight', 'setting_save_format', 'setting_auto_save_chk', 'setting_auto_save_path', 'set_recent_max', 'set_recent_max_action'
             ];
             const colorIds = [
@@ -5549,6 +5720,8 @@
                 'set_pen_highlighter_color', 'set_shape_stroke_color', 'set_shape_fill_color', 'set_pen_bg_color', 'set_popout_line_color', 'set_popout_border_color', 'set_popout_shadow_color'
             ];
             let data = {};
+            settingsIds.push('set_dash_frequency','set_wave_height','set_wave_spacing');
+            for(const kind of NaturalPens.kinds){settingsIds.push('set_pen_'+kind+'_weight','set_pen_'+kind+'_opacity');colorIds.push('set_pen_'+kind+'_color');}
             settingsIds.forEach(id => {
                 let el = document.getElementById(id);
                 if (el) {
@@ -5563,12 +5736,20 @@
                 }
             });
             data.customEmojiFolders = customEmojiFolders;
+            data.penDensityVersion = 2;
+            data.popoutBorderDefaultVersion = 1;
             return data;
         }
 
         window.restoreSettings = function (jsonStr) {
             try {
                 let data = JSON.parse(jsonStr);
+                if(!data.penDensityVersion){
+                    for(const [kind,base] of [['pencil',50],['charcoal',70]]){
+                        const key='set_pen_'+kind+'_opacity';
+                        if(data[key]!==undefined)data[key]=Math.round(Number(data[key])*base/100);
+                    }
+                }
                 if (data.customEmojiFolders) {
                     customEmojiFolders = data.customEmojiFolders;
                 }
@@ -5590,6 +5771,9 @@
                 }
                 if (data['set_shape_opacity_val'] === undefined || ['15', '20', '35', '50', 15, 20, 35, 50].includes(data['set_shape_opacity_val'])) {
                     data['set_shape_opacity_val'] = '85';
+                }
+                if (!data.popoutBorderDefaultVersion && (data.set_popout_border === undefined || Number(data.set_popout_border) === 8)) {
+                    data.set_popout_border = '4';
                 }
                 for (let id in data) {
                     let el = document.getElementById(id);
@@ -5643,9 +5827,10 @@
             if (document.getElementById('set_popout_angle') && (!document.getElementById('set_popout_angle').value || document.getElementById('set_popout_angle').value === '0' || document.getElementById('set_popout_angle').value === '0.0')) {
                 document.getElementById('set_popout_angle').value = '4.0';
             }
-            if (document.getElementById('set_popout_border') && (!document.getElementById('set_popout_border').value || document.getElementById('set_popout_border').value === '0')) {
-                document.getElementById('set_popout_border').value = '8';
+            if (document.getElementById('set_popout_border') && document.getElementById('set_popout_border').value === '') {
+                document.getElementById('set_popout_border').value = '4';
             }
+            document.getElementById('popout_border').value = document.getElementById('set_popout_border').value;
 
             renderEmojiFolderList();
             loadCustomEmojisFromFolders();
@@ -5674,7 +5859,13 @@
             sysPenHighlighterWeight = parseInt(document.getElementById('set_pen_highlighter_weight')?.value || 10);
             sysPenHighlighterColor = document.getElementById('set_pen_highlighter_color')?.style.backgroundColor || 'rgba(255, 255, 0, 0.3)';
 
-            if (document.getElementById('pen_type')?.value === 'ballpoint') {
+            NaturalPens.readSettings();
+            if (NaturalPens.kinds.includes(document.getElementById('pen_type')?.value)) {
+                const preset=NaturalPens.defaults[document.getElementById('pen_type').value];
+                document.getElementById('pen_weight').value=preset.width;
+                document.getElementById('btn_pen_color').style.backgroundColor=preset.color;
+                penCurrentColor=preset.color;
+            } else if (document.getElementById('pen_type')?.value === 'ballpoint') {
                 if (document.getElementById('pen_weight')) document.getElementById('pen_weight').value = sysPenBallpointWeight;
                 if (document.getElementById('btn_pen_color')) document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
                 penCurrentColor = sysPenBallpointColor;
@@ -5703,7 +5894,8 @@
             sysArrowSize = document.getElementById('set_arrow_size')?.value || 'm';
             sysEraserFat = parseFloat(document.getElementById('set_eraser_fat')?.value) || 1.5;
 
-            window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px')?.value) || 3;
+            window.sysMosaicPx = parseInt(document.getElementById('set_mosaic_px')?.value) || 5;
+            document.getElementById('mosaic_intensity').value = window.sysMosaicPx;
             if (document.getElementById('mosaic_weight') && document.getElementById('set_mosaic_freehand_weight')) {
                 document.getElementById('mosaic_weight').value = document.getElementById('set_mosaic_freehand_weight').value;
             }
@@ -6084,7 +6276,8 @@
                     bgColor: item.bgColor,
                     width: item.width,
                     height: item.height,
-                    time: item.time
+                    time: item.time,
+                    ocr: item.ocr || null
                 }));
 
                 const fullStr = JSON.stringify(cleanList);
@@ -6093,12 +6286,21 @@
                     let i = 0;
                     function sendNext() {
                         if (i < fullStr.length) {
-                            const chunk = fullStr.substring(i, i + chunkSize);
+                            let end = Math.min(i + chunkSize, fullStr.length);
+                            // Do not split a UTF-16 surrogate pair across Qt messages.
+                            if (end < fullStr.length && /[\uD800-\uDBFF]/.test(fullStr[end - 1])) end--;
+                            const chunk = fullStr.substring(i, end);
                             const is_first = (i === 0);
-                            const is_last = (i + chunkSize >= fullStr.length);
-                            pyBackend.save_history_chunk(chunk, is_first, is_last);
-                            i += chunkSize;
-                            setTimeout(sendNext, 5);
+                            const is_last = (end >= fullStr.length);
+                            pyBackend.save_history_chunk(chunk, is_first, is_last, (ok) => {
+                                if (!ok) {
+                                    isSavingHistory = false;
+                                    showToast('최근 기록 저장에 실패했습니다. 기존 기록은 유지됩니다.');
+                                    return;
+                                }
+                                i = end;
+                                setTimeout(sendNext, 0);
+                            });
                         } else {
                             isSavingHistory = false;
                             if (pendingHistorySave) {
@@ -6122,8 +6324,12 @@
         window.addEventListener('load', () => {
             if (typeof QWebChannel !== 'undefined') {
                 new QWebChannel(qt.webChannelTransport, function (channel) {
+                    window.installPresentationRefresh();
                     pyBackend = channel.objects.pyBackend;
                     window.pyBackend = channel.objects.pyBackend;
+                    if (pyBackend.ocr_finished) pyBackend.ocr_finished.connect(window.receiveOCRResult);
+                    if (pyBackend.ocr_retry) pyBackend.ocr_retry.connect(window.retryNativeOCR);
+                    if (pyBackend.ocr_formatted) pyBackend.ocr_formatted.connect(window.receiveOCRFormatted);
 
                     if (pyBackend) {
                         pyBackend.load_settings((settingsStr) => {
@@ -6136,7 +6342,7 @@
                                     const parsed = JSON.parse(historyStr);
                                     if (Array.isArray(parsed) && parsed.length > 0) {
                                         recentList = parsed;
-                                        renderRecentList();
+                                        renderRecentList(false);
                                         loadRecentItem(0);
 
                                         // ★ 백그라운드에서 bgImgCache/jsonLight 복원 (고속 전환 준비)
@@ -6331,7 +6537,7 @@
             let blob, suggestedName, mime;
 
             if (format === 'json') {
-                const jsonStr = getCanvasJSON();
+                const jsonStr = getCanvasJSON(true);
                 blob = new Blob([jsonStr], { type: "application/json" });
                 suggestedName = `${baseName}.json`;
                 mime = 'application/json';
@@ -6353,7 +6559,10 @@
                 suggestedName = `${baseName}.pdf`;
                 mime = 'application/pdf';
             } else if (format === 'svg') {
-                const svgStr = canvas.toSVG();
+                const svgStr = DOMPurify.sanitize(canvas.toSVG(), {
+                    USE_PROFILES: { svg: true, svgFilters: true },
+                    FORBID_TAGS: ['foreignObject']
+                });
                 blob = new Blob([svgStr], { type: "image/svg+xml" });
                 suggestedName = `${baseName}.svg`;
                 mime = 'image/svg+xml';
@@ -6584,7 +6793,7 @@
         function updatePenBrush() {
 
             if (document.getElementById('pen_type') && document.getElementById('label_pen_highlighter_intensity')) {
-                if (document.getElementById('pen_type').value === 'ballpoint') {
+                if (document.getElementById('pen_type').value !== 'highlighter') {
                     document.getElementById('label_pen_highlighter_intensity').style.display = 'none';
                     document.getElementById('pen_highlighter_intensity_input').style.display = 'none';
                 } else {
@@ -6600,13 +6809,19 @@
             const mode = document.querySelector('input[name="pen_mode"]:checked').value;
             if (mode === 'normal') {
                 canvas.isDrawingMode = true;
-                if (!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
+                const kind=document.getElementById('pen_type').value;
+                if (NaturalPens.kinds.includes(kind)) {
+                    if (canvas.freeDrawingBrush?.type !== 'natural') canvas.freeDrawingBrush=new NaturalPens.Brush(canvas);
+                    canvas.freeDrawingBrush.kind=kind;
+                    canvas.freeDrawingBrush.density=NaturalPens.defaults[kind].opacity;
+                } else if (!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
                     canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
                 }
                 canvas.freeDrawingBrush.color = penCurrentColor;
+                canvas.freeDrawingBrush.waveLine=document.getElementById('pen_wave').checked;
                 canvas.freeDrawingBrush.width = parseInt(document.getElementById('pen_weight').value) || 5;
                 if (document.getElementById('pen_dashed').checked) {
-                    canvas.freeDrawingBrush.strokeDashArray = [canvas.freeDrawingBrush.width * 3, canvas.freeDrawingBrush.width * 3];
+                    canvas.freeDrawingBrush.strokeDashArray = StrokeEffects.dash(canvas.freeDrawingBrush.width);
                 } else {
                     canvas.freeDrawingBrush.strokeDashArray = null;
                 }
@@ -6617,7 +6832,13 @@
 
         document.getElementById('pen_type').addEventListener('change', (e) => {
             const val = e.target.value;
-            if (val === 'ballpoint') {
+            if (NaturalPens.kinds.includes(val)) {
+                NaturalPens.readSettings();
+                const preset=NaturalPens.defaults[val];
+                document.getElementById('pen_weight').value=preset.width;
+                document.getElementById('btn_pen_color').style.backgroundColor=preset.color;
+                penCurrentColor=preset.color;
+            } else if (val === 'ballpoint') {
                 document.getElementById('pen_weight').value = sysPenBallpointWeight;
                 document.getElementById('btn_pen_color').style.backgroundColor = sysPenBallpointColor;
                 penCurrentColor = sysPenBallpointColor;
@@ -6637,10 +6858,14 @@
             const val = parseInt(e.target.value) || 1;
             const activeObj = canvas.getActiveObject();
             if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
-                activeObj.set({ strokeWidth: val });
-                canvas.requestRenderAll();
+                editSelectedPen(obj => {
+                    obj.set({ strokeWidth: val, strokeDashArray: obj.strokeDashArray?.length ? StrokeEffects.dash(val) : null });
+                });
             } else {
-                if (document.getElementById('pen_type').value === 'ballpoint') {
+                if (NaturalPens.kinds.includes(document.getElementById('pen_type').value)) {
+                    NaturalPens.defaults[document.getElementById('pen_type').value].width=val;
+                    document.getElementById('set_pen_'+document.getElementById('pen_type').value+'_weight').value=val;
+                } else if (document.getElementById('pen_type').value === 'ballpoint') {
                     sysPenBallpointWeight = val;
                     document.getElementById('set_pen_ballpoint_weight').value = val;
                 } else {
@@ -6671,15 +6896,34 @@
             }
         });
 
+        function editSelectedPen(edit) {
+            const obj = canvas.getActiveObject();
+            if (!obj || obj.type !== 'path' || obj.isArrowBody || obj.isPopout || obj.shapePen) return false;
+            // Stroke width and arrow padding affect Fabric's origin calculation.
+            const center = obj.getCenterPoint();
+            edit(obj);
+            obj.set({dirty:true});
+            obj.setPositionByOrigin(center, 'center', 'center');
+            obj.setCoords();
+            canvas.requestRenderAll();
+            saveHistory();
+            return true;
+        }
         document.getElementById('pen_dashed').addEventListener('change', (e) => {
-            const activeObj = canvas.getActiveObject();
-            if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
-                activeObj.set({ strokeDashArray: e.target.checked ? [activeObj.strokeWidth * 3, activeObj.strokeWidth * 3] : null });
-                canvas.requestRenderAll();
-            } else {
-                updatePenBrush();
-            }
+            editSelectedPen(obj => obj.set({strokeDashArray:e.target.checked ? StrokeEffects.dash(obj.strokeWidth) : null}));
+            updatePenBrush();
         });
+        document.getElementById('pen_wave').addEventListener('change',e=>{
+            editSelectedPen(obj => StrokeEffects.apply(obj,e.target.checked));
+            updatePenBrush();
+        });
+        document.getElementById('pen_arrow').addEventListener('change',e=>{
+            editSelectedPen(obj => obj.set({penArrow:e.target.checked,
+                penArrowType:obj.penArrowType || document.getElementById('set_arrow_type').value || 'triangle',
+                penArrowSize:obj.penArrowSize || document.getElementById('set_arrow_size').value || 'm'}));
+            updatePenBrush();
+        });
+        for(const id of ['set_dash_frequency','set_wave_height','set_wave_spacing'])document.getElementById(id).addEventListener('change',updatePenBrush);
         
         function handleShapeWeightChange(val) {
             const sw = parseInt(val) || 1;
@@ -6690,7 +6934,7 @@
                 const propSource = (activeObj.type === 'group' && activeObj._objects && activeObj._objects[0]) ? activeObj._objects[0] : activeObj;
                 const hasDash = propSource.strokeDashArray && propSource.strokeDashArray.length > 0;
                 const isDashed = (chkDashed && chkDashed.checked) || hasDash;
-                const dashArray = isDashed ? [sw * 3, sw * 3] : null;
+                const dashArray = isDashed ? StrokeEffects.dash(sw) : null;
                 updateActiveShapeProperties({ strokeWidth: sw, strokeDashArray: dashArray });
             }
         }
@@ -6747,13 +6991,18 @@
 
             const activeObj = canvas ? canvas.getActiveObject() : null;
             if (activeObj && activeObj.type === 'path' && !activeObj.isArrowBody && !activeObj.isPopout) {
-                if (activeObj.fill !== 'transparent') {
+                {
                     let alpha = (100 - validOp) / 100;
                     if (alpha < 0) alpha = 0; if (alpha > 1) alpha = 1;
                     let fColor = activeObj.fill;
+                    if (!fColor || fColor === 'transparent') {
+                        fColor = activeObj._penFillColor || sysPenBgColor;
+                        if (!fColor || fColor === 'transparent') fColor = '#E03C31';
+                    }
                     if (fColor.indexOf('rgba') > -1) {
                         fColor = fColor.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, 'rgb($1,$2,$3)'); 
                     }
+                    activeObj._penFillColor = fColor;
                     activeObj.set({ fill: (validOp === 100) ? 'transparent' : new fabric.Color(fColor).setAlpha(alpha).toRgba() });
                     canvas.requestRenderAll();
                 }
@@ -6887,70 +7136,27 @@
 
             const imgObj = new Image();
             imgObj.onload = function () {
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = mWidth; tempCanvas.height = mHeight;
-                const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-                tempCtx.drawImage(imgObj, 0, 0, mWidth, mHeight);
-                const imgData = tempCtx.getImageData(0, 0, mWidth, mHeight).data;
-
+                // Render once, then retain the bitmap for moves, history and export.
+                const sigma = Math.max(1, Math.min(20, Number(window.sysMosaicPx) || 5));
+                const pad = Math.ceil(sigma * 3);
+                const w = imgObj.naturalWidth, h = imgObj.naturalHeight;
+                const padded = document.createElement('canvas');
+                padded.width = w + pad * 2; padded.height = h + pad * 2;
+                const ctx = padded.getContext('2d');
+                // Replicate edges so the Gaussian kernel cannot introduce a transparent halo.
+                ctx.drawImage(imgObj, pad, pad);
+                ctx.drawImage(imgObj, 0, 0, w, 1, pad, 0, w, pad);
+                ctx.drawImage(imgObj, 0, h - 1, w, 1, pad, pad + h, w, pad);
+                ctx.drawImage(imgObj, 0, 0, 1, h, 0, pad, pad, h);
+                ctx.drawImage(imgObj, w - 1, 0, 1, h, pad + w, pad, pad, h);
+                for (const x of [0, 1]) for (const y of [0, 1])
+                    ctx.drawImage(imgObj, x * (w - 1), y * (h - 1), 1, 1, x ? pad + w : 0, y ? pad + h : 0, pad, pad);
                 const outCanvas = document.createElement('canvas');
-                outCanvas.width = mWidth; outCanvas.height = mHeight;
+                outCanvas.width = w; outCanvas.height = h;
                 const outCtx = outCanvas.getContext('2d');
-
-                let k = Math.max(1, window.sysMosaicPx || 3);
-                if (k > 20) k = 20;
-
-                const cols = Math.ceil(mWidth / k);
-                const rows = Math.ceil(mHeight / k);
-                let cellColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
-
-                for (let r = 0; r < rows; r++) {
-                    for (let c = 0; c < cols; c++) {
-                        let cx = Math.min(c * k + Math.floor(k / 2), mWidth - 1);
-                        let cy = Math.min(r * k + Math.floor(k / 2), mHeight - 1);
-                        let idx = (cy * mWidth + cx) * 4;
-                        cellColors[r][c] = { r: imgData[idx], g: imgData[idx + 1], b: imgData[idx + 2], a: imgData[idx + 3] };
-                    }
-                }
-
-                let finalColors = new Array(rows).fill(0).map(() => new Array(cols).fill(null));
-                let processed = new Array(rows).fill(0).map(() => new Array(cols).fill(false));
-                let setIndex = 0;
-                for (let r = 0; r < rows - 1; r += 2) {
-                    for (let c = 0; c < cols - 1; c += 2) {
-                        let type = setIndex % 4;
-                        let p00 = cellColors[r][c], p01 = cellColors[r][c + 1];
-                        let p10 = cellColors[r + 1][c], p11 = cellColors[r + 1][c + 1];
-
-                        if (type === 0 || type === 2) { finalColors[r][c] = p11; finalColors[r + 1][c + 1] = p00; finalColors[r][c + 1] = p10; finalColors[r + 1][c] = p01; }
-                        else if (type === 1) { finalColors[r][c + 1] = p00; finalColors[r + 1][c + 1] = p01; finalColors[r + 1][c] = p11; finalColors[r][c] = p10; }
-                        else if (type === 3) { finalColors[r + 1][c] = p00; finalColors[r + 1][c + 1] = p10; finalColors[r][c + 1] = p11; finalColors[r][c] = p01; }
-                        processed[r][c] = processed[r][c + 1] = processed[r + 1][c] = processed[r + 1][c + 1] = true;
-                        setIndex++;
-                    }
-                }
-
-                let flatCells = [];
-                for (let r = 0; r < rows; r++) {
-                    for (let c = 0; c < cols; c++) { if (!processed[r][c]) flatCells.push({ r, c }); }
-                }
-                for (let i = 0; i < flatCells.length - 1; i += 2) {
-                    let p1 = flatCells[i]; let p2 = flatCells[i + 1];
-                    finalColors[p1.r][p1.c] = cellColors[p2.r][p2.c]; finalColors[p2.r][p2.c] = cellColors[p1.r][p1.c];
-                }
-                if (flatCells.length % 2 !== 0) {
-                    let p = flatCells[flatCells.length - 1]; finalColors[p.r][p.c] = cellColors[p.r][p.c];
-                }
-
-                for (let r = 0; r < rows; r++) {
-                    for (let c = 0; c < cols; c++) {
-                        let col = finalColors[r][c];
-                        if (col.a > 0) {
-                            outCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${col.a / 255})`;
-                            outCtx.fillRect(c * k, r * k, k, k);
-                        }
-                    }
-                }
+                outCtx.filter = `blur(${sigma}px)`;
+                outCtx.drawImage(padded, -pad, -pad);
+                outCtx.filter = 'none';
 
                 let finalCanvas = outCanvas;
                 if (maskType === 'ellipse' || maskType === 'freehand') {
@@ -7096,7 +7302,7 @@
                 document.getElementById('edit_popout_border_color').style.backgroundColor = editingObject.popoutBorderColor || '#ffffff';
 
 
-                document.getElementById('edit_popout_border').value = editingObject.popoutBorder !== undefined ? editingObject.popoutBorder : 8;
+                document.getElementById('edit_popout_border').value = editingObject.popoutBorder !== undefined ? editingObject.popoutBorder : 4;
 
 
                 
@@ -7190,6 +7396,11 @@
             }
             else if (isLinePath) {
                 document.getElementById('form_edit_line').style.display = 'block';
+                const arrowBody = isArrow && editingObject.getObjects().find(o => o.isArrowBody);
+                document.getElementById('edit_arrow_options').style.display = arrowBody ? 'block' : 'none';
+                document.getElementById('edit_arrow_type').value = editingObject.arrowType || arrowBody?.arrowType || 'triangle';
+                document.getElementById('edit_arrow_size').value = editingObject.arrowSize || arrowBody?.arrowSize || 'm';
+                document.getElementById('edit_arrow_reverse').checked = false;
 
                 let sCol = editingObject.stroke;
                 let sWeight = editingObject.strokeWidth;
@@ -7272,7 +7483,6 @@
                 });
                 editingObject.setCoords();
                 if (typeof applyPopoutTilt === 'function') applyPopoutTilt(editingObject);
-                if (typeof regeneratePopoutBase === 'function') regeneratePopoutBase(editingObject);
                 if (typeof updatePopoutLine === 'function') updatePopoutLine(editingObject);
             } else if (isImage) {
                 const size = parseInt(document.getElementById('edit_text_size').value);
@@ -7295,7 +7505,7 @@
                 const size = parseInt(document.getElementById('edit_shape_weight').value);
                 const sColor = document.getElementById('edit_shape_stroke').style.backgroundColor;
                 const isDashed = document.getElementById('edit_shape_dashed').checked;
-                const dashArr = isDashed ? [size * 3, size * 3] : null;
+                const dashArr = isDashed ? StrokeEffects.dash(size) : null;
 
                 let rawFColor = document.getElementById('edit_shape_fill').style.backgroundColor;
                 let finalFill = 'transparent';
@@ -7328,7 +7538,7 @@
                 const size = parseInt(document.getElementById('edit_line_weight').value);
                 const sColor = document.getElementById('edit_line_stroke').style.backgroundColor;
                 const isDashed = document.getElementById('edit_line_dashed').checked;
-                const dashArr = isDashed ? [size * 3, size * 3] : null;
+                const dashArr = isDashed ? StrokeEffects.dash(size) : null;
 
                 let rawLineFColor = document.getElementById('edit_line_fill').style.backgroundColor;
                 let finalLineFill = 'transparent';
@@ -7344,7 +7554,43 @@
                 const scaleX = (editingObject.width > 0) ? newW / editingObject.width : 1;
                 const scaleY = (editingObject.height > 0) ? newH / editingObject.height : 1;
 
-                if (isArrow || editingObject.type === 'path') {
+                if (isArrow && editingObject.getObjects().some(o => o.isArrowBody)) {
+                    const body = editingObject.getObjects().find(o => o.isArrowBody);
+                    let points = editingObject.__capcraftPoints?.map(p => ({...p}));
+                    if (!points) {
+                        // Older saved arrows have only a rendered shaft and head.
+                        const worldPoint = (obj, x, y) => fabric.util.transformPoint(
+                            {x:x-obj.pathOffset.x,y:y-obj.pathOffset.y},obj.calcTransformMatrix());
+                        points = body.path.filter(c => ['M','L','Q','C'].includes(c[0]))
+                            .map(c => worldPoint(body,c[c.length-2],c[c.length-1]));
+                        const head = editingObject.getObjects().find(o => o.isArrowHead);
+                        if (head) {
+                            const command = head.path[(editingObject.arrowType || body.arrowType)==='open'?1:0];
+                            points[points.length-1] = worldPoint(head,command[1],command[2]);
+                        }
+                        editingObject.__capcraftLineType ||= points.length===2?'normal':body.path.some(c=>c[0]==='C'||c[0]==='Q')?'curve':'polyline';
+                    }
+                    const minX = Math.min(...points.map(p=>p.x)), minY = Math.min(...points.map(p=>p.y));
+                    // The form uses rounded display dimensions; unchanged sizes must
+                    // not progressively shorten the arrow on each property edit.
+                    const sx = newW===Math.round(editingObject.width*editingObject.scaleX)?1:newW/(editingObject.width*editingObject.scaleX||1);
+                    const sy = newH===Math.round(editingObject.height*editingObject.scaleY)?1:newH/(editingObject.height*editingObject.scaleY||1);
+                    points = points.map(p=>({x:minX+(p.x-minX)*sx,y:minY+(p.y-minY)*sy}));
+                    if (document.getElementById('edit_arrow_reverse').checked) {
+                        points.reverse();
+                        [editingObject.startLinkedObj,editingObject.endLinkedObj] = [editingObject.endLinkedObj,editingObject.startLinkedObj];
+                        [editingObject.startAnchor,editingObject.endAnchor] = [editingObject.endAnchor,editingObject.startAnchor];
+                    }
+                    editingObject.__capcraftPoints = points;
+                    editingObject.arrowType = document.getElementById('edit_arrow_type').value;
+                    editingObject.arrowSize = document.getElementById('edit_arrow_size').value;
+                    editingObject.set({stroke:sColor,strokeWidth:size,strokeDashArray:dashArr});
+                    recalculateAndRedrawLine(editingObject,false);
+                    editingObject = canvas.getActiveObject();
+                } else if (editingObject.shapePen || editingObject.naturalPen || editingObject.penArrow) {
+                    editingObject.set({stroke:sColor,strokeWidth:size,strokeDashArray:dashArr,scaleX,scaleY,dirty:true});
+                    editingObject.setCoords();
+                } else if (isArrow || editingObject.type === 'path') {
                     let oldBody = isArrow ? editingObject.getObjects().find(o => o.isArrowBody) : editingObject;
                     let m = oldBody.calcTransformMatrix();
                     let po = oldBody.pathOffset || { x: 0, y: 0 };
@@ -7390,7 +7636,7 @@
                         let arrowType = oldBody.arrowType || editingObject.arrowType || sysArrowType;
                         let arrowSize = oldBody.arrowSize || editingObject.arrowSize || sysArrowSize;
                         let angle = Math.atan2(finalP.y - prevP.y, finalP.x - prevP.x);
-                        let sizeMult = arrowSize === 'xs' ? 1.5 : arrowSize === 's' ? 2 : arrowSize === 'l' ? 4 : 3;
+                        let sizeMult = arrowSize === 'xs' ? 1.5 : arrowSize === 's' ? 2 : arrowSize === 'l' ? 4 : arrowSize === 'xl' ? 5 : 3;
                         let w = size * sizeMult + 8;
                         let pullBack = (arrowType === 'stealth') ? w * 0.6 : (arrowType === 'open') ? 0 : w;
                         let adjFinalX = finalP.x - Math.cos(angle) * pullBack;
@@ -7962,7 +8208,7 @@
         // 화살표/도형 생성 도우미 (오차 없는 절대 좌표 변환 알고리즘 적용)
         // ==========================================
         function createArrowHead(x2, y2, angle, type, size, color, weight) {
-            const sizeMult = size === 'xs' ? 1.5 : size === 's' ? 2 : size === 'l' ? 4 : 3;
+            const sizeMult = size === 'xs' ? 1.5 : size === 's' ? 2 : size === 'l' ? 4 : size === 'xl' ? 5 : 3;
             const w = weight * sizeMult + 8;
             const h = w / 2;
 
@@ -7988,7 +8234,7 @@
                     fill: 'transparent', stroke: color, strokeWidth: weight,
                     strokeLineCap: 'round', strokeLineJoin: 'round',
                     selectable: false, isTemp: true, objectCaching: false,
-                    isArrowHead: true
+                    isArrowHead: true, arrowStrokeWidth: weight
                 });
             } else {
                 pathStr = `M ${pTip.x} ${pTip.y} L ${pTop.x} ${pTop.y} L ${pBot.x} ${pBot.y} Z`;
@@ -7997,7 +8243,7 @@
             return new fabric.Path(pathStr, {
                 fill: color, stroke: 'transparent', strokeWidth: 0,
                 selectable: false, isTemp: true, objectCaching: false, strokeLineJoin: 'round',
-                isArrowHead: true
+                isArrowHead: true, arrowStrokeWidth: weight
             });
         }
 
@@ -8597,6 +8843,13 @@
             notice._timer = setTimeout(() => { notice.style.opacity = '0'; }, 1500);
         }
 
+        function applyPenArrow(path) {
+            if(!document.getElementById('pen_arrow').checked)return;
+            const center=path.getCenterPoint();
+            path.set({penArrow:true,penArrowType:document.getElementById('set_arrow_type').value||'triangle',penArrowSize:document.getElementById('set_arrow_size').value||'m',dirty:true});
+            path.setPositionByOrigin(center,'center','center');path.setCoords();
+        }
+
         canvas.on('path:created', (e) => {
             if (activeTool === 'mosaic' && document.getElementById('mosaic_type') && document.getElementById('mosaic_type').value === 'freehand') {
                 const origPathObj = e.path;
@@ -8654,7 +8907,25 @@
                 const isAuto = _isAutoShapeTriggered;
                 _isAutoShapeTriggered = false; // 플래그 초기화
 
-                const pathObj = e.path;
+                let pathObj = e.path;
+                if(document.getElementById('pen_wave').checked)StrokeEffects.apply(pathObj,true);
+                if(document.getElementById('pen_arrow').checked){
+                    const points=_extractPathPoints(pathObj);
+                    if(points.length>2){
+                        // Fabric adds a tiny final segment to render single dots;
+                        // it must not determine an arrow's direction.
+                        while(points.length>2&&Math.hypot(points.at(-1).x-points.at(-2).x,points.at(-1).y-points.at(-2).y)<.1)points.pop();
+                        const box=_getBoundingBox(points);
+                        const smooth=getSmoothCurvePath(_simplifyDP(points,Math.max(.25,Math.hypot(box.w,box.h)*.008)));
+                        const replacement=new fabric.Path(smooth,{stroke:pathObj.stroke,strokeWidth:pathObj.strokeWidth,strokeDashArray:pathObj.strokeDashArray,fill:pathObj.fill,
+                            strokeLineCap:'round',strokeLineJoin:'round',naturalPen:pathObj.naturalPen,naturalDensity:pathObj.naturalDensity,objectCaching:true});
+                        if(pathObj.waveLine){StrokeEffects.apply(replacement,true);replacement.waveHeight=pathObj.waveHeight;replacement.waveSpacing=pathObj.waveSpacing;}
+                        const oldHistoryAction=isHistoryAction;isHistoryAction=true;
+                        try{canvas.remove(pathObj);canvas.add(replacement);}finally{isHistoryAction=oldHistoryAction;}
+                        pathObj=replacement;e.path=replacement;
+                    }
+                }
+                applyPenArrow(pathObj);
                 let finalBg = 'transparent';
                 if (sysPenBgColor && sysPenBgColor !== 'transparent') {
                     let parsedPenBg = parseInt(document.getElementById('pen_bg_opacity_input')?.value);
@@ -8664,7 +8935,7 @@
                     finalBg = (openBg === 100) ? 'transparent' : new fabric.Color(sysPenBgColor).setAlpha(alpha).toRgba();
                 }
 
-                if (!isAuto) {
+                if (!isAuto || pathObj.naturalPen || pathObj.penArrow) {
                     // 일반 펜 선인 경우 개별 개체로 인식 및 히스토리 저장
                     pathObj.set({ fill: finalBg, selectable: true, isTemp: false, objectCaching: true });
                     updateObjectSelectability();
@@ -8785,7 +9056,7 @@
                 let renderPoints = [...clickPoints];
 
                 if (arrowHead) {
-                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : sysArrowSize === 'xl' ? 5 : 3;
                     const w = weight * sizeMult + 8;
                     let pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
 
@@ -9156,10 +9427,12 @@
                 isDrawing = true; origX = pointer.x; origY = pointer.y;
                 const weight = parseInt(document.getElementById('pen_weight').value) || 5;
                 const isDashed = document.getElementById('pen_dashed').checked;
-                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+                const dashArr = isDashed ? StrokeEffects.dash(weight) : null;
 
                 currentShape = new fabric.Path(`M ${origX} ${origY} L ${origX} ${origY}`, {
                     fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
+                    naturalPen: NaturalPens.kinds.includes(document.getElementById('pen_type').value) ? document.getElementById('pen_type').value : undefined,
+                    naturalDensity: NaturalPens.defaults[document.getElementById('pen_type').value]?.opacity,
                     strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
                     selectable: false, isTemp: true, objectCaching: false
                 });
@@ -9178,7 +9451,9 @@
                 if (o.target._skipBringToFront) {
                     delete o.target._skipBringToFront;
                 }
-                saveHistory();
+                // A plain click changes only the active selection. Serializing
+                // the full document here blocked every click and allowed the
+                // offscreen thumbnail render to overtake the visible frame.
                 return;
             }
 
@@ -9204,7 +9479,7 @@
 
                     const weight = parseInt(document.getElementById('shape_weight').value);
                     const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
-                    const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+                    const dashArr = isDashed ? StrokeEffects.dash(weight) : null;
 
                     if (lineRadio && lineRadio.value === 'curve') {
                         currentShape = new fabric.Path(getSmoothCurvePath(clickPoints), { fill: 'transparent', stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, isTemp: true, isArrowBody: true });
@@ -9249,6 +9524,9 @@
                     } else {
                         currentShape = new fabric.Rect({ left: origX, top: origY, width: 0, height: 0, fill: 'rgba(128,128,128,0.5)', stroke: '#3b82f6', strokeDashArray: [5, 5], selectable: false, isTemp: true });
                     }
+                    currentShape.set({evented:false,objectCaching:false,strokeWidth:2,strokeUniform:true,excludeFromExport:true});
+                    canvas.add(currentShape);
+                    canvas.requestRenderAll();
                 } else if (activeTool === 'image') {
                     if (!pendingImageData) return customAlert("삽입할 이미지를 먼저 선택하세요.");
                     // ★ 프리로드된 HTML Image로 즉시 동기적 fabric.Image 생성 (부드러운 드래그)
@@ -9439,7 +9717,7 @@
                     const weight = parseInt(document.getElementById('shape_weight').value);
                     const fColor = getFillOpacity();
                     const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
-                    const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+                    const dashArr = isDashed ? StrokeEffects.dash(weight) : null;
 
                     if (shapeType === 'rect') {
                         currentShape = new fabric.Rect({ left: origX, top: origY, fill: fColor, stroke: strokeColor, strokeWidth: weight, strokeDashArray: dashArr, selectable: false, strokeLineJoin: 'miter', isTemp: true }); canvas.add(currentShape);
@@ -9553,7 +9831,7 @@
 
                 const weight = parseInt(document.getElementById('pen_weight').value) || 5;
                 const isDashed = document.getElementById('pen_dashed').checked;
-                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+                const dashArr = isDashed ? StrokeEffects.dash(weight) : null;
 
                 currentLogicalPoints = [{x: origX, y: origY}, {x: endX, y: endY}];
                 currentLineType = 'pen_straight';
@@ -9561,6 +9839,8 @@
                 canvas.remove(currentShape);
                 currentShape = new fabric.Path(`M ${origX} ${origY} L ${endX} ${endY}`, {
                     fill: 'transparent', stroke: penCurrentColor, strokeWidth: weight,
+                    naturalPen: NaturalPens.kinds.includes(document.getElementById('pen_type').value) ? document.getElementById('pen_type').value : undefined,
+                    naturalDensity: NaturalPens.defaults[document.getElementById('pen_type').value]?.opacity,
                     strokeDashArray: dashArr, strokeLineCap: 'round', strokeLineJoin: 'round',
                     selectable: false, isTemp: true, objectCaching: false
                 });
@@ -9592,7 +9872,7 @@
 
                 const weight = parseInt(document.getElementById('shape_weight').value);
                 const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
-                const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+                const dashArr = isDashed ? StrokeEffects.dash(weight) : null;
 
                 currentLogicalPoints = JSON.parse(JSON.stringify(clickPoints));
                 currentLineType = lineRadio.value;
@@ -9607,7 +9887,7 @@
                         }
                     }
                     let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : sysArrowSize === 'xl' ? 5 : 3;
                     const w = weight * sizeMult + 8;
 
                     let pullBack = (sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w;
@@ -9696,7 +9976,7 @@
                 let isRect = (activeTool === 'shape' && shapeType === 'rect') || (activeTool === 'mosaic' && mType === 'rect');
                 let isEllipse = (activeTool === 'shape' && shapeType === 'ellipse') || (activeTool === 'mosaic' && mType === 'ellipse');
 
-                if (isRect) { currentShape.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y) }); if (origX > pointer.x) currentShape.set({ left: pointer.x }); if (origY > pointer.y) currentShape.set({ top: pointer.y }); }
+                if (isRect) { currentShape.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y), left: Math.min(origX,pointer.x), top: Math.min(origY,pointer.y) }); }
                 else if (isEllipse) { currentShape.set({ rx: Math.abs(origX - pointer.x) / 2, ry: Math.abs(origY - pointer.y) / 2 }); currentShape.set({ left: (origX + pointer.x) / 2, top: (origY + pointer.y) / 2 }); }
                 else if (shapeType === 'rhombus') {
                     let minX = Math.min(origX, pointer.x);
@@ -9727,7 +10007,7 @@
 
                     let angle = Math.atan2(snapY - origY, snapX - origX);
                     const weight = parseInt(document.getElementById('shape_weight').value);
-                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : 3;
+                    const sizeMult = sysArrowSize === 'xs' ? 1.5 : sysArrowSize === 's' ? 2 : sysArrowSize === 'l' ? 4 : sysArrowSize === 'xl' ? 5 : 3;
                     const w = weight * sizeMult + 8;
                     let pullBack = (shapeType === 'arrow') ? ((sysArrowType === 'stealth') ? w * 0.6 : (sysArrowType === 'open') ? 0 : w) : 0;
 
@@ -9736,7 +10016,7 @@
 
                     let pathStr = `M ${origX} ${origY} L ${endX} ${endY}`;
                     const isDashed = document.getElementById('chk_dashed') && document.getElementById('chk_dashed').checked;
-                    const dashArr = isDashed ? [weight * 3, weight * 3] : null;
+                    const dashArr = isDashed ? StrokeEffects.dash(weight) : null;
 
                     currentLogicalPoints = [{x: origX, y: origY}, {x: snapX, y: snapY}];
                     currentLineType = 'normal';
@@ -9826,6 +10106,7 @@
             if (activeTool === 'crop') { isDrawing = false; return; }
 
             if (activeTool === 'pen' && currentShape && document.querySelector('input[name="pen_mode"]:checked').value === 'straight') {
+                applyPenArrow(currentShape);
                 currentShape.setCoords();
                 currentShape.set({ selectable: true, isTemp: false, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj });
                 currentShape = null;
@@ -9876,6 +10157,8 @@
                     if (arrowHead) {
                         canvas.remove(currentShape, arrowHead);
                         const group = new fabric.Group([currentShape, arrowHead], { selectable: true, startLinkedObj: tempStartLinkedObj, endLinkedObj: tempEndLinkedObj, isArrowGroup: true });
+                        group.arrowType = currentShape.arrowType || sysArrowType;
+                        group.arrowSize = currentShape.arrowSize || sysArrowSize;
                         if (isNormalLine) {
                             group.__capcraftPoints = currentLogicalPoints;
                             group.__capcraftLineType = 'normal';
@@ -10251,80 +10534,9 @@ window.createPopoutFromObject = function(obj) {
     // ★ 원본 도형에 id가 없으면 자동 부여 (Undo/Redo 시 linkedOriginalId 복원용)
     if (!obj.id) obj.id = 'orig_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
     
-    // Backup viewport
-    const vpt = canvas.viewportTransform.slice(0); 
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); 
-    
-    const oldVisible = [];
-    const oldObjVisible = obj.visible;
-    obj.visible = false; // Hide only the target object to prevent capturing its own border
-    
-    // 1. Snapshot Background WITH all other objects (texts, images, etc.)
-    canvas.renderAll();
-    const bgCanvas = document.createElement('canvas');
-    bgCanvas.width = canvas.width;
-    bgCanvas.height = canvas.height;
-    bgCanvas.getContext('2d').drawImage(canvas.getElement(), 0, 0);
-    
-    // Now hide everything EXCEPT the target object for the mask
-    canvas.getObjects().forEach(o => {
-        oldVisible.push(o.visible);
-        if (o !== obj) o.visible = false;
-    });
-    
-    // 2. Snapshot Object Mask (Solid black for clipping)
-    const oldStrokeWidth = obj.strokeWidth;
-    const oldFill = obj.fill;
-    const oldShadow = obj.shadow;
-    const oldStroke = obj.stroke;
-    const oldAngle = obj.angle; // Backup angle
-    
-    obj.strokeWidth = 0;
-    obj.stroke = 'transparent';
-    obj.fill = 'black';
-    obj.shadow = null;
-    obj.visible = true;
-    
-    const oldBg = canvas.backgroundImage;
-    const oldBgColor = canvas.backgroundColor;
-    canvas.backgroundImage = null;
-    canvas.backgroundColor = 'transparent';
-    canvas.renderAll();
-    
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = canvas.width;
-    maskCanvas.height = canvas.height;
-    const maskCtx = maskCanvas.getContext('2d');
-    maskCtx.drawImage(canvas.getElement(), 0, 0);
-    
-    // Composite: background inside mask
-    maskCtx.globalCompositeOperation = 'source-in';
-    maskCtx.drawImage(bgCanvas, 0, 0);
-    
-    // We don't draw border here anymore. We just crop the background and save it.
-    // 4. Restore everything
-    obj.strokeWidth = oldStrokeWidth;
-    obj.stroke = oldStroke;
-    obj.fill = oldFill;
-    obj.shadow = oldShadow;
-    canvas.backgroundImage = oldBg;
-    canvas.backgroundColor = oldBgColor;
-    canvas.getObjects().forEach((o, i) => { if (o !== obj) o.visible = oldVisible[i]; });
-    obj.visible = oldObjVisible;
-    canvas.renderAll();
-    
-    // 5. Crop
-    const pad = 0; // padding removed to perfectly fit bounds
-    const br = obj.getBoundingRect(true, true);
-    const cw = br.width + pad * 2;
-    const ch = br.height + pad * 2;
-    const cx = br.left - pad;
-    const cy = br.top - pad;
-    
-    const croppedBgCanvas = document.createElement('canvas');
-    croppedBgCanvas.width = cw;
-    croppedBgCanvas.height = ch;
-    croppedBgCanvas.getContext('2d').drawImage(bgCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+    const source = CapcraftPopout.snapshot(canvas, obj);
+    const croppedBgCanvas = source.image;
+    const cw = source.width, ch = source.height;
     
     // Create a dummy transparent canvas for the image element initially
     const dummyCanvas = document.createElement('canvas');
@@ -10335,7 +10547,7 @@ window.createPopoutFromObject = function(obj) {
         const zoom = canvas.getZoom();
         
         
-        const pLineToggle = document.getElementById('set_popout_line_toggle');
+        const pLineToggle = document.getElementById('popout_line_toggle') || document.getElementById('set_popout_line_toggle');
         const pLineColor = document.getElementById('set_popout_line_color');
         const pLineW = document.getElementById('set_popout_line_weight');
         const pAngle = document.getElementById('set_popout_angle');
@@ -10372,7 +10584,7 @@ window.createPopoutFromObject = function(obj) {
             showConnectionLine: pLineToggle ? pLineToggle.checked : true,
             linkedOriginal: obj,
             linkedOriginalId: obj.id,
-            popoutBorder: pBorder ? parseInt(pBorder.value) : 8,
+            popoutBorder: pBorder && Number.isFinite(parseInt(pBorder.value)) ? parseInt(pBorder.value) : 4,
             popoutBorderColor: pBorderC ? pBorderC.style.backgroundColor : '#ffffff',
             popoutShadow: pShadow ? parseInt(pShadow.value) : 50,
             popoutShadowColor: pShadowC ? pShadowC.style.backgroundColor : '#000000',
@@ -10381,29 +10593,15 @@ window.createPopoutFromObject = function(obj) {
         });
         
         img._croppedBg = croppedBgCanvas;
+        img._popoutSourceWidth = source.width;
+        img._popoutSourceHeight = source.height;
+        img.popoutSharpness = Number(document.getElementById('set_popout_sharpness').value);
         img._croppedBgDataUrl = croppedBgCanvas.toDataURL(); // 직렬화용 백업
         applyPopoutTilt(img); // Bake the first image with correct tilt & shadows
         
-        // NOW restore viewport
-        canvas.setViewportTransform(vpt);
         canvas.requestRenderAll();
         
         
-        const line = new fabric.Line([0,0,0,0], {
-            id: 'line_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-            stroke: img.popoutLineColor,
-            strokeWidth: img.popoutLineWeight,
-            strokeDashArray: null,
-            selectable: false,
-            evented: false,
-            originX: 'center',
-            originY: 'center',
-            isPopoutLine: true
-        });
-        
-        img.linkedLine = line;
-        img.linkedLineId = line.id;
-        canvas.add(line);
         canvas.add(img);
         updatePopoutLine(img);
         
@@ -10413,29 +10611,108 @@ window.createPopoutFromObject = function(obj) {
 };
 
 window.updatePopoutLine = function(popout) {
-    if (!popout || !popout.linkedOriginal || !popout.linkedLine || !popout.canvas) return;
+    if (!popout || !popout.linkedOriginal || !popout.canvas) return;
     if (!popout.showConnectionLine) {
-        popout.linkedLine.set({ x1: 0, y1: 0, x2: 0, y2: 0 });
-        popout.linkedLine.visible = false;
+        if (popout.linkedLine) {
+            const old = popout.linkedLine;
+            popout.linkedLine = null;
+            popout.linkedLineId = null;
+            popout.canvas.remove(old);
+        }
         return;
     }
-    const pCenter = popout.getCenterPoint();
-    const borderPoint = getBoundaryIntersection(popout.linkedOriginal, pCenter);
-    
-    popout.linkedLine.set({
-        x1: pCenter.x, y1: pCenter.y,
-        x2: borderPoint.x, y2: borderPoint.y
-    });
-    popout.linkedLine.visible = true;
-    
-    const objs = popout.canvas.getObjects();
-    const popoutIdx = objs.indexOf(popout);
-    const lineIdx = objs.indexOf(popout.linkedLine);
-    if (lineIdx > popoutIdx && popoutIdx !== -1) {
-        popout.canvas.sendToBack(popout.linkedLine);
+    // Migrate legacy non-interactive fabric.Line objects to the regular segment model.
+    if (popout.linkedLine && !popout.linkedLine.__capcraftPoints) {
+        const old = popout.linkedLine;
+        popout.linkedLine = null;
+        popout.canvas.remove(old);
     }
+    if (!popout.linkedLine) {
+        const points = [getBoundaryIntersection(popout.linkedOriginal, popout.getCenterPoint()),
+            getBoundaryIntersection(popout, popout.linkedOriginal.getCenterPoint())];
+        const line = createLineShapeFromPoints({__capcraftLineType:'normal',
+            stroke:popout.popoutLineColor || '#555555', strokeWidth:popout.popoutLineWeight || 4},
+            points, popout.linkedOriginal, popout);
+        line.set({id:popout.linkedLineId || 'line_'+Date.now()+'_'+Math.random().toString(36).slice(2),
+            isPopoutLine:true, selectable:true, evented:true, visible:true});
+        line.__capcraftPoints = points;
+        line.__capcraftLineType = 'normal';
+        popout.linkedLine = line;
+        popout.linkedLineId = line.id;
+        popout.canvas.add(line);
+        // Creation must stay selectable even when a drawing tool is pinned.
+        line.set({selectable:true,evented:true});
+        popout.canvas.sendToBack(line);
+    }
+    updateLinkedLinesOnTransform(popout.linkedOriginal);
+    updateLinkedLinesOnTransform(popout);
 };
 
+</script>
+<script src="presentation-refresh.js"></script>
+<script src="ocr-ui.js"></script>
+<style>
+    #panel_pen, #panel_shape { flex-wrap:nowrap; white-space:nowrap; }
+    #panel_pen > div, #panel_shape > div, #shape_options_container > div {
+        flex-direction:row !important; align-items:center;
+    }
+    #panel_pen > div[style*="grid"], #shape_options_container > div[style*="grid"] {
+        display:flex !important;
+    }
+    .tool-dropdown { position:relative; display:inline-flex; flex-shrink:0; }
+    .tool-dropdown-trigger { padding:5px 8px; min-width:78px; white-space:nowrap;
+        color:var(--text-main); background:var(--bg-color,white);
+        border:1px solid var(--border-color); border-radius:5px; cursor:pointer; }
+    .tool-dropdown .custom-select-group {
+        display:none !important; position:absolute; top:100%; left:0; z-index:100;
+        flex-direction:column !important; min-width:100%; padding:4px !important;
+        margin:0; gap:2px; background:var(--bg-color,white);
+        border:1px solid var(--border-color); border-radius:5px;
+        box-shadow:0 4px 12px #0003;
+    }
+    .tool-dropdown.open .custom-select-group { display:flex !important; }
+    .tool-dropdown .custom-select-group button { text-align:left; white-space:nowrap; }
+</style>
+<script>
+(() => {
+    for(const [id,label] of [['pen_type_group','펜 종류'],['shape_type_group','도형 종류'],['shape_pen_type_group','도형 펜 종류']]){
+        const menu=document.getElementById(id),wrapper=document.createElement('div');
+        wrapper.className='tool-dropdown';
+        const trigger=document.createElement('button');
+        trigger.type='button';trigger.className='tool-dropdown-trigger';
+        trigger.title=label;trigger.setAttribute('aria-label',label);
+        trigger.setAttribute('aria-haspopup','menu');trigger.setAttribute('aria-controls',id);
+        menu.before(wrapper);wrapper.append(trigger,menu);menu.setAttribute('role','menu');
+        const buttons=[...menu.querySelectorAll('button[data-val]')];
+        buttons.forEach(b=>b.setAttribute('role','menuitemradio'));
+        const sync=()=>{
+            const active=buttons.find(b=>b.classList.contains('active'))||buttons[0];
+            trigger.textContent=active.textContent+' ▾';
+            buttons.forEach(b=>b.setAttribute('aria-checked',String(b===active)));
+        };
+        const open=value=>{
+            wrapper.classList.toggle('open',value);
+            trigger.setAttribute('aria-expanded',String(value));
+        };
+        wrapper.addEventListener('mouseenter',()=>open(true));
+        wrapper.addEventListener('mouseleave',()=>open(false));
+        wrapper.addEventListener('focusout',e=>{if(!wrapper.contains(e.relatedTarget))open(false);});
+        trigger.addEventListener('click',()=>open(!wrapper.classList.contains('open')));
+        trigger.addEventListener('keydown',e=>{
+            if(e.key==='ArrowDown'){e.preventDefault();open(true);(buttons.find(b=>b.classList.contains('active'))||buttons[0]).focus();}
+        });
+        menu.addEventListener('click',e=>{if(e.target.closest('button[data-val]')){sync();open(false);trigger.focus();}});
+        wrapper.addEventListener('keydown',e=>{
+            if(e.key==='Escape'){open(false);trigger.focus();}
+            if(menu.contains(document.activeElement)&&['ArrowDown','ArrowUp'].includes(e.key)){
+                e.preventDefault();const i=buttons.indexOf(document.activeElement);
+                buttons[(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus();
+            }
+        });
+        new MutationObserver(sync).observe(menu,{subtree:true,attributes:true,attributeFilter:['class']});
+        open(false);sync();
+    }
+})();
 </script>
 </body>
 

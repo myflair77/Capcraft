@@ -1,0 +1,35 @@
+                    canvas.setActiveObject(newBody);
+                }
+            }
+        }
+
+        canvas.on('object:modified', (e) => { 
+            if(e.target && (e.target.scaleX !== 1 || e.target.scaleY !== 1)) {
+                normalizeScale(e.target);
+            }
+            if(!isHistoryAction) {
+                saveHistory();
+                // 썸네일 갱신 (디바운스 800ms)
+                clearTimeout(window._thumbDebounce);
+                window._thumbDebounce = setTimeout(() => {
+                    if (activeRecentIdx >= 0) pushCurrentToRecent();
+                }, 800);
+            }
+            syncFabricContainerSize();
+        });
+        canvas.on('object:removed', (e) => { 
+            if(!isHistoryAction && !e.target.isTemp) {
+                saveHistory();
+                clearTimeout(window._thumbDebounce);
+                window._thumbDebounce = setTimeout(() => {
+                    if (activeRecentIdx >= 0) pushCurrentToRecent();
+                }, 800);
+            }
+            syncFabricContainerSize();
+        });
+
+        function loadHistoryState(idx) {
+            isHistoryAction = true;
+            canvas.renderOnAddRemove = false;
+
+            const state = stateHistory[idx];

@@ -1,0 +1,31 @@
+--- Tool Buttons ---
+ID: btn_new_capture, Icon: 📸
+ID: btn_undo, Icon: ↩️
+ID: btn_redo, Icon: ↪️
+ID: btn_tool_text, Icon: Abc
+ID: btn_tool_pen, Icon: SVG...
+ID: btn_tool_shape, Icon: SVG...
+ID: btn_tool_emoji, Icon: 😀
+ID: btn_tool_image, Icon: 🖼️
+ID: btn_tool_mosaic, Icon: 💧
+ID: btn_tool_eraser, Icon: SVG...
+ID: btn_tool_crop, Icon: ✂️
+ID: btn_action_copy, Icon: 📋
+ID: btn_action_open, Icon: 📂
+ID: btn_action_save, Icon: 💾
+ID: btn_action_print, Icon: 🖨️
+ID: btn_action_close, Icon: ❌
+
+--- Sub Panel Buttons & Dropdowns ---
+Button with SVG: <span class="icon"><SVG></span>펜<span class="pin-icon" title="고정하기">📌</span>
+Button with SVG: <span class="icon"><SVG></span>도형<span class="pin-icon" title="고정하기">📌</span>
+Button with SVG: <span class="icon"><img src="data:image/svg+xml;utf8,<SVG>" width="22" height="22"></span>지우개
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>
+Button with SVG: <SVG>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Capcraft v1.2</title>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+    <style>
+        :root {
+            --bg-main: #f8fafc; --bg-panel: #ffffff; --text-main: #0f172a;
+            --accent-blue: #3b82f6; --accent-red: #ef4444; --border-color: #e2e8f0;
+            --sidebar-width: 170px;
+        }
+        /* 우클릭 메뉴 스타일 */
+        #canvas_context_menu {
+            display: none; position: absolute; z-index: 10000; background: var(--bg-panel);
+            border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            border-radius: 6px; padding: 5px 0; min-width: 140px; font-size: 13px;
+            color: var(--text-main); user-select: none;
+        }
+        #canvas_context_menu .menu-item {
+            padding: 8px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+        }
+        #canvas_context_menu .menu-item:hover { background: #f1f5f9; color: var(--accent-blue); }
+        #canvas_context_menu .menu-item.disabled { color: #cbd5e1; pointer-events: none; }
+        #canvas_context_menu .menu-shortcut { color: #94a3b8; font-size: 11px; }
+        #canvas_context_menu .menu-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+        /* 다크모드 변수 */
+        body.dark-mode {
+            --bg-main: #0f172a; --bg-panel: #1e293b; --text-main: #e2e8f0;
+            --border-color: #334155;
+        }
+        body.dark-mode #toolbar, body.dark-mode #sidebar { background: var(--bg-panel); color: var(--text-main); }
+        body.dark-mode #workspace { background-color: #1a2332; }
+        body.dark-mode .modal { background: var(--bg-panel); color: var(--text-main); border-color: var(--border-color); }
+        body.dark-mode .btn-tool { color: var(--text-main); }
+        body.dark-mode .btn-nav { color: #94a3b8; border-color: var(--border-color); }
+        body.dark-mode .dropdown-menu { background: var(--bg-panel); border-color: var(--border-color); }
+        body.dark-mode .dropdown-menu button { color: var(--text-main); }
+        body.dark-mode .recent-item { background: #1e293b; border-color: #334155; }
+        body.dark-mode #sub_toolbar { background: var(--bg-panel); border-color: var(--border-color); }
+        body.dark-mode .setting-group label { color: #60a5fa; }
+        body.dark-mode input, body.dark-mode select { background: #0f172a; color: var(--text-main); border-color: var(--border-color); }
+        /* 커스텀 버튼 그룹 */
+        .custom-select-group { display: flex; flex-wrap: wrap; gap: 3px; }
+        .custom-select-group button { padding: 3px 8px; border: 1px solid var(--border-color); background: #f8fafc; border-radius: 4px; cursor: pointer; font-size: 11px; color: var(--text-main); transition: 0.15s; white-space: nowrap; }
+        .custom-select-group button:hover { background: #e0f2fe; border-color: var(--accent-blue); }
+        .custom-select-group button.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+
+        body, html { margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; display: flex; height: 100vh; width: 100vw; background-color: #d1d5db; overflow: hidden; user-select: none; }
+        input, select, textarea { user-select: auto; }
+
+        /* 상단 툴바 */
+        #toolbar { position: fixed; top: 0; left: 0; width: calc(100vw - var(--sidebar-width)); height: 60px; background: white; padding: 0 15px; border-radius: 0; display: flex; align-items: center; justify-content: flex-start; gap: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 2000; border-bottom: 1px solid var(--border-color); cursor: default; box-sizing: border-box; }
+        .tool-group { display: flex; align-items: center; gap: 4px; padding: 0 8px; border-right: 1px solid var(--border-color); position: relative; }
+        .tool-group:last-child { border-right: none; }
+        .btn-tool { display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); gap: 2px; min-width: 55px; height: 50px; padding: 2px 6px; white-space: nowrap; transition: 0.2s; }
+        .btn-tool .icon { font-size: 22px; display: flex; align-items: center; justify-content: center; height: 24px; pointer-events: none; }
+        .btn-tool:hover:not(.disabled) { background-color: #f1f5f9; color: var(--accent-blue); }
+        .btn-tool.red:hover:not(.disabled) { color: var(--accent-red); }
+        .btn-tool.active { background-color: #e0f2fe; color: var(--accent-blue); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        .btn-tool.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(100%); pointer-events: none; }
+
+        /* 드롭다운 메뉴 */
+        .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-radius: 10px; border: 1px solid var(--border-color); padding: 8px 0; z-index: 2001; min-width: 110px; }
+        .dropdown-menu button { display: block; width: 100%; padding: 6px 15px; background: none; border: none; text-align: left; cursor: pointer; font-size: 12px; color: var(--text-main); transition: 0.2s; }
+        .dropdown-menu button:hover { background: #f1f5f9; color: var(--accent-blue); font-weight: bold; }
+
+        /* 서브 툴바 */
+        #sub_toolbar { position: fixed; background: white; padding: 8px 15px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); z-index: 1999; border: 1px solid var(--border-color); display: none; }
+        .sub-panel { display: none; align-items: center; gap: 8px; font-size: 12px; }
+        .sub-panel.active { display: flex; }
+        .color-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #cbd5e1; cursor: pointer; display: inline-block; vertical-align: middle; }
+        .btn-text-style { padding: 2px 6px; background: white; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-family: serif; font-size: 13px; }
+        .btn-text-style.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+
+        /* 모달 및 팝업 공통 */
+        .modal { display: none; position: fixed; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: 4000; border: 1px solid var(--border-color); min-width: 320px; max-height: 80vh; overflow-y: auto; }
+        .modal-header { font-size: 16px; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; cursor: move; }
+        .modal-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--accent-red); }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 3999; }
+
+        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.9); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: bold; z-index: 5000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        #floating_tooltip { display: none; position: fixed; background: rgba(15, 23, 42, 0.85); color: white; padding: 6px 12px; border-radius: 20px; font-size: 11px; z-index: 9999; pointer-events: none; transform: translate(15px, 15px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        /* 35색상 팔레트 */
+        #color_palette { position: fixed; background: white; padding: 8px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border: 1px solid var(--border-color); display: none; grid-template-columns: repeat(7, 1fr); gap: 5px; z-index: 4001; }
+        .palette-cell { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #e2e8f0; cursor: pointer; position: relative; }
+        .palette-cell:hover { transform: scale(1.2); }
+        .palette-cell[data-name]:hover::after { content: attr(data-name); position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); color: white; font-weight: bold; padding: 4px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; pointer-events: none; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+
+        /* 캡처/자르기 오버레이 */
+        #capture_overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.0); z-index: 1500; cursor: crosshair; pointer-events: none; }
+        .guide-line-x { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.8); border-top: 1px dashed rgba(0,0,0,0.5); pointer-events: none; z-index: 1501; }
+        .guide-line-y { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.8); border-left: 1px dashed rgba(0,0,0,0.5); pointer-events: none; z-index: 1501; }
+        #selection_box { position: absolute; border: 1px dashed white; background: rgba(59, 130, 246, 0.2); display: none; pointer-events: none; z-index: 1502; }
+
+        /* 작업 영역 */
+        /* QWebEngine compositor를 상시 활성 상태로 유지하는 미세 애니메이션 (레이아웃 비침범) */
+        @keyframes _keepCompositorAlive {
+            from { transform: translateZ(0); }
+            to   { transform: translateZ(0.1px); }
+        }
+        #workspace { position: absolute; top: 60px; left: 0; width: calc(100vw - var(--sidebar-width)); height: calc(100vh - 60px); overflow: hidden; cursor: grab; background-color: #d1d5db; animation: _keepCompositorAlive 2s infinite alternate; will-change: transform; }
+        #workspace:active { cursor: grabbing; }
+        
+        #canvas_container_wrapper { 
+            position: absolute; 
+            top: 50%; left: 50%; 
+            transform: translate(calc(-50% + var(--pan-x)), calc(-50% + var(--pan-y))) scale(var(--zoom));
+            transform-origin: center center; 
+        }
+        #canvas_container { background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: none; position: relative; overflow: hidden; will-change: transform; contain: layout style; }
+        /* Fabric.js가 생성하는 내부 래퍼의 높이 불일치로 인한 하단 깜빡임 방지 */
+        #canvas_container .canvas-container { display: block !important; line-height: 0; font-size: 0; }
+        
+        /* 우측 사이드바 */
+        #sidebar { 
+            position: fixed; top: 0; right: 0; bottom: 0; height: 100vh;
+            width: var(--sidebar-width); min-width: var(--sidebar-width); max-width: var(--sidebar-width); flex-shrink: 0;
+            background: var(--bg-panel); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 0 10px 15px 10px; margin: 0; z-index: 2500; box-shadow: -5px 0 15px rgba(0,0,0,0.05); box-sizing: border-box;
+        }
+        .logo-box { width: 100%; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; position: relative; }
+        .logo-box svg { width: 45px; height: 45px; z-index: 2; position: relative; }
+        .program-name { font-size: 14px; font-weight: 800; color: #1e293b; text-align: center; letter-spacing: -0.5px; }
+        .dev-name { font-size: 10px; color: #64748b; margin-top: 3px; text-align: center; }
+        .btn-nav { padding: 8px; background: none; border: 1px solid var(--border-color); text-align: center; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; border-radius: 8px; transition: 0.2s; margin-top: 6px; }
+        .btn-nav:hover { background: #f1f5f9; color: var(--accent-blue); border-color: var(--accent-blue); }
+        
+        .recent-section { flex: 1; display: flex; flex-direction: column; margin-top: 10px; min-height: 0; }
+        .recent-header { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 8px; }
+        .recent-title-row { display: flex; align-items: center; justify-content: space-between; width: 100%; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+        .recent-title { font-size: 12px; font-weight: bold; color: var(--accent-blue); }
+        .btn-sort { font-size: 10px; padding: 2px 4px; background: #f1f5f9; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; }
+        .recent-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 5px 4px; scroll-behavior: smooth; }
+        
+        .recent-item { position: relative; width: 100%; min-height: 85px; height: 85px; background: #f1f5f9; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer; background-size: contain; background-position: center; background-repeat: no-repeat; flex-shrink: 0; box-sizing: border-box; }
+        .recent-item.active { border-color: var(--accent-blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
+        .recent-num { position: absolute; top: -5px; left: -5px; width: 20px; height: 20px; background: var(--accent-blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; z-index: 5; border: 1.5px solid white; pointer-events: none; }
+        .btn-delete-thumb { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; background: rgba(0,0,0,0.6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; border: none; cursor: pointer; opacity: 0.7; }
+        .btn-delete-thumb:hover { opacity: 1; background: var(--accent-red); }
+
+        .custom-dialog-msg { font-size: 13px; color: #333; line-height: 1.6; margin-bottom: 20px; white-space: pre-wrap; text-align: center; }
+        .custom-dialog-btns { display: flex; justify-content: center; gap: 10px; }
+        .custom-dialog-btns button { padding: 8px 24px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; border: none; transition: 0.2s; }
+        .btn-dialog-cancel { background: #e2e8f0; color: #475569; }
+        .btn-dialog-cancel:hover { background: #cbd5e1; }
+        .btn-dialog-ok { background: var(--accent-blue); color: white; }
+        .btn-dialog-ok:hover { background: #2563eb; }

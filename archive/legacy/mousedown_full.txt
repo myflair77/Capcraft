@@ -1,0 +1,100 @@
+        canvas.on('mouse:down', o => {
+            if (document.getElementById('emoji_popup').style.display === 'block') { document.getElementById('emoji_popup').style.display = 'none'; return; }
+            const pointer = canvas.getPointer(o.e);
+            lastMouseDownPoint = pointer;
+            
+            // 붙여넣기 좌표 갱신
+            lastCanvasClick = { x: pointer.x, y: pointer.y };
+
+            // === 텍스트 편집 모드 보호 및 드래그 선택 강화 ===
+            if (!activeTool && o.target) {
+                let editingText = null;
+                if (o.target.isEditing) editingText = o.target;
+                else if (o.target.linkedText && o.target.linkedText.isEditing) editingText = o.target.linkedText;
+                
+                if (editingText) {
+                    canvas._currentTransform = null; // 이동 방지 (4방향 커서 방지)
+                    if (canvas.getActiveObject() !== editingText) {
+                        canvas.setActiveObject(editingText);
+                    }
+                    if (o.target !== editingText) {
+                        // 도형의 빈 공간을 클릭한 경우, 텍스트 객체에 직접 마우스 이벤트를 전달한 효과를 줌
+                        if (typeof editingText.setCursorByClick === 'function') {
+                            try { editingText.setCursorByClick(o.e); } catch(e) {}
+                        }
+                        if (typeof editingText.initMouseMoveHandler === 'function') {
+                            try { editingText.initMouseMoveHandler(o.e); } catch(e) {}
+                        }
+                    }
+                    return;
+                }
+            }
+            
+            // 도형 내 글상자: 첫 클릭은 도형 선택, 두 번째 클릭은 텍스트 편집
+            if (!activeTool && o.target && o.target.linkedShape) {
+                // 클릭 대상이 텍스트 오브젝트인 경우
+                const shape = o.target.linkedShape;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // 두 번째 클릭: 텍스트 편집 모드 직접 진입
+                    _lastActiveShapeForLinkedText = null;
+                    const textTarget = o.target;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 첫 번째 클릭: 도형 선택으로 리다이렉트
+                    o.target.__shapeJustSelected = true;
+                    _lastActiveShapeForLinkedText = shape;
+                    canvas.setActiveObject(shape);
+                    canvas.requestRenderAll();
+                    return;
+                }
+            } else if (!activeTool && o.target && o.target.linkedText) {
+                // 클릭 대상이 도형 자체인 경우 (선택 핸들이 텍스트를 덮어서 도형이 타겟이 됨)
+                const shape = o.target;
+                const textTarget = shape.linkedText;
+                if (_lastActiveShapeForLinkedText === shape) {
+                    // 두 번째 클릭: 텍스트 편집 모드 진입
+                    _lastActiveShapeForLinkedText = null;
+                    canvas.setActiveObject(textTarget);
+                    textTarget.enterEditing();
+                    canvas._currentTransform = null;
+                    canvas.requestRenderAll();
+                    return;
+                } else {
+                    // 첫 번째 클릭 또는 일반 도형 클릭
+                    _lastActiveShapeForLinkedText = shape;
+                }
+            } else {
+                // 다른 곳 클릭 시 리셋
+                _lastActiveShapeForLinkedText = null;
+            }
+
+            if (activeTool === 'text') {
+                if (Date.now() - lastTextEditExitTime < 200) return; 
+                const activeObj = canvas.getActiveObject();
+                if (activeObj && activeObj.isEditing) { canvas.discardActiveObject(); canvas.requestRenderAll(); return; }
+                if (o.target && (o.target.type === 'i-text' || o.target.type === 'text' || o.target.type === 'textbox')) return;
+                
+                const fColor = getTextBgOpacity();
+                const scaledSize = parseInt(document.getElementById('text_size_input').value);
+                const textAlignVal = document.getElementById('text_align').value;
+                currentShape = new fabric.Textbox('', {
+                    left: pointer.x, top: pointer.y, fontSize: scaledSize,
+                    cursorWidth: 2, cursorColor: textColor, textAlign: textAlignVal,
+                    fill: textColor, backgroundColor: fColor, fontWeight: txtB ? 'bold' : 'normal', fontStyle: txtI ? 'italic' : 'normal', underline: txtU, fontFamily: 'Pretendard',
+                    originX: 'left', originY: 'top', splitByGrapheme: true, isWidthFixed: false
+                }); 
+                currentShape.on('changed', function() {
+                    if (!this.isWidthFixed) {
+                        const ctx = this.canvas.getContext();
+                        ctx.font = (this.fontStyle || 'normal') + ' ' + (this.fontWeight || 'normal') + ' ' + this.fontSize + 'px ' + this.fontFamily;
+                        let maxW = 50;
+                        const lines = this.text.split('\n');
+                        for (let i=0; i<lines.length; i++) {
+                            const w = ctx.measureText(lines[i]).width;
+                            if (w > maxW) maxW = w;
+                        }
+                        this.set({ width: maxW + 10 });

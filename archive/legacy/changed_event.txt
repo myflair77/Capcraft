@@ -1,0 +1,39 @@
+            textObj.on('changed', function() {
+                const shape = this.linkedShape;
+                if (!shape) return;
+                
+                const padding = 20;
+                let reqH = this.height + padding;
+                let baseH = shape.originalHeight * shape.originalScaleY;
+
+                if (shape.type === 'ellipse') {
+                    reqH = reqH / Math.sin(Math.PI / 4);
+                } else if (shape.type === 'polygon' && shape.points && shape.points.length === 4) {
+                    reqH = reqH / 0.5;
+                }
+
+                let newH = Math.max(baseH, reqH);
+
+                shape.set({
+                    scaleY: newH / shape.originalHeight
+                });
+                
+                shape.setCoords();
+                if (shape.canvas) {
+                    shape.canvas.requestRenderAll();
+                }
+            });
+
+            obj.setControlVisible('addText', false);
+            
+            canvas.setActiveObject(textObj);
+            
+            document.getElementById('sub_toolbar').style.display = 'block';
+            document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('panel_text').classList.add('active');
+
+            textObj.enterEditing();
+            textObj.selectAll();
+            canvas.requestRenderAll();
+            saveHistory();
+        });

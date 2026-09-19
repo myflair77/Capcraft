@@ -1,0 +1,100 @@
+                    target.set('dirty', true);
+                    if (target.canvas) {
+                        target.canvas.fire('object:modified', { target: target });
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'flipX',
+                render: renderFlipX,
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
+            });
+
+            
+            const addTextIcon = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='#3b82f6' stroke-width='2'/><path d='M7 7h10v2h-4v8h-2v-8H7V7z' fill='#3b82f6'/></svg>");
+            const addTextImg = new Image(); addTextImg.src = addTextIcon;
+
+            controls.addText = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 100, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (['rect', 'ellipse', 'polygon'].includes(target.type) && !target.linkedText) {
+                        document.getElementById('btn_add_text_to_shape').click();
+                    }
+                    return true;
+                },
+                actionName: 'addText',
+                render: function(ctx, left, top, styleOverride, fabricObject) {
+                    if (['rect', 'ellipse', 'polygon'].includes(fabricObject.type) && !fabricObject.linkedText) {
+                        const size = 40;
+                        ctx.save();
+                        ctx.translate(left, top);
+                        ctx.drawImage(addTextImg, -size/2, -size/2, size, size);
+                        ctx.restore();
+                    }
+                },
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
+            });
+
+            controls.flipY = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: -50, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    const center = target.getCenterPoint();
+                    target.set('flipY', !target.flipY);
+                    target.setPositionByOrigin(center, 'center', 'center');
+                    target.setCoords();
+                    target.set('dirty', true);
+                    if (target.canvas) {
+                        target.canvas.fire('object:modified', { target: target });
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'flipY',
+                render: renderFlipY,
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
+            });
+
+            const sendBackIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><rect x='10' y='6' width='8' height='8' fill='none' stroke='%2394a3b8' stroke-width='1.5'/><rect x='6' y='10' width='8' height='8' fill='%233b82f6'/></svg>";
+            const bringFrontIcon = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='4' fill='white' stroke='%233b82f6' stroke-width='2'/><rect x='6' y='10' width='8' height='8' fill='none' stroke='%2394a3b8' stroke-width='1.5'/><rect x='10' y='6' width='8' height='8' fill='%233b82f6'/></svg>";
+
+            const sendBackImg = new Image(); sendBackImg.src = sendBackIcon;
+            const bringFrontImg = new Image(); bringFrontImg.src = bringFrontIcon;
+
+            controls.sendBack = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 0, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (target.canvas) {
+                        target._skipBringToFront = true;
+                        target.canvas.sendToBack(target);
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'sendBack',
+                render: function(ctx, left, top, styleOverride, fabricObject) {
+                    const size = 40;
+                    ctx.save();
+                    ctx.translate(left, top);
+                    ctx.drawImage(sendBackImg, -size/2, -size/2, size, size);
+                    ctx.restore();
+                },
+                sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
+            });
+
+            controls.bringFront = new fabric.Control({
+                x: 0, y: -0.5, offsetY: -40, offsetX: 50, cursorStyle: 'pointer',
+                mouseDownHandler: function(eventData, transform, x, y) {
+                    const target = transform.target;
+                    if (target.canvas) {
+                        target.canvas.bringToFront(target);
+                        target.canvas.requestRenderAll();
+                    }
+                    return true;
+                },
+                actionName: 'bringFront',
+                render: function(ctx, left, top, styleOverride, fabricObject) {
+                    const size = 40;
+                    ctx.save();

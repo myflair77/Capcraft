@@ -1,0 +1,50 @@
+        canvas.on('object:moving', (e) => {
+            const obj = e.target; 
+            const cw = canvas.width;
+            const ch = canvas.height;
+            
+            const objW = (obj.width || 0) * (obj.scaleX || 1);
+            const objH = (obj.height || 0) * (obj.scaleY || 1);
+            
+            const rad = (obj.angle || 0) * Math.PI / 180;
+            const sin = Math.abs(Math.sin(rad));
+            const cos = Math.abs(Math.cos(rad));
+            const boundW = objW * cos + objH * sin;
+            const boundH = objW * sin + objH * cos;
+            
+            let center = obj.getCenterPoint();
+            let clamped = false;
+            
+            if (boundW <= cw) {
+                const minX = boundW / 2;
+                const maxX = cw - boundW / 2;
+                if (center.x < minX) { center.x = minX; clamped = true; }
+                else if (center.x > maxX) { center.x = maxX; clamped = true; }
+            }
+            if (boundH <= ch) {
+                const minY = boundH / 2;
+                const maxY = ch - boundH / 2;
+                if (center.y < minY) { center.y = minY; clamped = true; }
+                else if (center.y > maxY) { center.y = maxY; clamped = true; }
+            }
+            
+            if (clamped) {
+                obj.setPositionByOrigin(center, 'center', 'center');
+            }
+            
+            if (obj.linkedText) {
+                const center = obj.getCenterPoint();
+                obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
+                obj.linkedText.setCoords();
+            } else if (obj.linkedShape) {
+                const center = obj.getCenterPoint();
+                obj.linkedShape.set({ angle: obj.angle });
+                obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
+                obj.linkedShape.setCoords();
+            }
+        });
+
+        function commitLoadToCanvas(img, w, h, bgColor) {
+            prepareCanvasDisplay();
+            canvas.setWidth(w);
+            canvas.setHeight(h);

@@ -3,9 +3,9 @@ AppId={{01234567-89AB-CDEF-0123-456789ABCDEF}
 AppName=Capcraft
 AppVersion=1.2
 AppPublisher=JBH
-DefaultDirName={autopf}\Capcraft
-DefaultGroupName=Capcraft
-OutputDir=dist\Installer
+DefaultDirName={autopf}\Capcraft v1.2
+DefaultGroupName=Capcraft v1.2
+OutputDir=dist-dev\Installer
 OutputBaseFilename=Capcraft_Setup_v1.2
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -13,16 +13,13 @@ SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\Capcraft v1.2.exe
 CloseApplications=yes
 
-[InstallDelete]
-Type: filesandordirs; Name: "{app}\*"
-
 [Files]
-Source: "dist\Capcraft v1.2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist-dev\Capcraft v1.2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Capcraft"; Filename: "{app}\Capcraft v1.2.exe"; IconFilename: "{app}\icon.ico"
-Name: "{autodesktop}\Capcraft"; Filename: "{app}\Capcraft v1.2.exe"; Tasks: desktopicon; IconFilename: "{app}\icon.ico"
+Name: "{group}\Capcraft v1.2"; Filename: "{app}\Capcraft v1.2.exe"; IconFilename: "{app}\icon.ico"
+Name: "{autodesktop}\Capcraft v1.2"; Filename: "{app}\Capcraft v1.2.exe"; Tasks: desktopicon; IconFilename: "{app}\icon.ico"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

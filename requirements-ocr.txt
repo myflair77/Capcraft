@@ -1,0 +1,4 @@
+rapidocr==3.9.2
+onnxruntime==1.30.0
+kiwipiepy==0.23.2
+lingua-language-detector==2.2.0

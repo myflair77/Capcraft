@@ -3,11 +3,13 @@ import os
 import time
 import base64
 import ctypes
+import json
+from storage import atomic_write, write_json, HistoryWriter
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtCore import QObject, pyqtSlot, QUrl, Qt, QByteArray, QTimer
+from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QUrl, Qt, QByteArray, QTimer
 from PyQt6.QtGui import QImage, QPainter, QPixmap, QIcon
 from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
 try:
@@ -36,19 +38,63 @@ def create_camera_icon():
         return QIcon(pixmap)
     return QIcon()
 
-HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".capcraft_history.json")
-
-def cleanup_history_if_rebooted():
-    pass
+DATA_DIR = os.environ.get("CAPCRAFT_DATA_DIR", os.path.expanduser("~"))
+HISTORY_FILE = os.path.join(DATA_DIR, ".capcraft_history.json")
+SETTINGS_FILE = os.path.join(DATA_DIR, ".capcraft_settings.json")
 
 
 from capture_engine import CaptureEngine
 
 class Backend(QObject):
+    ocr_finished = pyqtSignal(str, str)
+    ocr_retry = pyqtSignal(str, str)
+    ocr_formatted = pyqtSignal(str, str)
     def __init__(self, engine, view):
         super().__init__()
         self.engine = engine
         self.view = view
+        self.history_writer = HistoryWriter(HISTORY_FILE)
+        from ocr_bridge import OCRService
+        self.ocr_service = OCRService(self)
+        self.ocr_service.finished.connect(self.ocr_finished.emit)
+        self.ocr_windows = {}
+
+    @pyqtSlot(str, str, result=bool)
+    def open_ocr_result(self, key, payload):
+        from ocr_window import OCRWindow
+        result=json.loads(payload)
+        window=self.ocr_windows.get(key)
+        if window is None:
+            window=OCRWindow(self.ocr_service,self.view.window())
+            self.ocr_windows[key]=window
+            window.retry.connect(lambda language:self.ocr_retry.emit(key,language))
+            window.formatted.connect(lambda data:self.ocr_formatted.emit(key,data))
+            window.destroyed.connect(lambda:self.ocr_windows.pop(key,None))
+        window.update_result(result)
+        window.show();window.raise_();window.activateWindow()
+        return True
+
+    @pyqtSlot(str)
+    def close_ocr_result(self,key):
+        window=self.ocr_windows.pop(key,None)
+        if window is not None:window.close()
+
+    @pyqtSlot(str, str)
+    def recognize_text(self, token, data):
+        self.ocr_service.submit(token, data)
+
+    @pyqtSlot(str, str, str)
+    def recognize_text_language(self, token, data, language):
+        self.ocr_service.submit(token, data, language=language)
+
+    @pyqtSlot(str, str)
+    def format_ocr_text(self, token, data):
+        self.ocr_service.submit(token, data, format_only=True)
+
+    @pyqtSlot(str, result=bool)
+    def copy_text(self, text):
+        QApplication.clipboard().setText(text)
+        return True
 
     @pyqtSlot(str, str)
     def start_capture(self, mode, quality_mode):
@@ -169,8 +215,8 @@ class Backend(QObject):
                 except Exception as e:
                     print(f"Directory creation error: {e}")
 
-            path_b64 = base64.b64encode(save_path.encode('utf-8')).decode()
-            self.view.page().runJavaScript(f"window.execute_save_to_path(atob('{path_b64}'), '{ext}')")
+            self.view.page().runJavaScript(
+                f"window.execute_save_to_path({json.dumps(save_path)}, {json.dumps(ext)})")
 
     @pyqtSlot(str, str)
     def write_file_data(self, path, base64_data):
@@ -183,10 +229,7 @@ class Backend(QObject):
             if "," in base64_data:
                 base64_data = base64_data.split(",", 1)[1]
             data = base64.b64decode(base64_data)
-            with open(path, "wb") as f:
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
+            atomic_write(path, data)
 
             self.view.page().runJavaScript("if(typeof showToast === 'function') showToast('성공적으로 저장되었습니다.');")
             return True
@@ -213,25 +256,24 @@ class Backend(QObject):
                     data = f.read()
                     b64 = base64.b64encode(data).decode('utf-8')
                     filename = os.path.basename(file_path)
-                    self.view.page().runJavaScript(f"window.execute_open_file('{filename}', '{b64}')")
+                    self.view.page().runJavaScript(f"window.execute_open_file({json.dumps(filename)}, {json.dumps(b64)})")
             except Exception as e:
                 print(f"Load error: {e}")
-                self.view.page().runJavaScript(f"if(typeof customAlert === 'function') customAlert('불러오기 중 오류가 발생했습니다: {e}');")
+                self.view.page().runJavaScript(f"if(typeof customAlert === 'function') customAlert({json.dumps('불러오기 중 오류가 발생했습니다: ' + str(e))});")
 
 
 
     @pyqtSlot(str)
     def save_settings(self, json_str):
-        path = os.path.join(os.path.expanduser("~"), ".capcraft_settings.json")
+        path = SETTINGS_FILE
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(json_str)
+            write_json(path, json_str, dict)
         except Exception as e:
             print("Failed to save settings:", e)
 
     @pyqtSlot(result=str)
     def load_settings(self):
-        path = os.path.join(os.path.expanduser("~"), ".capcraft_settings.json")
+        path = SETTINGS_FILE
         if os.path.exists(path):
             try:
                 mtime = os.path.getmtime(path)
@@ -248,8 +290,7 @@ class Backend(QObject):
                         if "recentEmojis" in data:
                             del data["recentEmojis"]
                             content = json.dumps(data)
-                            with open(path, "w", encoding="utf-8") as f:
-                                f.write(content)
+                            write_json(path, content, dict)
                     except Exception:
                         pass
 
@@ -258,26 +299,27 @@ class Backend(QObject):
                 print("Failed to load settings:", e)
         return ""
 
-    @pyqtSlot(str)
+    @pyqtSlot(str, result=bool)
     def save_history(self, json_str):
         try:
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-                f.write(json_str)
+            write_json(HISTORY_FILE, json_str, list)
+            return True
         except Exception as e:
             print("Failed to save history:", e)
+            return False
 
-    @pyqtSlot(str, bool, bool)
+    @pyqtSlot(str, bool, bool, result=bool)
     def save_history_chunk(self, chunk, is_first, is_last):
         try:
-            mode = "w" if is_first else "a"
-            with open(HISTORY_FILE, mode, encoding="utf-8") as f:
-                f.write(chunk)
+            self.history_writer.append(chunk, is_first, is_last)
+            return True
         except Exception as e:
             print("Failed to save history chunk:", e)
+            return False
 
     @pyqtSlot(result=str)
     def load_history(self):
-        cleanup_history_if_rebooted()
+        # Recent captures are persistent; never delete them based on reboot time.
         if os.path.exists(HISTORY_FILE):
             try:
                 with open(HISTORY_FILE, "r", encoding="utf-8") as f:
@@ -324,8 +366,8 @@ def main():
 
     os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '0'
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'
-    # ★ QWebEngine GPU 래스터화 및 Canvas 2D 가속 활성화 — 캔버스 드래그/개체 생성 시 깜빡임 완전 방지
-    os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = '--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist --enable-accelerated-2d-canvas'
+    # Let Chromium select supported acceleration. Forcing software canvas made
+    # normal editing expensive. Explicit user environment overrides still apply.
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )

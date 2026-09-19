@@ -1,0 +1,95 @@
+=== object:scaling ===
+        canvas.on('object:scaling', (e) => {
+            const obj = e.target;
+            if (obj.linkedText) {
+                // Update original scales so that textObj's 'changed' event respects the manual resize
+                obj.originalScaleX = obj.scaleX;
+                obj.originalScaleY = obj.scaleY;
+                obj.originalWidth = obj.width;
+                obj.originalHeight = obj.height;
+                const textObj = obj.linkedText;
+                const minW = textObj.dynamicMinWidth || 50;
+                const minH = textObj.calcTextHeight() + 20;
+                const currentW = obj.width * obj.scaleX;
+                const currentH = obj.height * obj.scaleY;
+                
+                let newScaleX = obj.scaleX;
+                let newScaleY = obj.scaleY;
+                let clamped = false;
+                
+                const minScaleX = minW / obj.width;
+                const minScaleY = minH / obj.height;
+                
+                const isCorner = e.transform && ['tl', 'tr', 'bl', 'br'].includes(e.transform.corner);
+                
+                if (isCorner) {
+                    if (currentW < minW || currentH < minH) {
+                        let requiredRatioX = minScaleX / newScaleX;
+                        let requiredRatioY = minScaleY / newScaleY;
+                        let maxRatio = Math.max(requiredRatioX, requiredRatioY);
+                        if (maxRatio > 1) {
+                            newScaleX *= maxRatio;
+                            newScaleY *= maxRatio;
+                            clamped = true;
+                        }
+                    }
+                } else {
+                    if (currentW < minW) { newScaleX = minScaleX; clamped = true; }
+                    if (currentH < minH) { newScaleY = minScaleY; clamped = true; }
+                }
+                
+                if (clamped && e.transform) {
+                    const originX = e.transform.originX;
+                    const originY = e.transform.originY;
+                    const fixedPoint = obj.getPointByOrigin(originX, originY);
+                    
+                    obj.set({ scaleX: newScaleX, scaleY: newScaleY });
+                    obj.setPositionByOrigin(fixedPoint, originX, originY);
+                }
+                
+                const center = obj.getCenterPoint();
+                textObj.set({ 
+
+=== object:moving ===
+        canvas.on('object:moving', (e) => {
+            const obj = e.target; 
+            const cw = canvas.width;
+            const ch = canvas.height;
+            
+            const objW = (obj.width || 0) * (obj.scaleX || 1);
+            const objH = (obj.height || 0) * (obj.scaleY || 1);
+            
+            const rad = (obj.angle || 0) * Math.PI / 180;
+            const sin = Math.abs(Math.sin(rad));
+            const cos = Math.abs(Math.cos(rad));
+            const boundW = objW * cos + objH * sin;
+            const boundH = objW * sin + objH * cos;
+            
+            let center = obj.getCenterPoint();
+            let clamped = false;
+            
+            if (boundW <= cw) {
+                const minX = boundW / 2;
+                const maxX = cw - boundW / 2;
+
+=== object:rotating ===
+        canvas.on('object:rotating', (e) => {
+            const obj = e.target;
+            if (obj.linkedText) {
+                const center = obj.getCenterPoint();
+                obj.linkedText.set({ left: center.x, top: center.y, angle: obj.angle });
+                obj.linkedText.setCoords();
+                canvas.requestRenderAll();
+            } else if (obj.linkedShape) {
+                const center = obj.getCenterPoint();
+                obj.linkedShape.set({ angle: obj.angle });
+                obj.linkedShape.setPositionByOrigin(new fabric.Point(center.x, center.y), 'center', 'center');
+                obj.linkedShape.setCoords();
+                canvas.requestRenderAll();
+            }
+        });
+        
+        canvas.on('object:moving', (e) => {
+            const obj = e.target; 
+            const cw = canvas.width;
+            const ch = canvas.height;

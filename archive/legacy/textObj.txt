@@ -1,0 +1,30 @@
+            const textObj = new fabric.Textbox('내용 입력', {
+                left: center.x,
+                top: center.y,
+                originX: 'center',
+                originY: 'center',
+                width: startW,
+                fontSize: txtSize,
+                fill: txtColor,
+                backgroundColor: txtBgColor === 'transparent' ? '' : txtBgColor,
+                fontWeight: isBold ? 'bold' : 'normal',
+                fontStyle: isItalic ? 'italic' : 'normal',
+                underline: isUnderline,
+                textAlign: textAlign,
+                fontFamily: 'Pretendard',
+                editable: true,
+                hasControls: false,
+                hasBorders: false,
+                selectable: true,
+                evented: true,     // 클릭 이벤트는 받아야 함
+                splitByGrapheme: true
+            });
+            
+            obj.linkedText = textObj;
+            textObj.linkedShape = obj;
+            
+            canvas.add(textObj);
+            
+            obj.originalScaleX = obj.scaleX;
+            obj.originalScaleY = obj.scaleY;
+            obj.originalWidth = obj.width;

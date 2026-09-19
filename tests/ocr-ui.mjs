@@ -1,0 +1,40 @@
+import puppeteer from 'puppeteer';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+import {mkdir} from 'node:fs/promises';
+const browser=await puppeteer.launch({headless:true});
+try {
+ const page=await browser.newPage();await page.setViewport({width:1400,height:1000});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(pathToFileURL(path.resolve('index.html')).href);
+ const results=await page.evaluate(async()=>{
+  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  const check=(value,message)=>{if(!value)throw Error(message);};
+  const image=document.createElement('canvas');image.width=500;image.height=150;
+  const ctx=image.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,500,150);ctx.fillStyle='black';ctx.font='24px sans-serif';ctx.fillText('OCR 테스트 12345',20,60);
+  const src=image.toDataURL();const item={thumb:src,bgSrc:src,json:'{}',time:1};
+  recentList=[item];activeRecentIdx=-1;renderRecentList(false);
+  const calls=[];let copied='';
+  window.pyBackend={recognize_text:(token,source)=>calls.push({token,source}),copy_text:(text,callback)=>{copied=text;callback(true);}};
+  document.querySelector('.btn-ocr').click();await wait(80);
+  check(calls.length===1 && calls[0].source===src,'Original bytes not submitted');
+  check(activeRecentIdx===-1 && document.querySelector('.btn-ocr').disabled,'Click propagated or processing not marked');
+  receiveOCRResult(calls[0].token,JSON.stringify({text:'한글과 English 12345\n텍스트를 선택해서 복사할 수도 있습니다.',elapsed:1.2,lowConfidence:1}));
+  check(document.querySelector('.btn-ocr.ready'),'Completed button not active');
+  document.querySelector('.btn-ocr').click();await wait(80);
+  check(document.getElementById('ocr_dialog').open && calls.length===1,'Result not cached');
+  document.getElementById('ocr_copy').click();check(copied===item.ocr.text,'Copy mismatch');
+  document.getElementById('ocr_close').click();check(!document.getElementById('ocr_dialog').open,'Close failed');
+  document.querySelector('.btn-ocr').click();await wait(80);document.getElementById('ocr_retry').click();await wait(80);
+  check(calls.length===2,'Retry did not run');
+  recentList=[];renderRecentList(false);receiveOCRResult(calls[1].token,JSON.stringify({text:'deleted'}));
+  check(recentList.length===0,'Late result resurrected deleted capture');
+  recentList=[item];item._ocrBusy=false;renderRecentList(false);
+  document.querySelector('.btn-ocr').click();await wait(80);
+  return ['original bytes','nonblocking state','cached result','copy','close','retry','late-result deletion guard'];
+ });
+ await mkdir('test-results',{recursive:true});
+ await page.screenshot({path:'test-results/ocr-dialog.png'});
+ if(errors.length)throw Error(errors.join('\n'));
+ console.log('PASS OCR UI:',results.join(', '));
+} finally {await browser.close();}
