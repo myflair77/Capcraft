@@ -1100,7 +1100,7 @@
         <div id="selection_box"></div>
     </div>
 
-    <input type="file" id="file_open_input" accept=".json" style="display: none;">
+    <input type="file" id="file_open_input" accept=".json,.png,.jpg,.jpeg,.webp" style="display: none;">
 
     <div id="toolbar">
         <div class="tool-group" id="grp_capture">
@@ -1147,7 +1147,7 @@
             <button id="btn_add_text_to_shape" style="display:none;"></button>
             <button class="btn-tool disabled" id="btn_action_copy"><span class="icon"><i
                         data-lucide="copy"></i></span>복사</button>
-            <button class="btn-tool" id="btn_action_open" title="JSON파일을 열어서 작업을 계속할 수 있습니다."><span class="icon"><i
+            <button class="btn-tool" id="btn_action_open" title="이미지 파일(PNG, JPG, JPEG, WebP)을 불러오거나 JSON 파일을 열어 작업을 계속할 수 있습니다."><span class="icon"><i
                         data-lucide="folder-open"></i></span>열기</button>
             <div id="grp_save" style="position:relative;">
                 <button class="btn-tool disabled" id="btn_action_save"><span class="icon"><i
@@ -1537,6 +1537,12 @@
             <input type="hidden" id="set_theme" value="system">
         </div>
 
+        <div style="font-weight:bold;margin-bottom:5px;color:var(--accent-blue);">스마트 정렬</div>
+        <div class="setting-group" style="margin-bottom:12px;padding-bottom:10px;font-size:12px;">
+            <label><input type="checkbox" id="set_smart_guides" checked> 스마트 정렬 가이드선 및 자석 사용</label>
+            <label style="margin-left:12px;">자석 감도: <input type="number" id="set_smart_guide_distance" value="6" min="2" max="12" style="width:45px;"> px</label>
+            <div style="color:#64748b;margin-top:6px;">가장자리와 중심을 정렬합니다. 숫자가 클수록 멀리서 붙습니다. Alt를 누른 채 이동하면 일시 해제됩니다.</div>
+        </div>
         <div style="font-weight: bold; margin-bottom: 5px; color: var(--accent-blue);">캡처 설정</div>
         <div class="setting-group"
             style="margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; font-size: 12px;">
@@ -1900,12 +1906,18 @@
     <script src="natural-pens.js"></script>
     <script src="shape-pens.js"></script>
     <script src="stroke-effects.js"></script>
+    <script src="smart-guides.js"></script>
     <script src="line-anchors.js"></script>
     <script src="vendor/jspdf.umd.min.js"></script>
     <script src="vendor/purify.min.js"></script>
     <script src="popout-quality.js"></script>
 
     <script>
+        // Opt-in isolation: load existing captures, but skip edit-history and
+        // thumbnail updates. Normal launches do not enter this diagnostic mode.
+        const isolateHistory = new URLSearchParams(location.search).has('isolate-history');
+        const isolateSelectionUI = new URLSearchParams(location.search).has('isolate-selection-ui');
+        const defaultImageSampling = new URLSearchParams(location.search).has('default-image-sampling');
         // Chromium/Fabric.js textBaseline 버그 패치 ('alphabetical' -> 'alphabetic')
         const originalTextBaseline = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'textBaseline');
         if (originalTextBaseline) {
@@ -2603,12 +2615,27 @@
             uniformScaling: false,
             width: 800, height: 600, selection: true,
             imageSmoothingEnabled: true,
-            imageSmoothingQuality: 'high',
+            imageSmoothingQuality: 'low',
             perPixelTargetFind: false,
             targetFindTolerance: 25,
             preserveObjectStacking: true,
             enableRetinaScaling: true
         });
+
+        // CSS zoom does not shrink Fabric's backing stores. A 5312x2988 photo
+        // otherwise allocates two 9296x5229 surfaces at 175% desktop scaling.
+        // Limit only the editor's extra HiDPI supersampling, not image data,
+        // document coordinates, CSS dimensions or export resolution.
+        const originalIsRetinaScaling = canvas._isRetinaScaling;
+        canvas._isRetinaScaling = function() {
+            const ratio = Math.max(1, fabric.devicePixelRatio);
+            return originalIsRetinaScaling.call(this) &&
+                this.width * ratio <= 8192 && this.height * ratio <= 8192 &&
+                this.width * this.height * ratio * ratio <= 16 * 1024 * 1024;
+        };
+
+        const smartGuides = new URLSearchParams(location.search).has('isolate-guides')
+            ? { clear() {} } : installSmartGuides(canvas);
 
         // Fabric 5 renders exports through renderCanvas(), which cancels the pending
         // visible frame. Preserve that request across thumbnail/export rendering.
@@ -2661,6 +2688,7 @@
         canvas.on('selection:updated', updateObjectControls);
 
         function updateObjectControls(e) {
+            if (isolateSelectionUI) return;
             const activeObj = canvas ? canvas.getActiveObject() : null;
             if (activeObj && activeObj.type === 'activeSelection') {
                 document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
@@ -2903,13 +2931,13 @@
                     removeLineHandles(obj.__handleParentLine);
                 }
             });
-            if (document.getElementById('shape_bg_opacity_input') && document.getElementById('set_shape_opacity_val')) {
+            if (!isolateSelectionUI && document.getElementById('shape_bg_opacity_input') && document.getElementById('set_shape_opacity_val')) {
                 document.getElementById('shape_bg_opacity_input').value = document.getElementById('set_shape_opacity_val').value;
             }
-            if (document.getElementById('pen_bg_opacity_input') && document.getElementById('set_pen_bg_opacity')) {
+            if (!isolateSelectionUI && document.getElementById('pen_bg_opacity_input') && document.getElementById('set_pen_bg_opacity')) {
                 document.getElementById('pen_bg_opacity_input').value = document.getElementById('set_pen_bg_opacity').value;
             }
-            if (document.getElementById('text_bg_opacity_input') && document.getElementById('set_txt_bg_opacity')) {
+            if (!isolateSelectionUI && document.getElementById('text_bg_opacity_input') && document.getElementById('set_txt_bg_opacity')) {
                 document.getElementById('text_bg_opacity_input').value = document.getElementById('set_txt_bg_opacity').value;
             }
             toggleEdgeGlow({ deselected: deselected }, false);
@@ -3220,13 +3248,14 @@
 
         // ★ Fabric.js 내부 canvas-container 높이를 동기화하여 하단 깜빡임 원천 차단
         function syncFabricContainerSize() {
+            const width = canvas.width + 'px', height = canvas.height + 'px';
             const fabricWrapper = canvasContainer.querySelector('.canvas-container');
             if (fabricWrapper) {
-                fabricWrapper.style.width = canvas.width + 'px';
-                fabricWrapper.style.height = canvas.height + 'px';
+                if (fabricWrapper.style.width !== width) fabricWrapper.style.width = width;
+                if (fabricWrapper.style.height !== height) fabricWrapper.style.height = height;
             }
-            canvasContainer.style.width = canvas.width + 'px';
-            canvasContainer.style.height = canvas.height + 'px';
+            if (canvasContainer.style.width !== width) canvasContainer.style.width = width;
+            if (canvasContainer.style.height !== height) canvasContainer.style.height = height;
         }
 
 
@@ -3669,6 +3698,25 @@
         };
 
         const OriginalImageRender = fabric.Image.prototype._render;
+        {
+            const originalImageRenderWithShadow = fabric.Image.prototype.render;
+            fabric.Image.prototype.render = function(ctx) {
+                if (!this.isPopout) return originalImageRenderWithShadow.call(this, ctx);
+                const savedShadow = this.shadow;
+                const previousRenderShadow = this._popoutRenderShadow;
+                const previousCaching = this.objectCaching;
+                try {
+                    this._popoutRenderShadow = new URLSearchParams(location.search).has('popout-no-shadow') ? null : savedShadow;
+                    this.shadow = null;
+                    this.objectCaching = false;
+                    return originalImageRenderWithShadow.call(this, ctx);
+                } finally {
+                    this.shadow = savedShadow;
+                    this._popoutRenderShadow = previousRenderShadow;
+                    this.objectCaching = previousCaching;
+                }
+            };
+        }
         const originalImageSrc = fabric.Image.prototype.getSrc;
         fabric.Image.prototype.getSrc = function(filtered) {
             const element = filtered ? this._element : this._originalElement;
@@ -3689,13 +3737,18 @@
         const originalImageFill = fabric.Image.prototype._renderFill;
         fabric.Image.prototype._renderFill = function(ctx) {
             if (this.isPopout && this._element) {
-                ctx.drawImage(this._element, -this.width / 2, -this.height / 2, this.width, this.height);
+                CapcraftPopout.drawCachedShadow(ctx, this, this._popoutRenderShadow);
+                const displaySource = this._popoutDisplayRaster === this._element && this._popoutDisplayImage
+                    ? this._popoutDisplayImage : this._element;
+                ctx.drawImage(displaySource, -this.width / 2, -this.height / 2, this.width, this.height);
             } else originalImageFill.call(this, ctx);
         };
         fabric.Image.prototype._render = function(ctx) {
             if (ctx) {
                 ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
+                // High-quality generation/export is retained; only the live
+                // canvas uses basic sampling to avoid the reproduced blanking.
+                ctx.imageSmoothingQuality = defaultImageSampling || ctx === canvas.contextContainer ? 'low' : 'high';
             }
             if (this.isPopout) {
                 // 실시간 보더 변경 반영
@@ -4516,12 +4569,32 @@
             }
         }
 
+        function createRecentThumbnail() {
+            // Render on a separate surface, without resizing/repainting the editor.
+            const scale = Math.min(200 / Math.max(10, canvas.width), 1);
+            const preview = new fabric.StaticCanvas(null, {width:Math.max(1,Math.round(canvas.width*scale)),
+                height:Math.max(1,Math.round(canvas.height*scale)),enableRetinaScaling:false,renderOnAddRemove:false});
+            try {
+                preview.viewportTransform = [scale,0,0,scale,0,0];
+                preview.backgroundColor = canvas.backgroundColor;
+                preview.backgroundImage = canvas.backgroundImage;
+                preview.clipPath = canvas.clipPath;
+                preview._objects = canvas.getObjects().slice();
+                preview.renderAll();
+                return preview.lowerCanvasEl.toDataURL('image/png');
+            } finally {
+                // Shared scene objects must not be disposed with the preview.
+                preview._objects = []; preview.backgroundImage = null; preview.clipPath = null;
+                preview.dispose();
+            }
+        }
+
         function pushCurrentToRecent(forceNew = false, snapshotJSON = null) {
+            if (isolateHistory) return;
             if (!hasActiveCanvas || !canvas) return;
             if (canvas.getObjects().length === 0 && !canvas.backgroundImage && (!canvas.backgroundColor || canvas.backgroundColor === 'transparent')) return;
 
-            const thumbMult = Math.min(200 / Math.max(10, canvas.width), 1.0);
-            const thumb = canvas.toDataURL({ format: 'png', multiplier: thumbMult });
+            const thumb = createRecentThumbnail();
             const json = snapshotJSON || getCanvasJSON();
 
             // 배경 이미지 URL 및 배경색 추출
@@ -4606,6 +4679,18 @@
             renderRecentList(false);
         });
 
+        function setRecentThumbnail(element, source) {
+            if (element._thumbSource === source) return;
+            element._thumbSource = source;
+            if (!source) { element.style.backgroundImage = ''; return; }
+            // Keep the old pixels until replacement pixels are ready.
+            const image = new Image();
+            image.onload = () => {
+                if (element._thumbSource === source) element.style.backgroundImage = `url(${source})`;
+            };
+            image.src = source;
+        }
+
         function updateRecentItemUI(realIdx) {
             if (typeof triggerHistorySave === 'function') triggerHistorySave();
             const container = document.getElementById('recent_list_container');
@@ -4620,7 +4705,7 @@
             const displayIdx = recentSortOrder === 'desc' ? realIdx : recentList.length - 1 - realIdx;
             const targetEl = items[displayIdx];
             if (targetEl) {
-                targetEl.style.backgroundImage = `url(${itemObj.thumb})`;
+                setRecentThumbnail(targetEl, itemObj.thumb);
                 if (realIdx === activeRecentIdx) {
                     targetEl.classList.add('active');
                 } else {
@@ -4634,7 +4719,8 @@
             document.getElementById('btn_recent_clear').disabled = recentList.length === 0;
             if (persist && typeof triggerHistorySave === 'function') triggerHistorySave();
             const container = document.getElementById('recent_list_container');
-            container.innerHTML = '';
+            const existing = new Map(Array.from(container.children, el => [el._recentItem, el]));
+            const retained = new Set();
 
             let displayList = [...recentList];
             if (recentSortOrder === 'asc') displayList.reverse();
@@ -4643,9 +4729,22 @@
                 // displayList상의 idx → recentList에서의 실제 인덱스
                 const realIdx = recentSortOrder === 'desc' ? idx : recentList.length - 1 - idx;
 
-                const div = document.createElement('div');
+                let div = existing.get(item);
+                if (div) {
+                    retained.add(div);
+                    div.classList.toggle('active', realIdx === activeRecentIdx);
+                    div.querySelector('.recent-num').innerText = recentList.length - realIdx;
+                    setRecentThumbnail(div,item.thumb);
+                    const ocr=div.querySelector('.btn-ocr');
+                    if(ocr){ocr.classList.toggle('ready',!!item.ocr);ocr.disabled=!!item._ocrBusy;ocr.textContent=item._ocrBusy?'인식 중…':'OCR';ocr.title=item.ocr?'인식한 텍스트 보기':'PC 내부에서 원본 캡처(도형·모자이크 편집 전)의 텍스트 인식';}
+                    if(container.children[idx]!==div)container.insertBefore(div,container.children[idx]||null);
+                    return;
+                }
+                div = document.createElement('div');
+                div._recentItem = item;
+                retained.add(div);
                 div.className = 'recent-item';
-                div.style.backgroundImage = `url(${item.thumb})`;
+                setRecentThumbnail(div,item.thumb);
 
                 // 생성 순서 번호 (recentList[0]이 가장 최신 → 번호 = 전체수 - realIdx)
                 const num = document.createElement('div');
@@ -4661,6 +4760,8 @@
                 delBtn.innerText = 'X';
                 delBtn.onclick = (e) => {
                     e.stopPropagation();
+                    const realIdx = recentList.indexOf(item);
+                    if(realIdx<0)return;
                     cancelRecentLoad();
                     const isDeletingActive = (realIdx === activeRecentIdx);
                     recentList.splice(realIdx, 1);
@@ -4690,10 +4791,11 @@
                 div.appendChild(delBtn);
                 if (window.appendOCRButton) window.appendOCRButton(div, item);
 
-                div.onclick = (e) => { if (e.button !== 0) return; loadRecentItem(realIdx); };
+                div.onclick = (e) => { if (e.button !== 0) return; const index=recentList.indexOf(item);if(index>=0)loadRecentItem(index); };
 
-                container.appendChild(div);
+                container.insertBefore(div,container.children[idx]||null);
             });
+            for(const element of existing.values())if(!retained.has(element))element.remove();
 
             // 활성 아이템 스크롤 중앙 정렬 기능 제거 (수동 스크롤만 사용)
         }
@@ -4705,6 +4807,7 @@
         }
 
         function updateRecentSnapshotWithoutRendering(json) {
+            if (isolateHistory) return;
             if (activeRecentIdx < 0 || activeRecentIdx >= recentList.length) return;
             const item = recentList[activeRecentIdx];
             item.json = json;
@@ -4726,6 +4829,7 @@
         }
 
         function scheduleCurrentThumbnail(json) {
+            if (isolateHistory) return;
             cancelPendingThumbnail();
             if (activeRecentIdx < 0 || activeRecentIdx >= recentList.length) return;
             const item = recentList[activeRecentIdx];
@@ -4745,6 +4849,28 @@
         let _recentLoading = false;
         let _recentPending = null;
         let _recentOwnsHistory = false;
+        // Keep a small number of unchanged, already-rendered scenes. Recreating
+        // objects also discards their expensive pen/mosaic/popout shadow caches.
+        const recentSceneCache = new Map();
+        function rememberRecentScene() {
+            const item = recentList[activeRecentIdx];
+            if (!item) return;
+            canvas.discardActiveObject();
+            const objects = canvas.getObjects().filter(o => !o.isTemp && !o.__isLineHandle);
+            const surfaces = new Set();
+            const visit = o => {
+                for (const surface of [o._element, o._cacheCanvas, o._popoutShadowCache?.bitmap])
+                    if (surface) surfaces.add(surface);
+                if (o.getObjects) o.getObjects().forEach(visit);
+            };
+            objects.forEach(visit);
+            const bytes = [...surfaces].reduce((n,s) => n + (s.naturalWidth || s.width || 0)*(s.naturalHeight || s.height || 0)*4,0);
+            recentSceneCache.delete(item);
+            if (bytes <= 64*1024*1024) recentSceneCache.set(item,{json:item.json,objects,bytes,background:canvas.backgroundImage,bgColor:canvas.backgroundColor});
+            for (const key of recentSceneCache.keys()) if (!recentList.includes(key)) recentSceneCache.delete(key);
+            while (recentSceneCache.size > 3 || [...recentSceneCache.values()].reduce((n,c)=>n+c.bytes,0)>64*1024*1024)
+                recentSceneCache.delete(recentSceneCache.keys().next().value);
+        }
 
         function cancelRecentLoad() {
             ++_recentLoadSeq;
@@ -4761,6 +4887,7 @@
             if (!_recentOwnsHistory) {
                 // saveHistory already detects unchanged content; never save an in-flight restore.
                 saveHistory();
+                rememberRecentScene();
                 _recentOwnsHistory = true;
             }
             _recentPending = { item, seq: ++_recentLoadSeq };
@@ -4777,18 +4904,22 @@
                     _recentPending = null;
                     if (recentList[activeRecentIdx] === item) continue;
                     const staging = new fabric.StaticCanvas(null, {
-                        width: item.width || 800, height: item.height || 600,
+                        // This surface only reconstructs objects; it never paints.
+                        // Do not allocate a full-size photo bitmap on every switch.
+                        width: 1, height: 1,
                         renderOnAddRemove: false, enableRetinaScaling: false
                     });
                     // loadFromJSON calls renderAll internally; no need to paint a staging surface.
                     staging.renderAll = function() { return this; };
                     try {
-                        await new Promise((resolve, reject) => {
+                        const cached = recentSceneCache.get(item);
+                        const reusable = cached && cached.json === item.json;
+                        if (!reusable) await new Promise((resolve, reject) => {
                             try { staging.loadFromJSON(item.jsonLight || item.json, resolve, window.popoutReviver); }
                             catch (error) { reject(error); }
                         });
                         if (seq !== _recentLoadSeq || !recentList.includes(item)) continue;
-                        let background = staging.backgroundImage;
+                        let background = reusable ? cached.background : staging.backgroundImage;
                         if (item.bgImgCache) {
                             background = new fabric.Image(item.bgImgCache);
                         } else if (item.bgSrc) {
@@ -4797,7 +4928,8 @@
                             item.bgImgCache = background._element;
                         }
                         if (seq !== _recentLoadSeq || !recentList.includes(item)) continue;
-                        const objects = staging.getObjects().slice();
+                        const objects = reusable ? cached.objects : staging.getObjects().slice();
+                        recentSceneCache.delete(item);
                         staging._objects = [];
                         staging.backgroundImage = null;
                         const oldRender = canvas.renderOnAddRemove;
@@ -4805,9 +4937,14 @@
                         try {
                             canvas.discardActiveObject();
                             canvas.clear();
-                            canvas.setDimensions({width: item.width || 800, height: item.height || 600});
+                            const nextWidth = item.width || 800, nextHeight = item.height || 600;
+                            // setDimensions reallocates/clears all Fabric backing stores,
+                            // even when the dimensions have not changed.
+                            if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+                                canvas.setDimensions({width: nextWidth, height: nextHeight});
+                            }
                             canvas.backgroundImage = background || null;
-                            canvas.backgroundColor = item.bgColor || staging.backgroundColor || 'transparent';
+                            canvas.backgroundColor = item.bgColor || (reusable ? cached.bgColor : staging.backgroundColor) || 'transparent';
                             if (background) background.set({left:0,top:0,originX:'left',originY:'top',selectable:false,evented:false});
                             canvas.add(...objects);
                             // Ownership changes only after all objects and background are ready.
@@ -4937,6 +5074,7 @@
         }
 
         function saveHistory() {
+            if (isolateHistory) return;
             if (isHistoryAction || !hasActiveCanvas) return;
 
             if (typeof syncAllLineLinkedIds === 'function') syncAllLineLinkedIds();
@@ -5708,7 +5846,7 @@
 
         function collectSettings() {
             const settingsIds = [
-                'set_theme', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
+                'set_theme', 'set_smart_guides', 'set_smart_guide_distance', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
                 'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity', 'set_pen_bg_opacity',
@@ -6259,6 +6397,7 @@
         let pendingHistorySave = false;
 
         function triggerHistorySave() {
+            if (isolateHistory) return;
             clearTimeout(historySaveTimer);
             historySaveTimer = setTimeout(() => {
                 if (!pyBackend) return;
@@ -6471,10 +6610,67 @@
         grpSave.addEventListener('mouseleave', () => dropdownSave.style.display = 'none');
 
         document.getElementById('btn_action_open').addEventListener('click', () => document.getElementById('file_open_input').click());
+        async function openRasterFile(file) {
+            cancelRecentLoad();
+            const seq = _recentLoadSeq;
+            try {
+                if (!/\.(png|jpe?g|webp)$/i.test(file.name)) throw new Error('PNG, JPG, JPEG, WebP 파일을 선택해 주세요.');
+                if (file.size > 64 * 1024 * 1024) throw new Error('64MB 이하의 이미지 파일을 선택해 주세요.');
+                const source = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('파일을 읽을 수 없습니다.'));
+                    reader.readAsDataURL(file);
+                });
+                if (seq !== _recentLoadSeq) return false;
+                const element = new Image();
+                element.src = source;
+                await element.decode();
+                if (seq !== _recentLoadSeq) return false;
+                const w = element.naturalWidth, h = element.naturalHeight;
+                if (!w || !h) throw new Error('이미지 크기를 확인할 수 없습니다.');
+                if (w * h > 32000000 || Math.max(w, h) > 16384)
+                    throw new Error('안정적인 편집을 위해 3,200만 화소 이하, 한 변 16,384px 이하의 이미지를 사용해 주세요. 원본은 변경하지 않았습니다.');
+                const img = new fabric.Image(element, {left:0, top:0, originX:'left', originY:'top', selectable:false, evented:false});
+                // Decode first; leave the current scene untouched on read/decode failure.
+                cancelPendingThumbnail();
+                pushCurrentToRecent();
+                const previousRender = canvas.renderOnAddRemove;
+                isHistoryAction = true;
+                canvas.renderOnAddRemove = false;
+                try {
+                    activeRecentIdx = -1;
+                    stateHistory = []; historyIndex = -1;
+                    canvas.discardActiveObject();
+                    canvas.clear();
+                    prepareCanvasDisplay();
+                    canvas.setDimensions({width:w, height:h});
+                    canvas.backgroundColor = 'transparent';
+                    canvas.setBackgroundImage(img);
+                    hasActiveCanvas = true;
+                    syncFabricContainerSize();
+                    enableTools(); applyFitZoom(); applyCanvasClipping();
+                } finally {
+                    canvas.renderOnAddRemove = previousRender;
+                    isHistoryAction = false;
+                }
+                canvas.renderAll();
+                // Keep history atomic with the scene, so another open cannot steal it.
+                saveHistory();
+                pushCurrentToRecent(true);
+                return true;
+            } catch (error) {
+                if (seq === _recentLoadSeq) await customAlert('이미지를 불러오지 못했습니다. ' + error.message);
+                return false;
+            }
+        }
         document.getElementById('file_open_input').addEventListener('change', e => {
             const file = e.target.files[0]; if (!file) return;
+            e.target.value = ''; // Allow reopening the same file after edits or a failed read.
+            if (!/\.json$/i.test(file.name)) { void openRasterFile(file); return; }
+            cancelRecentLoad();
             const reader = new FileReader();
-            if (file.name.endsWith('.json')) {
+            if (/\.json$/i.test(file.name)) {
                 reader.onload = f => {
                     prepareCanvasDisplay();
                     isHistoryAction = true; pushCurrentToRecent();
@@ -6501,23 +6697,6 @@
                         renderRecentList();
                     }, window.popoutReviver);
                 }; reader.readAsText(file);
-            } else {
-                reader.onload = f => fabric.Image.fromURL(f.target.result, img => {
-                    isHistoryAction = true;
-                    pushCurrentToRecent();  // 이전 항목 보존 (새 항목으로 전환 전)
-                    activeRecentIdx = -1;   // 새 캔버스 로드 → 인덱스 초기화
-                    stateHistory = []; historyIndex = -1;
-                    const naturalW = img.naturalWidth || img.width;
-                    const naturalH = img.naturalHeight || img.height;
-
-                    img.set({
-                        scaleX: 1, scaleY: 1,
-                        originX: 'left', originY: 'top',
-                        left: 0, top: 0
-                    });
-                    canvas.clear();
-                    commitLoadToCanvas(img, naturalW, naturalH, null);
-                }); reader.readAsDataURL(file);
             }
         });
 

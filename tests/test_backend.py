@@ -18,6 +18,19 @@ from storage import atomic_write, write_json, HistoryWriter
 APP = QApplication.instance() or QApplication([])
 
 
+class RenderingConfigurationTests(unittest.TestCase):
+    def test_no_ineffective_rendering_override(self):
+        with patch.dict(os.environ, {}, clear=True), patch('main.sys.platform', 'win32'):
+            main.configure_rendering()
+            self.assertNotIn('QTWEBENGINE_CHROMIUM_FLAGS', os.environ)
+
+    def test_explicit_flags_are_preserved(self):
+        for flags in ('', '--enable-logging'):
+            with patch.dict(os.environ, {'QTWEBENGINE_CHROMIUM_FLAGS': flags}), patch('main.sys.platform', 'win32'):
+                main.configure_rendering()
+                self.assertEqual(os.environ['QTWEBENGINE_CHROMIUM_FLAGS'], flags)
+
+
 class WindowBoundsTests(unittest.TestCase):
     def test_visible_bounds_exclude_resize_margin_and_keep_physical_coordinates(self):
         def dwm(hwnd, attribute, pointer, size):
@@ -175,6 +188,13 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(tuple(image[0, 0]), (10, 20, 30, 255))
         self.assertEqual(tuple(image[0, 70]), (40, 50, 60, 255))
         self.assertEqual(tuple(image[0, 290]), (0, 0, 0, 0))
+
+    def test_fractional_175_percent_capture_coordinates(self):
+        obj = self.overlay()
+        obj.screen_data[1]['dpr'] = 1.75
+        obj.screen_data[1]['physical_rect'].update(width=175, height=175)
+        self.assertEqual(obj.logical_to_physical(140, 40), (70, 70))
+        self.assertEqual(obj.physical_to_logical(70, 70), (140, 40))
 
     def test_failed_monitor_does_not_crash_coordinate_conversion(self):
         obj = self.overlay()

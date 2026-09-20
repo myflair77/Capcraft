@@ -76,7 +76,7 @@ class CaptureOverlay(QWidget):
 
         with mss.mss() as sct:
             for screen in screens:
-                lr  = screen.geometry()   # 논리 픽셀 QRect (SetProcessDpiAwareness(2) 적용시 물리 픽셀과 동일)
+                lr  = screen.geometry()   # Qt 논리 좌표: 물리 픽셀과는 dpr만큼 차이가 남
                 dpr = screen.devicePixelRatio()
 
                 bounds = native_monitors.get(screen.name())

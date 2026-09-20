@@ -30,6 +30,103 @@ window.runEditorTests = async function () {
         canvas.add(obj); canvas.setActiveObject(obj); makeLineControls(obj);
         return obj;
     }
+    await test('large photo backing stores avoid HiDPI amplification without changing source or coordinates', async () => {
+        const previousRatio = fabric.devicePixelRatio;
+        try {
+            fabric.devicePixelRatio = 1.75;
+            canvas.setDimensions({width:5312,height:2988});
+            check(canvas.getRetinaScaling()===1,'large document still supersampled');
+            check(canvas.lowerCanvasEl.width===5312 && canvas.upperCanvasEl.height===2988,'backing dimensions mismatch');
+            const source=document.createElement('canvas');source.width=32;source.height=24;
+            const bg=new fabric.Image(source,{scaleX:166,scaleY:124.5});canvas.setBackgroundImage(bg);
+            canvas.renderAll();
+            check(bg.getElement()===source && bg.scaleX===166,'source or image geometry changed');
+            const saved=JSON.parse(getCanvasJSON(true));
+            check(saved.backgroundImage.scaleX===166,'serialized geometry changed');
+            canvas.setDimensions({width:800,height:600});
+            check(canvas.getRetinaScaling()===1.75 && canvas.lowerCanvasEl.width===1400,'small document HiDPI not restored');
+        } finally {
+            fabric.devicePixelRatio=previousRatio;
+            canvas.setDimensions({width:800,height:600});
+        }
+    });
+    await test('thumbnail updates keep live canvas and sidebar nodes stable', async () => {
+        const obj=new fabric.Rect({left:80,top:80,width:60,height:60,fill:'red'});canvas.add(obj);canvas.setActiveObject(obj);canvas.renderAll();
+        const width=canvas.width,height=canvas.height,selected=canvas.getActiveObject();
+        let paints=0;const count=()=>paints++;canvas.on('after:render',count);
+        const thumb=createRecentThumbnail();canvas.off('after:render',count);
+        check(thumb.startsWith('data:image/png')&&paints===0,'thumbnail rendered live canvas');
+        check(canvas.width===width&&canvas.height===height&&canvas.getActiveObject()===selected,'thumbnail changed scene');
+        check(obj.canvas===canvas,'thumbnail stole object ownership');
+        const node=document.querySelector('.recent-item');renderRecentList(false);renderRecentList(false);
+        check(document.querySelector('.recent-item')===node,'sidebar node replaced');
+        const element=canvasContainer, observer=new MutationObserver(()=>{});
+        observer.observe(element,{attributes:true});syncFabricContainerSize();syncFabricContainerSize();
+        check(observer.takeRecords().length===0,'unchanged canvas dimensions rewritten');observer.disconnect();
+        await wait(40);
+    });
+    await test('smart guides snap edges and centers, respect Alt, zoom, locks and export isolation', () => {
+        const enabled=document.getElementById('set_smart_guides');enabled.checked=true;
+        const ref=new fabric.Rect({left:300,top:200,width:100,height:80,strokeWidth:0,fill:'blue'});
+        const obj=new fabric.Rect({left:197,top:198,width:100,height:80,strokeWidth:0,fill:'red'});
+        canvas.add(ref,obj);canvas.setActiveObject(obj);
+        const move=(alt=false)=>canvas.fire('object:moving',{target:obj,e:{altKey:alt},transform:{action:'drag'}});
+        canvas.fire('before:transform',{transform:{target:obj}});move();
+        check(near(obj.left,200)&&near(obj.top,200),'edge alignment');
+        const overlay=document.getElementById('smart_alignment_guides');
+        check(overlay.style.display==='block','missing guide');
+        check(!canvas.toSVG().includes('#ec4899')&&!getCanvasJSON().includes('smart_alignment'),'guide leaked to export');
+        obj.left=197;move(true);check(near(obj.left,197)&&overlay.style.display==='none','Alt bypass');
+        obj.left=294;obj.top=350;obj.lockMovementX=true;move();check(near(obj.left,294),'movement lock');obj.lockMovementX=false;
+        enabled.checked=false;obj.left=298;move();check(near(obj.left,298),'disabled bypass');enabled.checked=true;
+        smartGuides.clear();obj.left=295;obj.top=200;obj.width=110;move();check(near(obj.left,295),'center alignment');
+        obj.set({angle:25,left:500,top:350});const b=obj.getBoundingRect(true,true);
+        obj.left+=300-b.left-2;smartGuides.clear();move();
+        check(near(obj.getBoundingRect(true,true).left,300),'rotated bounds');
+        canvas.fire('mouse:up');check(overlay.style.display==='none','guide not cleared');
+        const settings=collectSettings();check(settings.set_smart_guides===true&&settings.set_smart_guide_distance==='6','settings not saved');
+    });
+    await test('smart guides preserve internal links while snapping a multiple selection', () => {
+        const box=new fabric.Rect({left:80,top:80,width:60,height:60,strokeWidth:0,fill:'blue',id:'guide-source'});canvas.add(box);
+        const wire=line(true);removeLineHandles(wire);canvas.discardActiveObject();
+        wire.startLinkedObj=box;wire.startAnchor=LineAnchors.capture(box,wire.__capcraftPoints[0]);
+        const anchor=JSON.stringify(wire.startAnchor);
+        const selection=new fabric.ActiveSelection([box,wire],{canvas});canvas.setActiveObject(selection);
+        const b=selection.getBoundingRect(true,true);
+        const ref=new fabric.Rect({left:b.left+102,top:420,width:45,height:50,strokeWidth:0,fill:'green'});canvas.add(ref);
+        canvas.fire('before:transform',{transform:{target:selection}});
+        selection.left+=100;
+        canvas.fire('object:moving',{target:selection,e:{altKey:false},transform:{action:'drag'}});
+        check(near(selection.getBoundingRect(true,true).left,ref.left),'group did not snap');
+        check(wire.startLinkedObj===box&&JSON.stringify(wire.startAnchor)===anchor,'snap changed connection');
+        canvas.fire('object:modified',{target:selection});canvas.discardActiveObject();
+    });
+    await test('raster open preserves pixels, transparency, history and rejects broken files', async () => {
+        const sample=document.createElement('canvas');sample.width=180;sample.height=120;
+        sample.getContext('2d').fillStyle='#ff0000';sample.getContext('2d').fillRect(0,0,90,120);
+        for(const [mime,name] of [['image/png','한글.PNG'],['image/jpeg','photo.jpg'],['image/webp','photo.webp']]) {
+            const blob=await new Promise(resolve=>sample.toBlob(resolve,mime));
+            const file=new File([blob],name,{type:mime});
+            check(await openRasterFile(file),'image did not open');
+            check(canvas.width===180&&canvas.height===120,'dimensions');
+            check(canvas.backgroundImage.getElement().naturalWidth===180,'original retained');
+            check(recentList[activeRecentIdx].bgSrc.startsWith('data:image/'),'persistent source');
+            check(stateHistory.length===1,'initial history');
+            check(canvas.backgroundColor==='transparent','transparent background');
+            check(await openRasterFile(file),'same file reopen');
+        }
+        const before=canvas.backgroundImage, history=stateHistory;
+        const alert=window.customAlert;window.customAlert=async()=>{};
+        try {
+            check(!await openRasterFile(new File(['broken'],'bad.png')),'broken image accepted');
+            check(canvas.backgroundImage===before&&stateHistory===history,'failure destroyed current scene');
+            const blob=await new Promise(resolve=>sample.toBlob(resolve));
+            const pending=openRasterFile(new File([blob],'stale.png'));
+            commitLoadToCanvas(null,200,150,'white');
+            check(!await pending,'stale import replaced newer canvas');
+            check(canvas.width===200&&!canvas.backgroundImage,'new canvas lost');
+        } finally {window.customAlert=alert;}
+    });
     await test('palette color restores transparent shape and pen backgrounds without moving them', async () => {
         for (const kind of ['rect', 'pen']) {
             const obj = kind === 'rect'
@@ -460,8 +557,8 @@ window.runEditorTests = async function () {
         canvas.add(obj); canvas.setActiveObject(obj); canvas.renderAll();
         cancelPendingThumbnail();
         let exports = 0;
-        const originalExport = canvas.toCanvasElement;
-        canvas.toCanvasElement = function (...args) { exports++; return originalExport.apply(this, args); };
+        const originalExport = createRecentThumbnail;
+        createRecentThumbnail = function (...args) { exports++; return originalExport(...args); };
         try {
             obj.set('fill', '#00ff00'); obj.set('dirty', true);
             canvas.requestRenderAll(); saveHistory();
@@ -473,7 +570,7 @@ window.runEditorTests = async function () {
             check(color[1] > 240 && color[0] < 10, 'Property edit was not visible immediately');
             await wait(300);
             check(exports === 1, `Expected one deferred thumbnail, got ${exports}`);
-        } finally { canvas.toCanvasElement = originalExport; }
+        } finally { createRecentThumbnail = originalExport; }
     });
     await test('offline emoji data and icons', async () => {
         const picker = document.getElementById('ep_main');
@@ -700,6 +797,26 @@ window.runEditorTests = async function () {
         canvas.setActiveObject(second);toggle.checked=true;toggle.dispatchEvent(new Event('change'));
         check(second.linkedLine?.endLinkedObj===second,'Initially unchecked popout cannot create a connector');
     });
+    await test('popout cached shadow is visible, reused on movement and invalidated on edits', async () => {
+        const source=document.createElement('canvas');source.width=100;source.height=80;
+        const s=source.getContext('2d');s.fillStyle='white';s.fillRect(0,0,100,80);
+        const pop=new fabric.Image(source,{width:100,height:80,isPopout:true});
+        const shadow=new fabric.Shadow({color:'rgba(0,0,0,.6)',blur:12,offsetX:8,offsetY:12});
+        const output=document.createElement('canvas');output.width=300;output.height=300;
+        const ctx=output.getContext('2d');ctx.translate(150,150);
+        CapcraftPopout.drawCachedShadow(ctx,pop,shadow);
+        const first=pop._popoutShadowCache;
+        const pixels=first.bitmap.getContext('2d').getImageData(0,0,first.bitmap.width,first.bitmap.height).data;
+        check(pixels.some((v,i)=>i%4===3&&v>0),'Cached shadow is empty');
+        for(let i=0;i<10;i++){pop.left=i*5;CapcraftPopout.drawCachedShadow(ctx,pop,shadow);}
+        check(pop._popoutShadowCache===first,'Movement rebuilt shadow');
+        shadow.color='rgba(255,0,0,.6)';CapcraftPopout.drawCachedShadow(ctx,pop,shadow);
+        check(pop._popoutShadowCache!==first,'Color change did not refresh shadow');
+        const second=pop._popoutShadowCache;
+        pop.width=140;CapcraftPopout.drawCachedShadow(ctx,pop,shadow);
+        check(pop._popoutShadowCache!==second,'Resize did not refresh shadow');
+        check(pop._element===source&&source.width===100,'Source pixels/dimensions changed');
+    });
     await test('popout movement reuses pixels and PNG; batched quality input invalidates cache', async () => {
         const mask=new fabric.Rect({left:100,top:100,width:160,height:100,fill:'transparent'});
         canvas.add(mask);createPopoutFromObject(mask);
@@ -845,6 +962,47 @@ window.runEditorTests = async function () {
             loadRecentItem(1);await until(()=>!_recentLoading);
             check(saves===0 && recentList.every((x,i)=>x.json===after[i]),'First departure from restored item created a spurious edit');
         } finally {triggerHistorySave=save;}
+    });
+    await test('same-size recent switches reuse backing stores and use tiny staging surfaces', async () => {
+        const current=recentList[activeRecentIdx];
+        const source=document.createElement('canvas');source.width=32;source.height=24;
+        source.getContext('2d').fillRect(0,0,32,24);
+        const cached=new Image();cached.src=source.toDataURL();await cached.decode();
+        recentList=[current,{json:'{"objects":[]}',width:800,height:600,bgImgCache:cached,bgSrc:cached.src}];
+        activeRecentIdx=0;
+        const resize=canvas.setDimensions, initialize=fabric.StaticCanvas.prototype.initialize;
+        let resizes=0;const stagingSizes=[];
+        canvas.setDimensions=function(...args){resizes++;return resize.apply(this,args);};
+        fabric.StaticCanvas.prototype.initialize=function(el,options){
+            stagingSizes.push([options.width,options.height]);return initialize.call(this,el,options);
+        };
+        try {
+            loadRecentItem(1);await until(()=>!_recentLoading);
+            check(activeRecentIdx===1 && canvas.backgroundImage.getElement()===cached,'cached background not reused');
+            check(resizes===0,'unchanged backing stores reallocated');
+            check(stagingSizes.length===1 && stagingSizes[0][0]===1 && stagingSizes[0][1]===1,'large staging allocation');
+            loadRecentItem(0);await until(()=>!_recentLoading);
+            check(activeRecentIdx===0 && resizes===0,'return switch reallocated backing stores');
+        } finally {
+            canvas.setDimensions=resize;fabric.StaticCanvas.prototype.initialize=initialize;
+        }
+    });
+    await test('recent scene cache reuses rendered objects and rejects changed records', async () => {
+        const obj=new fabric.Rect({left:30,top:40,width:50,height:60,fill:'red'});
+        canvas.add(obj);canvas.renderAll();
+        const first=recentList[activeRecentIdx];
+        recentList=[first,{json:'{"objects":[]}',width:800,height:600,bgColor:'white'}];activeRecentIdx=0;
+        loadRecentItem(1);await until(()=>!_recentLoading);
+        loadRecentItem(0);await until(()=>!_recentLoading);
+        check(canvas.getObjects().includes(obj),'rendered object cache was discarded');
+        obj.set('fill','blue');saveHistory();
+        loadRecentItem(1);await until(()=>!_recentLoading);
+        loadRecentItem(0);await until(()=>!_recentLoading);
+        check(canvas.getObjects().includes(obj) && obj.fill==='blue','edit lost across cached restore');
+        loadRecentItem(1);await until(()=>!_recentLoading);
+        first.json='{"objects":[]}';first.jsonLight=first.json;
+        loadRecentItem(0);await until(()=>!_recentLoading);
+        check(canvas.getObjects().length===0,'stale cached objects restored');
     });
     await test('return to current recent item cancels pending restore', async () => {
         const current=recentList[activeRecentIdx];

@@ -1,6 +1,42 @@
 /* Resolution-independent popout snapshots and single-pass perspective rendering. */
 window.CapcraftPopout = (() => {
     const MAX_PIXELS = 4 * 1024 * 1024;
+    function drawCachedShadow(ctx, img, shadow) {
+        if (!shadow || !img._element) return;
+        const blur=Math.max(0, Number(shadow.blur)||0);
+        const ox=Number(shadow.offsetX)||0, oy=Number(shadow.offsetY)||0;
+        const angle=(Number(img.angle)||0)*Math.PI/180;
+        // Canvas shadows are screen-aligned; counter-rotate their local offset.
+        const dx=ox*Math.cos(angle)+oy*Math.sin(angle);
+        const dy=-ox*Math.sin(angle)+oy*Math.cos(angle);
+        const pad=Math.ceil(blur*2+Math.abs(dx)+Math.abs(dy)+4);
+        const width=img.width+pad*2,height=img.height+pad*2;
+        const key=JSON.stringify([img.width,img.height,blur,dx,dy,shadow.color]);
+        let cache=img._popoutShadowCache;
+        if (!cache || cache.source!==img._element || cache.key!==key) {
+            // A blurred shadow has no high-frequency image detail. Building it
+            // at 2x document resolution can block a recent-item switch for
+            // hundreds of milliseconds. Bound only this soft mask; the actual
+            // popout raster and export image retain their original resolution.
+            const ratio=density(width,height,Math.min(1,512/Math.max(width,height)));
+            const bitmap=document.createElement('canvas');
+            bitmap.width=Math.max(1,Math.ceil(width*ratio));
+            bitmap.height=Math.max(1,Math.ceil(height*ratio));
+            // Build only on changes, on a CPU-backed offscreen surface. Never
+            // execute a live shadow filter or read pixels from the visible canvas.
+            const g=bitmap.getContext('2d',{willReadFrequently:true});
+            const shift=width+img.width+pad+10;
+            g.scale(ratio,ratio);
+            g.shadowColor=shadow.color;
+            g.shadowBlur=blur*ratio;
+            g.shadowOffsetX=(shift+dx)*ratio;
+            g.shadowOffsetY=dy*ratio;
+            g.drawImage(img._element,pad-shift,pad,img.width,img.height);
+            cache={source:img._element,key,bitmap,width:bitmap.width/ratio,height:bitmap.height/ratio,pad};
+            img._popoutShadowCache=cache;
+        }
+        ctx.drawImage(cache.bitmap,-img.width/2-cache.pad,-img.height/2-cache.pad,cache.width,cache.height);
+    }
     function density(width, height, wanted = 4) {
         return Math.max(Number.EPSILON, Math.min(wanted, Math.sqrt(MAX_PIXELS / Math.max(1, width * height)),
             8192 / Math.max(width, height)));
@@ -11,7 +47,9 @@ window.CapcraftPopout = (() => {
         result.height = Math.max(1, Math.ceil(height * ratio));
         const ctx = result.getContext('2d');
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+        // Diagnostic comparison must cover intermediate popout surfaces too,
+        // not just fabric.Image's final draw onto the visible canvas.
+        ctx.imageSmoothingQuality = new URLSearchParams(location.search).has('default-image-sampling') ? 'low' : 'high';
         return result;
     }
     function snapshot(canvas, original) {
@@ -263,6 +301,26 @@ window.CapcraftPopout = (() => {
         img.set({ left: img._baseLeft + result.shiftX, top: img._baseTop + result.shiftY,
             width: result.width, height: result.height, dirty: true });
         img._element = img._originalElement = result.image;
+        if (new URLSearchParams(location.search).has('popout-png-source')) {
+            // Diagnostic: same raster dimensions and lossless PNG, but an
+            // HTMLImageElement draw source instead of an HTMLCanvasElement.
+            // Ignore stale decodes after another resize/regeneration.
+            const raster = result.image;
+            const decoded = new Image();
+            decoded.onload = () => {
+                if (img._element !== raster) return;
+                // Keep the editable/export raster intact; change display only.
+                img._popoutDisplayRaster = raster;
+                img._popoutDisplayImage = decoded;
+                img.dirty = true;
+                if (img.canvas) img.canvas.requestRenderAll();
+                console.log('POPOUT_PNG_SOURCE ' + JSON.stringify({
+                    width:decoded.naturalWidth,height:decoded.naturalHeight,
+                    sameSize:decoded.naturalWidth===raster.width&&decoded.naturalHeight===raster.height}));
+            };
+            decoded.onerror = () => console.warn('POPOUT_PNG_SOURCE decode failed; keeping raster');
+            decoded.src = raster.toDataURL('image/png');
+        }
         img._popoutRasterScale = result.image.width / result.width;
         img._popoutRenderedScale = requested;
         img._lastBorder = img.popoutBorder;
@@ -270,5 +328,5 @@ window.CapcraftPopout = (() => {
         img._popoutRenderSource = img._croppedBg;
         img.setCoords();
     }
-    return { snapshot, regenerate, density, sharpen, adopt: img => regenerate(img, true) };
+    return { snapshot, regenerate, density, sharpen, drawCachedShadow, adopt: img => regenerate(img, true) };
 })();

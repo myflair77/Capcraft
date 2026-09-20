@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>Display isolation</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px sans-serif;background:#d1d5db}
+header{height:85px;background:white;padding:20px;position:relative;z-index:2}
+main{position:absolute;top:100px;left:20px;right:220px;bottom:20px;overflow:hidden;
+background:repeating-conic-gradient(#ccc 0% 25%,white 0% 50%) 0/16px 16px}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+aside{position:fixed;right:0;top:85px;bottom:0;width:200px;overflow:auto;background:white;padding:12px}
+.thumb{height:130px;margin-bottom:15px;background:linear-gradient(35deg,#76bfea,#fff4bd);border:3px solid #4380ee}
+</style>
+<header>최소 재현 시험 — 파란 사각형을 드래그하세요. <span id="count">0</span>
+<button id="auto">자동 이동 시작/정지</button></header>
+<main><canvas id="scene"></canvas></main><aside id="side"></aside>
+<script>
+const c=document.getElementById('scene'),ctx=c.getContext('2d');
+for(let i=0;i<12;i++){const d=document.createElement('div');d.className='thumb';d.textContent='Thumbnail '+i;side.append(d);}
+let x=120,y=150,down=false,moves=0,automatic=false;
+function draw(){
+ctx.fillStyle='#edf5ff';ctx.fillRect(0,0,c.width,c.height);
+for(let yy=0;yy<c.height;yy+=60){ctx.fillStyle=yy%120?'#dbe8f6':'#edf5ff';ctx.fillRect(0,yy,c.width,60);}
+ctx.fillStyle='#222';ctx.font='24px sans-serif';ctx.fillText('BOTTOM CONTENT — 하단 표시 확인',25,c.height-30);
+ctx.fillStyle='#286be6';ctx.fillRect(x,y,160,110);count.textContent=String(moves);
+}
+function resize(){const r=c.getBoundingClientRect();c.width=Math.round(r.width*devicePixelRatio);c.height=Math.round(r.height*devicePixelRatio);draw();}
+function move(e){if(!down)return;const r=c.getBoundingClientRect();x=(e.clientX-r.left)*c.width/r.width-80;y=(e.clientY-r.top)*c.height/r.height-55;moves++;draw();}
+c.onpointerdown=e=>{down=true;c.setPointerCapture(e.pointerId);move(e);};c.onpointermove=move;
+c.onpointerup=c.onpointercancel=()=>down=false;
+document.getElementById('auto').onclick=()=>automatic=!automatic;
+function tick(t){if(automatic){x=(Math.sin(t/500)+1)*Math.max(0,c.width-160)/2;y=(Math.cos(t/700)+1)*Math.max(0,c.height-110)/2;moves++;draw();}requestAnimationFrame(tick);}
+window.addEventListener('resize',resize);resize();requestAnimationFrame(tick);
+</script>

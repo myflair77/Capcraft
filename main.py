@@ -11,7 +11,7 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QUrl, Qt, QByteArray, QTimer
 from PyQt6.QtGui import QImage, QPainter, QPixmap, QIcon
-from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
+from print_window import PrintWindow
 try:
     from PyQt6.QtSvg import QSvgRenderer
     _HAS_SVG = True
@@ -136,28 +136,11 @@ class Backend(QObject):
             if "," in base64_data:
                 base64_data = base64_data.split(",")[1]
             img_data = base64.b64decode(base64_data)
-            self.print_img_obj = QImage.fromData(img_data)
-            
-            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            date_str = time.strftime("%Y%m%d_%H%M%S")
-            printer.setDocName(f"Capcraft_{date_str}")
-            
-            dialog = QPrintPreviewDialog(printer, self.view.window())
-            dialog.paintRequested.connect(self._handle_print_preview)
+            image = QImage.fromData(img_data)
+            dialog = PrintWindow(image, self.view.window())
             dialog.exec()
         except Exception as e:
             print("Print error:", e)
-
-    def _handle_print_preview(self, printer):
-        painter = QPainter(printer)
-        rect = painter.viewport()
-        pixmap = QPixmap.fromImage(self.print_img_obj)
-        size = pixmap.size()
-        size.scale(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
-        painter.setViewport(rect.x(), rect.y(), size.width(), size.height())
-        painter.setWindow(pixmap.rect())
-        painter.drawPixmap(0, 0, pixmap)
-        painter.end()
 
     @pyqtSlot(result=str)
     def get_guide_html(self):
@@ -301,6 +284,8 @@ class Backend(QObject):
 
     @pyqtSlot(str, result=bool)
     def save_history(self, json_str):
+        if '--isolate-history' in sys.argv:
+            return False  # Diagnostic sessions must not overwrite real history.
         try:
             write_json(HISTORY_FILE, json_str, list)
             return True
@@ -310,6 +295,8 @@ class Backend(QObject):
 
     @pyqtSlot(str, bool, bool, result=bool)
     def save_history_chunk(self, chunk, is_first, is_last):
+        if '--isolate-history' in sys.argv:
+            return False
         try:
             self.history_writer.append(chunk, is_first, is_last)
             return True
@@ -357,20 +344,32 @@ class Backend(QObject):
                 print(f"Error reading directory {dir_path}: {e}")
         return json.dumps(images)
 
-def main():
-    # ★ per-monitor DPI 인식 설정 (캡처 오버레이 확대 현상 방지)
+def configure_rendering():
+    # No forced rendering workaround: partial raster disabling did not resolve
+    # the observed blanking. Leave explicit diagnostic environment flags intact.
+    pass
+
+
+def configure_display_scaling():
+    # Preserve the original startup sizing requested by the user. Matching Qt
+    # and Chromium DPR did not eliminate the bottom-of-window blanking issue.
     try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except Exception:
         pass
-
     os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '0'
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'
-    # Let Chromium select supported acceleration. Forcing software canvas made
-    # normal editing expensive. Explicit user environment overrides still apply.
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
+
+
+def main():
+    if sum(flag in sys.argv for flag in ('--isolate-history', '--isolate-selection-ui', '--isolate-guides')) > 1:
+        raise SystemExit('Use only one isolation option at a time.')
+    configure_rendering()
+    configure_display_scaling()
+    # Keep supported acceleration and the user's original UI sizing.
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
@@ -413,7 +412,20 @@ def main():
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
     html_path = os.path.join(base_dir, "index.html")
-    view.setUrl(QUrl.fromLocalFile(html_path))
+    if '--diagnose-display' in sys.argv:
+        from display_diagnostics import install_display_diagnostics
+        main_window.display_diagnostics = install_display_diagnostics(view)
+    page_url = QUrl.fromLocalFile(html_path)
+    if '--isolate-history' in sys.argv:
+        page_url.setQuery('isolate-history=1')
+        main_window.setWindowTitle('Capcraft — 진단 3: 썸네일·이력 갱신 제외 (자동 저장 안 됨)')
+    elif '--isolate-selection-ui' in sys.argv:
+        page_url.setQuery('isolate-selection-ui=1')
+        main_window.setWindowTitle('Capcraft — 진단 2: 선택 속성 UI 동기화 제외')
+    elif '--isolate-guides' in sys.argv:
+        page_url.setQuery('isolate-guides=1')
+        main_window.setWindowTitle('Capcraft — 진단 1: 스마트 정렬 가이드 제외')
+    view.setUrl(page_url)
     
     main_window.setCentralWidget(view)
     view.page().windowCloseRequested.connect(main_window.close)

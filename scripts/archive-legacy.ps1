@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $archiveRoot = Join-Path $projectRoot 'archive\legacy'
-$keep = @('main.py', 'capture_engine.py', 'storage.py', 'ocr_engine.py', 'ocr_bridge.py', 'requirements.txt', 'requirements-build.txt', 'requirements-ocr.txt', 'index.html', 'guide.html', 'popout-quality.js', 'presentation-refresh.js', 'ocr-ui.js')
+$keep = @('main.py', 'print_window.py', 'smart-guides.js', 'capture_engine.py', 'storage.py', 'ocr_engine.py', 'ocr_bridge.py', 'requirements.txt', 'requirements-build.txt', 'requirements-ocr.txt', 'index.html', 'guide.html', 'popout-quality.js', 'presentation-refresh.js', 'ocr-ui.js')
 $candidates = Get-ChildItem -LiteralPath $projectRoot -File | Where-Object {
     $_.Extension -in @('.py', '.txt', '.js', '.html') -and $_.Name -notin ($keep + @('ocr_mixed.py', 'ocr_text.py', 'ocr_languages.py', 'ocr_window.py', 'natural-pens.js', 'line-anchors.js', 'shape-pens.js', 'stroke-effects.js'))
 }

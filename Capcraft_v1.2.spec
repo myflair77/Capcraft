@@ -5,6 +5,7 @@ ocr_data += [('natural-pens.js', '.')]
 ocr_data += [('line-anchors.js', '.')]
 ocr_data += [('shape-pens.js', '.')]
 ocr_data += [('stroke-effects.js', '.')]
+ocr_data += [('smart-guides.js', '.')]
 ort_data, ort_bins, ort_imports = collect_all('onnxruntime')
 for package in ('kiwipiepy', 'kiwipiepy_model', 'lingua'):
     data, binaries, imports = collect_all(package)

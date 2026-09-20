@@ -10,16 +10,22 @@ try {
     await page.addScriptTag({ content: await readFile('tests/rendering-scene.js', 'utf8') });
     await page.evaluate(() => prepareRenderingScene());
     await page.evaluate(() => {
-        window.frameStats = { frames: 0, blank: 0, missingObjectSamples: 0, maxGap: 0, dimensionsReset: 0, moves: 0, scales: 0 };
+        window.frameStats = { frames: 0, blank: 0, bottomBlank: 0, bottomBoundaryChanges: 0, missingObjectSamples: 0, maxGap: 0, dimensionsReset: 0, moves: 0, scales: 0 };
         canvas.on('object:moving', () => frameStats.moves++);
         canvas.on('object:scaling', () => frameStats.scales++);
         const original = canvas.setDimensions;
         canvas.setDimensions = function (...args) { frameStats.dimensionsReset++; return original.apply(this, args); };
-        let previous;
+        let previous, previousBottom;
         function sample(t) {
             const pixel = canvas.contextContainer.getImageData(5, 5, 1, 1).data;
             frameStats.frames++;
             if (pixel[3] !== 255) frameStats.blank++;
+            const height=canvas.lowerCanvasEl.height, width=canvas.lowerCanvasEl.width;
+            const bottomPixel=canvas.contextContainer.getImageData(Math.floor(width/2),height-2,1,1).data;
+            if(bottomPixel[3]!==255)frameStats.bottomBlank++;
+            const bottom=canvas.lowerCanvasEl.getBoundingClientRect().bottom;
+            if(previousBottom!==undefined && Math.abs(bottom-previousBottom)>.5)frameStats.bottomBoundaryChanges++;
+            previousBottom=bottom;
             for (const obj of renderingObjects) {
                 const p = fabric.util.transformPoint(obj.getCenterPoint(), canvas.viewportTransform);
                 const ratio = canvas.getRetinaScaling();

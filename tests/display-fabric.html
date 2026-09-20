@@ -1,0 +1,73 @@
+<!doctype html><meta charset="utf-8"><title>Fabric display isolation</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px sans-serif;background:#d1d5db}
+header{height:85px;background:white;padding:20px;position:relative;z-index:2}
+main{position:absolute;top:100px;left:20px;right:220px;bottom:20px;overflow:hidden;
+background:repeating-conic-gradient(#ccc 0% 25%,white 0% 50%) 0/16px 16px}
+canvas{display:block;touch-action:none}
+aside{position:fixed;right:0;top:85px;bottom:0;width:200px;overflow:auto;background:white;padding:12px}
+.thumb{height:130px;margin-bottom:15px;background:linear-gradient(35deg,#76bfea,#fff4bd);border:3px solid #4380ee}
+body.layout main{top:145px;left:0;right:200px;bottom:0;background:#d1d5db}
+body.layout #canvas_container_wrapper{position:absolute;top:50%;left:50%;
+transform:translate(calc(-50% + var(--pan-x)),calc(-50% + var(--pan-y))) scale(var(--zoom));transform-origin:center center}
+body.layout #canvas_container{position:relative;overflow:hidden;contain:layout style;
+background-color:white;background-image:linear-gradient(45deg,#cbd5e1 25%,transparent 25%,transparent 75%,#cbd5e1 75%,#cbd5e1),linear-gradient(45deg,#cbd5e1 25%,transparent 25%,transparent 75%,#cbd5e1 75%,#cbd5e1);
+background-size:16px 16px;background-position:0 0,8px 8px;box-shadow:0 10px 40px #0005}
+body.layout .canvas-container{display:block!important;line-height:0;font-size:0}
+#layout_controls{display:none;position:absolute;top:90px;left:25%;z-index:3;background:white;padding:8px;border-radius:10px;box-shadow:0 4px 12px #0003}
+body.layout #layout_controls{display:block}
+</style>
+<header>Fabric.js 시험 — 개체 선택·이동·크기 조절 <span id="count">0</span>
+<button id="auto">자동 이동 시작/정지</button></header>
+<main><canvas id="scene"></canvas></main><aside id="side"></aside>
+<div id="layout_controls">배율 <select id="zoom"><option>.5</option><option selected>.85</option><option>1</option><option>1.25</option></select>
+<button id="pan_left">←</button><button id="pan_right">→</button> 휠: 위·아래 이동</div>
+<script src="../vendor/fabric.min.js"></script>
+<script>
+const counter=document.getElementById('count'),side=document.getElementById('side');
+const layoutMode=new URLSearchParams(location.search).has('layout');
+const bitmapMode=new URLSearchParams(location.search).has('bitmap');
+let panX=0,panY=0,zoom=.85;
+if(layoutMode){
+ document.body.classList.add('layout');
+ const wrapper=document.createElement('div'),container=document.createElement('div');
+ wrapper.id='canvas_container_wrapper';container.id='canvas_container';
+ document.querySelector('main').append(wrapper);wrapper.append(container);container.append(document.getElementById('scene'));
+}
+for(let i=0;i<12;i++){const d=document.createElement('div');d.className='thumb';d.textContent='Thumbnail '+i;side.append(d);}
+const canvas=new fabric.Canvas('scene',{enableRetinaScaling:true,backgroundColor:'#edf5ff'});
+let moves=0,automatic=false;
+const rect=new fabric.Rect({left:120,top:150,width:160,height:110,fill:'#286be6'});
+const ellipse=new fabric.Ellipse({left:400,top:200,rx:80,ry:55,fill:'#e87642'});
+const line=new fabric.Line([80,400,450,480],{stroke:'#17856a',strokeWidth:8});
+const label=new fabric.Text('BOTTOM CONTENT — 하단 표시 확인',{left:25,top:600,fontSize:24,selectable:false,evented:false});
+canvas.add(rect,ellipse,line,label);
+function updateLayout(){
+ if(!layoutMode)return;
+ const wrapper=document.getElementById('canvas_container_wrapper');
+ wrapper.style.setProperty('--pan-x',panX+'px');wrapper.style.setProperty('--pan-y',panY+'px');wrapper.style.setProperty('--zoom',zoom);
+ canvas.calcOffset();
+}
+function resize(){const r=document.querySelector('main').getBoundingClientRect();canvas.setDimensions({width:bitmapMode?2560:layoutMode?1400:Math.round(r.width),height:bitmapMode?1600:layoutMode?1000:Math.round(r.height)});if(bitmapMode){zoom=Math.min(r.width/2560,r.height/1600)*.95;}label.set({top:canvas.height-45});updateLayout();canvas.requestRenderAll();}
+document.getElementById('zoom').onchange=e=>{zoom=Number(e.target.value);updateLayout();};
+document.getElementById('pan_left').onclick=()=>{panX-=60;updateLayout();};
+document.getElementById('pan_right').onclick=()=>{panX+=60;updateLayout();};
+document.querySelector('main').addEventListener('wheel',e=>{if(layoutMode){e.preventDefault();panY-=e.deltaY;updateLayout();}},{passive:false});
+for(const event of ['object:moving','object:scaling','object:rotating'])canvas.on(event,()=>counter.textContent=String(++moves));
+document.getElementById('auto').onclick=()=>{automatic=!automatic;if(automatic)canvas.setActiveObject(rect);};
+function tick(t){if(automatic){rect.set({left:(Math.sin(t/500)+1)*Math.max(0,canvas.width-180)/2,top:(Math.cos(t/700)+1)*Math.max(0,canvas.height-140)/2});rect.setCoords();counter.textContent=String(++moves);canvas.requestRenderAll();}requestAnimationFrame(tick);}
+window.addEventListener('resize',resize);resize();requestAnimationFrame(tick);
+if(bitmapMode){
+ // One-time PNG fixture generation on a separate canvas; no reads of the live canvas.
+ const tile=document.createElement('canvas');tile.width=1280;tile.height=800;
+ const g=tile.getContext('2d');g.fillStyle='#f8f0eb';g.fillRect(0,0,1280,800);
+ for(let y=0;y<800;y+=80){g.fillStyle='#f0e1d2';g.fillRect(0,y,1280,40);}
+ g.strokeStyle='#be9b78';g.lineWidth=2;
+ for(let x=0;x<1280;x+=160){g.beginPath();g.moveTo(x,0);g.lineTo(x,800);g.stroke();}
+ fabric.Image.fromURL(tile.toDataURL('image/png'),image=>{
+   if(!image){console.error('Bitmap fixture failed');return;}
+   image.set({left:0,top:0,scaleX:2,scaleY:2,selectable:false,evented:false,objectCaching:false});
+   canvas.insertAt(image,0);canvas.requestRenderAll();window.bitmapReady=true;
+ });
+}
+</script>
