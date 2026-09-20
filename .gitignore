@@ -8,6 +8,8 @@ node_modules/
 .venv/
 test-results/
 dist-dev/
+dist-check/
+.vercel/
 !Capcraft_v1.2.spec
 .ocr-deps/
 models/ocr/*.onnx

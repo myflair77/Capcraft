@@ -83,7 +83,8 @@ class StorageTests(unittest.TestCase):
 
     def test_backend_unicode_save_dialog_and_atomic_file_write(self):
         view = MagicMock()
-        backend = main.Backend(MagicMock(), view)
+        with patch('main.UpdateService'):
+            backend = main.Backend(MagicMock(), view)
         target = str(self.path.with_suffix('.png'))
         with patch('main.QFileDialog.getSaveFileName', return_value=(target, 'PNG Files (*.png)')):
             backend._do_request_save('png', 'capture')
@@ -94,7 +95,7 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(Path(target).read_bytes(), b'fixture')
 
     def test_history_survives_restart(self):
-        with patch('main.HISTORY_FILE', str(self.path)):
+        with patch('main.HISTORY_FILE', str(self.path)), patch('main.UpdateService'):
             backend = main.Backend(MagicMock(), MagicMock())
             self.assertEqual(json.loads(backend.load_history()), [{"old": True}])
 

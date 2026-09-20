@@ -30,6 +30,24 @@ window.runEditorTests = async function () {
         canvas.add(obj); canvas.setActiveObject(obj); makeLineControls(obj);
         return obj;
     }
+    await test('selection action buttons stay inside canvas at edges and remain clickable', async () => {
+        const obj = new fabric.Rect({ left: 5, top: 5, width: 100, height: 60, fill: '#f00' });
+        canvas.add(obj); canvas.setActiveObject(obj);
+        const names = ['flipX', 'flipY', 'sendBack', 'bringFront', 'addText', 'popOut'];
+        for (const pose of [{left:5,top:5,angle:0}, {left:750,top:5,angle:45}, {left:5,top:550,angle:0}]) {
+            obj.set(pose); obj.setCoords(); canvas.renderAll();
+            for (const name of names) {
+                const point = obj.oCoords[name];
+                check(point.x >= 30 && point.x <= canvas.width - 30 && point.y >= 30 && point.y <= canvas.height - 30,
+                    `${name} clipped at ${JSON.stringify(pose)}`);
+                check(obj._findTargetCorner(new fabric.Point(point.x, point.y), false) === name, `${name} hit target differs from icon`);
+            }
+        }
+        obj.set({left:5,top:5,angle:0}); obj.setCoords();
+        check(obj.oCoords.flipX.y > obj.top + obj.height, 'top-edge actions should move below object');
+        obj.controls.flipX.mouseDownHandler({}, {target: obj});
+        check(obj.flipX, 'flip action still works');
+    });
     await test('large photo backing stores avoid HiDPI amplification without changing source or coordinates', async () => {
         const previousRatio = fabric.devicePixelRatio;
         try {

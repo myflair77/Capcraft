@@ -1,5 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs
+from pathlib import Path
+import sys
+sys.path.insert(0, SPECPATH)
+from scripts.prepare_release_resources import prepare
+resources = prepare(Path(SPECPATH))
 ocr_data, ocr_bins, ocr_imports = collect_all('rapidocr')
 ocr_data += [('natural-pens.js', '.')]
 ocr_data += [('line-anchors.js', '.')]
@@ -15,17 +20,22 @@ for package in ('kiwipiepy', 'kiwipiepy_model', 'lingua'):
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
-    binaries=ocr_bins + ort_bins,
-    datas=[('index.html', '.'), ('guide.html', '.'), ('icon.ico', '.'), ('vendor', 'vendor'), ('popout-quality.js', '.'), ('presentation-refresh.js', '.'), ('ocr-ui.js', '.'), ('models/ocr', 'models/ocr')] + ocr_data + ort_data,
-    hiddenimports=ocr_imports + ort_imports,
+    pathex=[str(resources)],
+    binaries=ocr_bins + ort_bins + collect_dynamic_libs('uiautomation'),
+    datas=[('index.html', '.'), (str(resources / 'icon.ico'), '.'), (str(resources / 'licenses'), 'licenses'), ('LICENSE', '.'), ('SOURCE_CODE.md', '.'), ('vendor', 'vendor'), ('popout-quality.js', '.'), ('presentation-refresh.js', '.'), ('ocr-ui.js', '.'), ('models/ocr', 'models/ocr')] + ocr_data + ort_data,
+    hiddenimports=['_guide_resource'] + ocr_imports + ort_imports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['scripts/frozen_diagnostics.py'],
     excludes=[],
     noarchive=False,
     optimize=0,
 )
+# Qt uses Windows' ICU API. A build-tool PATH (e.g. Poppler) can make
+# PyInstaller collect a different icuuc.dll with suffixed, incompatible exports.
+# Never redistribute that DLL under the Windows system DLL name.
+a.binaries = [entry for entry in a.binaries
+              if Path(entry[0]).name.lower() not in {'icuuc.dll', 'icuin.dll', 'icu.dll'}]
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -44,7 +54,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['icon.ico'],
+    icon=[str(resources / 'icon.ico')],
 )
 coll = COLLECT(
     exe,

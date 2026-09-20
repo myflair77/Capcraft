@@ -12,6 +12,8 @@ from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QUrl, Qt, QByteArray, QTimer
 from PyQt6.QtGui import QImage, QPainter, QPixmap, QIcon
 from print_window import PrintWindow
+from app_version import APP_VERSION, APP_DISPLAY_VERSION
+from update_service import UpdateService
 try:
     from PyQt6.QtSvg import QSvgRenderer
     _HAS_SVG = True
@@ -58,6 +60,19 @@ class Backend(QObject):
         self.ocr_service = OCRService(self)
         self.ocr_service.finished.connect(self.ocr_finished.emit)
         self.ocr_windows = {}
+        self.updates = UpdateService(view.window(), DATA_DIR)
+
+    @pyqtSlot()
+    def check_updates(self):
+        self.updates.check(manual=True)
+
+    @pyqtSlot(bool)
+    def set_update_checks(self, enabled):
+        self.updates.set_enabled(enabled)
+
+    @pyqtSlot(result=bool)
+    def update_checks_enabled(self):
+        return bool(self.updates.state.get('enabled', True))
 
     @pyqtSlot(str, str, result=bool)
     def open_ocr_result(self, key, payload):
@@ -146,7 +161,8 @@ class Backend(QObject):
     def get_guide_html(self):
         try:
             if getattr(sys, 'frozen', False):
-                base_dir = sys._MEIPASS
+                from _guide_resource import get_html
+                return get_html()
             else:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
             path = os.path.join(base_dir, "guide.html")
@@ -365,6 +381,11 @@ def configure_display_scaling():
 
 
 def main():
+    # Give Windows a stable application identity for taskbar/shortcut grouping.
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('JBH.Capcraft')
+    except (AttributeError, OSError):
+        pass
     if sum(flag in sys.argv for flag in ('--isolate-history', '--isolate-selection-ui', '--isolate-guides')) > 1:
         raise SystemExit('Use only one isolation option at a time.')
     configure_rendering()
@@ -373,7 +394,7 @@ def main():
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
-    main_window.setWindowTitle("Capcraft v1.2")
+    main_window.setWindowTitle(f"Capcraft v{APP_DISPLAY_VERSION}")
     main_window.setWindowIcon(create_camera_icon())
     
     # 모니터 화면 크기의 70%로 창 크기 설정 및 중앙 배치
@@ -431,6 +452,7 @@ def main():
     view.page().windowCloseRequested.connect(main_window.close)
     view.setZoomFactor(zoom_factor)
     main_window.show()
+    QTimer.singleShot(5000, backend.updates.check)
     
     sys.exit(app.exec())
 

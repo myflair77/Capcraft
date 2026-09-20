@@ -1807,6 +1807,13 @@
         <div style="font-size:11px; color:#64748b; margin-top:10px; line-height: 1.5; text-align: center;">
             * 환경설정은 '적용' 버튼을 누르는 즉시 반영됩니다.
         </div>
+        <div style="margin-top:16px;padding:12px;border:1px solid #dbe3ef;border-radius:8px;">
+            <strong>프로그램 업데이트</strong>
+            <label style="display:block;margin:10px 0;"><input id="check_updates_auto" type="checkbox" checked
+                onchange="window.pyBackend?.set_update_checks(this.checked)"> 실행 시 새 버전 확인 (즉시 저장)</label>
+            <button type="button" onclick="window.pyBackend?.check_updates()">지금 업데이트 확인</button>
+            <div style="font-size:11px;color:#64748b;margin-top:8px;">버전 안내만 확인합니다. 이미지와 OCR 결과는 전송하지 않습니다.</div>
+        </div>
         <button
             style="width: 100%; padding: 12px; background: var(--accent-blue); color: white; border: none; border-radius: 6px; cursor: pointer; font-size:13px; font-weight:bold; margin-top:15px;"
             onclick="applySettings(); closeModals();">적용 및 저장하기</button>
@@ -2578,6 +2585,33 @@
                 },
                 sizeX: 60, sizeY: 60, cornerSize: 60, touchCornerSize: 60, transparentCorners: false
             });
+
+            // Keep action buttons (including their hit targets) inside the canvas.
+            // Use one screen-aligned row so rotating an object cannot scatter the buttons.
+            const actionControls = ['flipX', 'flipY', 'sendBack', 'bringFront', 'addText', 'popOut'];
+            function actionControlPosition(dim, matrix, object) {
+                const surface = object.canvas;
+                if (!surface) return fabric.Control.prototype.positionHandler.call(this, dim, matrix, object);
+                const corners = [-1, 1].flatMap(x => [-1, 1].map(y =>
+                    fabric.util.transformPoint(new fabric.Point(x * dim.x / 2, y * dim.y / 2), matrix)));
+                const center = fabric.util.transformPoint(new fabric.Point(0, 0), matrix);
+                const margin = 32;
+                const width = surface.getWidth(), height = surface.getHeight();
+                const visible = actionControls.filter(key => object.controls[key] && object.isControlVisible(key));
+                const index = visible.findIndex(key => object.controls[key] === this);
+                const columns = Math.max(1, Math.min(visible.length, Math.floor((width - margin * 2) / 50) + 1));
+                const rows = Math.ceil(visible.length / columns);
+                const span = (columns - 1) * 50;
+                const left = Math.max(margin, Math.min(width - margin - span, center.x - span / 2));
+                const top = Math.min(...corners.map(p => p.y));
+                const bottom = Math.max(...corners.map(p => p.y));
+                let y = top - 40 - (rows - 1) * 50;
+                if (y < margin) y = bottom + 40;
+                y = Math.max(margin, Math.min(height - margin - (rows - 1) * 50, y));
+                return new fabric.Point(left + Math.max(0, index) % columns * 50,
+                    y + Math.floor(Math.max(0, index) / columns) * 50);
+            }
+            actionControls.forEach(key => { controls[key].positionHandler = actionControlPosition; });
 
             fabric.Image.prototype.controls = Object.assign({}, fabric.Object.prototype.controls, {
                 tl: new fabric.Control(Object.assign({}, controls.tl, { actionHandler: forceUniformScaling })),
@@ -6466,6 +6500,9 @@
                     window.installPresentationRefresh();
                     pyBackend = channel.objects.pyBackend;
                     window.pyBackend = channel.objects.pyBackend;
+                    if (pyBackend.update_checks_enabled) pyBackend.update_checks_enabled(enabled => {
+                        document.getElementById('check_updates_auto').checked = enabled;
+                    });
                     if (pyBackend.ocr_finished) pyBackend.ocr_finished.connect(window.receiveOCRResult);
                     if (pyBackend.ocr_retry) pyBackend.ocr_retry.connect(window.retryNativeOCR);
                     if (pyBackend.ocr_formatted) pyBackend.ocr_formatted.connect(window.receiveOCRFormatted);
