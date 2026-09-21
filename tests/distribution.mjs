@@ -15,9 +15,18 @@ try{
   await fs.mkdir('test-results',{recursive:true});
   for(const width of [1365,390]){
     await page.setViewport({width,height:900});
-    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle0'});
-    if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Horizontal overflow');
-    await page.screenshot({path:`test-results/distribution-${width}.png`,fullPage:true});
+    for(const route of ['', 'privacy.html', 'signing.html']) {
+      const response=await page.goto(`http://127.0.0.1:${server.address().port}/${route}`,{waitUntil:'networkidle0'});
+      if(response.status()!==200)throw Error(`Missing page: ${route}`);
+      if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error(`Horizontal overflow: ${route}`);
+      if(!route) {
+        for(const link of ['privacy.html','signing.html']) {
+          if(!await page.$(`a[href="${link}"]`))throw Error(`Missing policy link: ${link}`);
+        }
+      }
+      if(route==='signing.html' && !await page.evaluate(()=>document.body.textContent.includes('Current Capcraft 1.2 downloads are unsigned')))throw Error('Missing unsigned disclosure');
+      await page.screenshot({path:`test-results/distribution-${route || 'home'}-${width}.png`,fullPage:true});
+    }
   }
   if(errors.length)throw Error(errors.join('\n'));
   console.log('PASS distribution desktop/mobile layout and JavaScript');

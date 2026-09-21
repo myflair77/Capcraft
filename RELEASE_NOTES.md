@@ -31,3 +31,10 @@ OCR 모델을 포함하므로 설치파일과 설치 용량이 큽니다. 서명
 업데이트는 알림 및 다운로드 페이지 연결 방식입니다. 사용자 동의 없이 설치하거나 캡처 이미지·OCR 텍스트를 외부 OCR 서버로 전송하지 않습니다. 기존 사용자 설정과 캡처 기록은 설치 폴더와 별도로 보관됩니다.
 
 라이선스와 대응 소스·의존성 정보: `LICENSE`, `SOURCE_CODE.md`, `DEPLOYMENT.md`.
+
+## Code signing policy
+
+현재 v1.2.0 파일은 미서명 상태입니다. SignPath Foundation 오픈소스 서명 지원 신청을 준비 중이며, 승인·인증서 발급·실제 서명은 완료되지 않았습니다. 기존 설치파일은 변경하지 않았습니다.
+
+- [Code signing policy](https://capcraft-zeta.vercel.app/signing.html)
+- [개인정보 처리 안내](https://capcraft-zeta.vercel.app/privacy.html)
