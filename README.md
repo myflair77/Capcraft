@@ -1,8 +1,14 @@
 # Capcraft v1.2 개발
 
 Windows / Python 3.12 / PyQt6 WebEngine + Fabric.js 기반 캡처 편집기입니다.
-사용 중인 v1.1 배포본은 `dist/`에 유지합니다. 현재 소스의 최종 배포 빌드는 보류 중입니다.
-`dist-dev/`에 남아 있는 중간 검증 빌드는 최신 팝아웃 개선을 포함하지 않습니다.
+공개 배포: [다운로드 페이지](https://capcraft-zeta.vercel.app/) · [GitHub Releases](https://github.com/myflair77/Capcraft/releases).
+현재 1.2 공개 설치파일은 미서명 상태입니다.
+
+## Code signing policy
+
+SignPath Foundation 신청을 준비 중이며 아직 승인·서명되지 않았습니다.
+[서명 정책](https://capcraft-zeta.vercel.app/signing.html) · [개인정보 처리 안내](https://capcraft-zeta.vercel.app/privacy.html) · [신청 준비 문서](SIGNING.md).
+GitHub Actions의 `Windows installer build (unsigned)`는 수동 실행하는 검토용 빌드이며 자동 서명·릴리즈 공개를 하지 않습니다.
 
 ## 실행과 검증
 
