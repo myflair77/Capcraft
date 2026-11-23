@@ -46,15 +46,178 @@ SETTINGS_FILE = os.path.join(DATA_DIR, ".capcraft_settings.json")
 
 
 from capture_engine import CaptureEngine
+from mini_launcher import MiniLauncherWindow
+from single_instance import SingleInstanceBridge
+
+
+def read_settings_dict(path=None):
+    target = path or SETTINGS_FILE
+    if not os.path.exists(target):
+        return {}
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+class EditorMainWindow(QMainWindow):
+    """Main editor window that collapses back to the mini launcher on close."""
+
+    def __init__(self, on_close_to_launcher=None):
+        super().__init__()
+        self._on_close_to_launcher = on_close_to_launcher
+        self._force_close = False
+
+    def closeEvent(self, event):
+        if not self._force_close and self._on_close_to_launcher is not None:
+            event.ignore()
+            self.hide()
+            self._on_close_to_launcher()
+            return
+        event.accept()
+
+
+class AppController(QObject):
+    """Coordinates transitions between mini launcher, capture overlay, and editor window."""
+
+    def __init__(self, main_window, view, launcher, single_instance=None, settings_path=None):
+        super().__init__()
+        self.main_window = main_window
+        self.view = view
+        self.launcher = launcher
+        self.single_instance = single_instance
+        self.settings_path = settings_path or SETTINGS_FILE
+        self.backend = None
+        self.is_capturing = False
+        self.frontend_ready = False
+        self._pending_capture = None
+        self._pending_modal = None
+
+        if self.launcher is not None:
+            self.launcher.capture_requested.connect(self.start_capture_from_launcher)
+            self.launcher.editor_requested.connect(self.show_editor)
+            self.launcher.settings_requested.connect(lambda: self.show_editor(open_modal="settings"))
+            self.launcher.guide_requested.connect(lambda: self.show_editor(open_modal="guide"))
+            self.launcher.update_check_requested.connect(self._check_updates)
+            self.launcher.quit_requested.connect(self.quit_app)
+
+        if self.single_instance is not None:
+            self.single_instance.activated.connect(self.on_second_instance_activated)
+
+    def attach_backend(self, backend):
+        self.backend = backend
+
+    def _check_updates(self):
+        if self.backend is not None:
+            self.backend.check_updates()
+
+    def show_launcher(self):
+        if self.main_window is not None and self.main_window.isVisible():
+            self.main_window.hide()
+        if self.launcher is not None:
+            self.launcher.show_positioned()
+
+    def show_editor(self, open_modal=None):
+        if self.launcher is not None and self.launcher.isVisible():
+            self.launcher.hide()
+        if self.main_window is not None:
+            self.main_window.showNormal()
+            self.main_window.raise_()
+            self.main_window.activateWindow()
+        if open_modal:
+            if self.frontend_ready:
+                self._open_frontend_modal(open_modal)
+            else:
+                self._pending_modal = open_modal
+
+    def _open_frontend_modal(self, modal_name):
+        if self.view is None:
+            return
+        if modal_name == "settings":
+            self.view.page().runJavaScript("if(typeof openModal === 'function') openModal('modal_settings');")
+        elif modal_name == "guide":
+            self.view.page().runJavaScript("if(typeof openGuide === 'function') openGuide();")
+
+    def on_frontend_ready(self):
+        self.frontend_ready = True
+        if self._pending_capture is not None:
+            image_base64, auto_copied = self._pending_capture
+            self._pending_capture = None
+            self.deliver_captured_image(image_base64, auto_copied)
+        if self._pending_modal is not None:
+            modal_name = self._pending_modal
+            self._pending_modal = None
+            self._open_frontend_modal(modal_name)
+
+    def deliver_captured_image(self, image_base64, auto_copied=False):
+        if not image_base64:
+            return
+        if not self.frontend_ready:
+            self._pending_capture = (image_base64, auto_copied)
+            return
+        if self.view is None:
+            return
+        self.view.page().runJavaScript(f"window.receiveCapturedImage({json.dumps(image_base64)})")
+        if auto_copied:
+            self.view.page().runJavaScript(
+                "if(typeof showToast === 'function') showToast('캡처 이미지가 클립보드에 복사되었습니다.');"
+            )
+
+    def start_capture_from_launcher(self, mode):
+        if self.is_capturing or self.backend is None:
+            return
+        settings = read_settings_dict(self.settings_path)
+        quality = settings.get("set_cap_quality") or "normal"
+        resolved_mode = mode
+        if mode == "size":
+            try:
+                w = max(50, int(settings.get("set_cap_w") or 800))
+                h = max(50, int(settings.get("set_cap_h") or 600))
+            except (TypeError, ValueError):
+                w, h = 800, 600
+            resolved_mode = f"size_{w}_{h}"
+        self.backend.start_capture(resolved_mode, quality)
+
+    def sync_launcher_mode(self, mode):
+        if self.launcher is None or not mode:
+            return
+        base_mode = "size" if str(mode).startswith("size_") else str(mode)
+        self.launcher.set_selected_mode(base_mode)
+
+    def on_settings_saved(self, settings_dict):
+        if self.launcher is not None and isinstance(settings_dict, dict):
+            self.launcher.apply_theme(settings_dict.get("set_theme", "system"))
+
+    def on_second_instance_activated(self, _message=""):
+        if self.is_capturing:
+            return
+        self.show_launcher()
+
+    def quit_app(self):
+        if self.main_window is not None:
+            self.main_window._force_close = True
+            self.main_window.close()
+        if self.launcher is not None:
+            self.launcher._allow_close = True
+            self.launcher.close()
+        if self.single_instance is not None:
+            self.single_instance.close()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
 
 class Backend(QObject):
     ocr_finished = pyqtSignal(str, str)
     ocr_retry = pyqtSignal(str, str)
     ocr_formatted = pyqtSignal(str, str)
-    def __init__(self, engine, view):
+    def __init__(self, engine, view, controller=None):
         super().__init__()
         self.engine = engine
         self.view = view
+        self.controller = controller
+        self._capturing = False
         self.history_writer = HistoryWriter(HISTORY_FILE)
         from ocr_bridge import OCRService
         self.ocr_service = OCRService(self)
@@ -106,32 +269,90 @@ class Backend(QObject):
     def format_ocr_text(self, token, data):
         self.ocr_service.submit(token, data, format_only=True)
 
+    @pyqtSlot()
+    def frontend_ready(self):
+        if self.controller is not None:
+            self.controller.on_frontend_ready()
+
     @pyqtSlot(str, result=bool)
     def copy_text(self, text):
         QApplication.clipboard().setText(text)
         return True
 
+    def _copy_captured_image_to_clipboard(self, base64_data):
+        qimg = getattr(self.engine, "last_captured_qimage", None)
+        if qimg is not None and not qimg.isNull():
+            QApplication.clipboard().setImage(qimg)
+            return True
+        if base64_data:
+            return self.copy_to_clipboard(base64_data)
+        return False
+
     @pyqtSlot(str, str)
     def start_capture(self, mode, quality_mode):
-        # ★ 창을 완전히 숨긴 뒤 이벤트 큐 소진 후 스크린샷 촬영
-        self.view.window().hide()
-        QApplication.processEvents()   # 숨김 이벤트 즉시 처리
-        time.sleep(0.45)               # 창 애니메이션·컴포지터 반영 대기
-        QApplication.processEvents()   # 한 번 더 플러시
+        if self._capturing:
+            return
+        self._capturing = True
+        if self.controller is not None:
+            self.controller.is_capturing = True
+            self.controller.sync_launcher_mode(mode)
 
         try:
-            image_base64 = self.engine.run_capture(mode, quality_mode)
-        except Exception as e:
-            print(f"Capture failed: {e}")
-            image_base64 = None
+            # ★ 창을 완전히 숨긴 뒤 이벤트 큐 소진 후 스크린샷 촬영
+            main_win = self.view.window() if self.view is not None else None
+            launcher_win = self.controller.launcher if self.controller is not None else None
+            had_visible_window = False
+            if main_win is not None and main_win.isVisible():
+                main_win.hide()
+                had_visible_window = True
+            if launcher_win is not None and launcher_win.isVisible():
+                launcher_win.hide()
+                had_visible_window = True
 
-        # 캡처 후 메인 윈도우 복원
-        self.view.window().show()
-        self.view.window().raise_()
-        self.view.window().activateWindow()
+            if had_visible_window:
+                QApplication.processEvents()   # 숨김 이벤트 즉시 처리
+                time.sleep(0.35)               # 창 애니메이션·컴포지터 반영 대기
+                QApplication.processEvents()   # 한 번 더 플러시
 
-        if image_base64:
-            self.view.page().runJavaScript(f"window.receiveCapturedImage('{image_base64}')")
+            try:
+                image_base64 = self.engine.run_capture(mode, quality_mode)
+            except Exception as e:
+                print(f"Capture failed: {e}")
+                image_base64 = None
+
+            if image_base64:
+                settings = read_settings_dict(
+                    self.controller.settings_path if self.controller is not None else SETTINGS_FILE
+                )
+                auto_copy_enabled = settings.get("set_auto_copy", True)
+                auto_copied = False
+                if auto_copy_enabled:
+                    auto_copied = self._copy_captured_image_to_clipboard(image_base64)
+
+                if self.controller is not None:
+                    self.controller.show_editor()
+                    self.controller.deliver_captured_image(image_base64, auto_copied=auto_copied)
+                elif main_win is not None:
+                    main_win.show()
+                    main_win.raise_()
+                    main_win.activateWindow()
+                    self.view.page().runJavaScript(f"window.receiveCapturedImage({json.dumps(image_base64)})")
+                    if auto_copied:
+                        self.view.page().runJavaScript(
+                            "if(typeof showToast === 'function') showToast('캡처 이미지가 클립보드에 복사되었습니다.');"
+                        )
+            else:
+                if self.controller is not None:
+                    # 알캡처 동일 로직: 편집창/실행창 어디서 시작했든 ESC 취소 시 미니 실행창으로 전환
+                    self.controller.show_launcher()
+                elif main_win is not None:
+                    main_win.show()
+                    main_win.raise_()
+                    main_win.activateWindow()
+        finally:
+            self._capturing = False
+            if self.controller is not None:
+                self.controller.is_capturing = False
 
     @pyqtSlot(str)
     def copy_to_clipboard(self, base64_data):
@@ -141,9 +362,13 @@ class Backend(QObject):
                 base64_data = base64_data.split(",")[1]
             img_data = base64.b64decode(base64_data)
             image = QImage.fromData(img_data)
+            if image.isNull():
+                return False
             QApplication.clipboard().setImage(image)
+            return True
         except Exception as e:
             print("Copy error:", e)
+            return False
 
     @pyqtSlot(str)
     def print_image(self, base64_data):
@@ -267,6 +492,11 @@ class Backend(QObject):
         path = SETTINGS_FILE
         try:
             write_json(path, json_str, dict)
+            if self.controller is not None:
+                try:
+                    self.controller.on_settings_saved(json.loads(json_str))
+                except Exception:
+                    pass
         except Exception as e:
             print("Failed to save settings:", e)
 
@@ -393,9 +623,35 @@ def main():
     # Keep supported acceleration and the user's original UI sizing.
     app = QApplication(sys.argv)
 
-    main_window = QMainWindow()
+    direct_editor = any(
+        flag in sys.argv
+        for flag in (
+            '--editor',
+            '--diagnose-display',
+            '--isolate-history',
+            '--isolate-selection-ui',
+            '--isolate-guides',
+        )
+    )
+    camera_icon = create_camera_icon()
+    single_instance = None
+    launcher = None
+
+    if not direct_editor:
+        app.setQuitOnLastWindowClosed(False)
+        single_instance = SingleInstanceBridge(DATA_DIR)
+        if single_instance.try_notify_existing("ACTIVATE_LAUNCHER"):
+            sys.exit(0)
+        single_instance.start_listening()
+        initial_settings = read_settings_dict(SETTINGS_FILE)
+        launcher = MiniLauncherWindow(
+            icon=camera_icon,
+            theme_mode=initial_settings.get("set_theme", "system"),
+        )
+
+    main_window = EditorMainWindow()
     main_window.setWindowTitle(f"Capcraft v{APP_DISPLAY_VERSION}")
-    main_window.setWindowIcon(create_camera_icon())
+    main_window.setWindowIcon(camera_icon)
     
     # 모니터 화면 크기의 70%로 창 크기 설정 및 중앙 배치
     screen = app.primaryScreen()
@@ -422,7 +678,21 @@ def main():
     
     channel = QWebChannel()
     engine = CaptureEngine()
-    backend = Backend(engine, view)
+    controller = None
+    if not direct_editor:
+        controller = AppController(
+            main_window,
+            view,
+            launcher,
+            single_instance=single_instance,
+            settings_path=SETTINGS_FILE,
+        )
+        main_window._on_close_to_launcher = controller.show_launcher
+        app.aboutToQuit.connect(single_instance.close)
+
+    backend = Backend(engine, view, controller=controller)
+    if controller is not None:
+        controller.attach_backend(backend)
     
     channel.registerObject("pyBackend", backend)
     view.page().setWebChannel(channel)
@@ -451,7 +721,10 @@ def main():
     main_window.setCentralWidget(view)
     view.page().windowCloseRequested.connect(main_window.close)
     view.setZoomFactor(zoom_factor)
-    main_window.show()
+    if direct_editor:
+        main_window.show()
+    elif launcher is not None:
+        launcher.show_positioned()
     QTimer.singleShot(5000, backend.updates.check)
     
     sys.exit(app.exec())

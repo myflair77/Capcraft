@@ -31,12 +31,26 @@ def visible_window_bounds(hwnd):
     return win32gui.GetWindowRect(hwnd)
 
 
+def bgra_array_to_qimage(img_arr):
+    """Convert a BGRA/BGR numpy image array directly to an owned QImage without codec plugins."""
+    if img_arr is None or getattr(img_arr, 'size', 0) == 0:
+        return None
+    if img_arr.ndim != 3 or img_arr.shape[2] not in (3, 4):
+        return None
+    if img_arr.shape[2] == 3:
+        img_arr = cv2.cvtColor(img_arr, cv2.COLOR_BGR2BGRA)
+    contig = np.ascontiguousarray(img_arr)
+    h, w, c = contig.shape
+    return QImage(contig.data, w, h, w * c, QImage.Format.Format_ARGB32).copy()
+
+
 class CaptureOverlay(QWidget):
     def __init__(self, mode, quality_mode='normal'):
         super().__init__()
         self.mode = mode
         self.quality_mode = quality_mode
         self.result_img = None
+        self.result_qimage = None
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -442,6 +456,7 @@ class CaptureOverlay(QWidget):
         cv2.fillPoly(mask, poly_arr, 255)
         
         cropped[:, :, 3] = np.where(mask == 255, cropped[:, :, 3], 0)
+        self.result_qimage = bgra_array_to_qimage(cropped)
         
         if self.quality_mode == 'high':
             _, buffer = cv2.imencode('.png', cropped)
@@ -472,6 +487,7 @@ class CaptureOverlay(QWidget):
             self.close()
             return
         cropped = self.get_physical_crop(x, y, w, h)
+        self.result_qimage = bgra_array_to_qimage(cropped)
         if self.quality_mode == 'high':
             _, buffer = cv2.imencode('.png', cropped)
         else:
@@ -543,6 +559,7 @@ class CaptureEngine:
         pass
 
     def run_capture(self, mode, quality_mode='normal'):
+        self.last_captured_qimage = None
         overlay = CaptureOverlay(mode, quality_mode)
         overlay.show()
         overlay.raise_()
@@ -553,6 +570,7 @@ class CaptureEngine:
                 QApplication.processEvents()
                 time.sleep(0.01)
             result = overlay.result_img
+            self.last_captured_qimage = overlay.result_qimage
         finally:
             if hasattr(overlay, 'timer'):
                 overlay.timer.stop()
@@ -702,6 +720,7 @@ class CaptureEngine:
             full_image = first_frame
         elif fixed_bot > 0:
             full_image = np.vstack([full_image, last_clean[img_h - fixed_bot:, :]])
+        self.last_captured_qimage = bgra_array_to_qimage(full_image)
 
         if quality_mode == 'high':
             _, buffer = cv2.imencode('.png', full_image)

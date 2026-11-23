@@ -1006,6 +1006,27 @@
             stroke: #3b82f6;
         }
 
+        .lucide-magnet {
+            stroke: #94a3b8;
+            transition: stroke 0.15s ease;
+        }
+
+        #btn_toggle_smart_guides.active {
+            background: rgba(236, 72, 153, 0.12);
+            color: #db2777;
+            border-color: rgba(236, 72, 153, 0.35);
+        }
+
+        #btn_toggle_smart_guides.active .lucide-magnet {
+            stroke: #ec4899;
+        }
+
+        body.dark-mode #btn_toggle_smart_guides.active {
+            background: rgba(236, 72, 153, 0.22);
+            color: #f472b6;
+            border-color: rgba(244, 114, 182, 0.45);
+        }
+
         /* Green - Transform/Adjust */
         .lucide-eraser,
         .lucide-trash-2,
@@ -1142,6 +1163,9 @@
                         data-lucide="eraser"></i></span>지우개</button>
             <button class="btn-tool group-edit disabled" id="btn_tool_crop"><span class="icon"><i
                         data-lucide="crop"></i></span>자르기</button>
+            <button class="btn-tool active" id="btn_toggle_smart_guides" aria-pressed="true"
+                title="도형 이동 시 자석 정렬 및 가이드라인 켜기/끄기 (Alt+G, 이동 중 Alt로 일시 해제)"><span class="icon"><i
+                        data-lucide="magnet"></i></span>자석</button>
         </div>
         <div class="tool-group">
             <button id="btn_add_text_to_shape" style="display:none;"></button>
@@ -1551,6 +1575,12 @@
                 <input type="number" id="set_cap_w" value="800" min="100" style="width: 60px;"> <span
                     style="margin: 0 5px;">x</span> <input type="number" id="set_cap_h" value="600" min="100"
                     style="width: 60px;">
+            </div>
+            <div style="margin-top: 8px;">
+                <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="set_auto_copy" checked>
+                    <span>캡처 후 자동으로 클립보드에 복사 (편집 후에는 '복사' 버튼 사용)</span>
+                </label>
             </div>
         </div>
 
@@ -2670,6 +2700,45 @@
 
         const smartGuides = new URLSearchParams(location.search).has('isolate-guides')
             ? { clear() {} } : installSmartGuides(canvas);
+
+        function syncSmartGuidesButton() {
+            const chk = document.getElementById('set_smart_guides');
+            const btn = document.getElementById('btn_toggle_smart_guides');
+            if (!chk || !btn) return;
+            const enabled = !!chk.checked;
+            btn.classList.toggle('active', enabled);
+            btn.setAttribute('aria-pressed', String(enabled));
+        }
+
+        function toggleSmartGuides(showNotice = true) {
+            const chk = document.getElementById('set_smart_guides');
+            if (!chk) return;
+            chk.checked = !chk.checked;
+            chk.dispatchEvent(new Event('change'));
+            syncSmartGuidesButton();
+            if (window.pyBackend && typeof collectSettings === 'function') {
+                window.pyBackend.save_settings(JSON.stringify(collectSettings()));
+            }
+            if (showNotice && typeof showToast === 'function') {
+                showToast(chk.checked ? '자석 정렬 켜짐' : '자석 정렬 꺼짐');
+            }
+        }
+
+        document.getElementById('btn_toggle_smart_guides')?.addEventListener('click', () => toggleSmartGuides(true));
+        document.getElementById('set_smart_guides')?.addEventListener('change', () => {
+            syncSmartGuidesButton();
+        });
+        window.addEventListener('keydown', (e) => {
+            if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            if (String(e.key || '').toLowerCase() !== 'g') return;
+            const activeEl = document.activeElement;
+            const isInput = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
+            const activeObj = canvas ? canvas.getActiveObject() : null;
+            if (isInput || (activeObj && activeObj.isEditing)) return;
+            e.preventDefault();
+            toggleSmartGuides(true);
+        });
+        syncSmartGuidesButton();
 
         // Fabric 5 renders exports through renderCanvas(), which cancels the pending
         // visible frame. Preserve that request across thumbnail/export rendering.
@@ -5595,6 +5664,9 @@
                 
                 const rawActive = canvas ? canvas.getActiveObject() : null;
                 const activeObj = rawActive ? (rawActive.linkedShape || rawActive) : null;
+                if (!activeObj && (targetColorBtn === 'stroke' || targetColorBtn === 'fill')) {
+                    if (typeof activateShapeToolFromSubPanel === 'function') activateShapeToolFromSubPanel();
+                }
                 if (activeObj && !activeObj.isPopout) {
                     const isShape = ['rect', 'ellipse', 'polygon', 'line', 'path', 'polyline', 'group', 'circle'].includes(activeObj.type) || (typeof isLineOrArrow === 'function' && isLineOrArrow(activeObj));
                     const isPen = activeObj.type === 'path' && !activeObj.isArrowBody;
@@ -5880,7 +5952,7 @@
 
         function collectSettings() {
             const settingsIds = [
-                'set_theme', 'set_smart_guides', 'set_smart_guide_distance', 'set_cap_w', 'set_cap_h', 'set_cap_quality',
+                'set_theme', 'set_smart_guides', 'set_smart_guide_distance', 'set_cap_w', 'set_cap_h', 'set_cap_quality', 'set_auto_copy',
                 'set_txt_size', 'set_txt_b_chk', 'set_txt_i_chk', 'set_txt_u_chk', 'set_text_align',
                 'set_txt_bg_opacity', 'set_pen_ballpoint_weight',
                 'set_pen_highlighter_weight', 'set_pen_highlighter_opacity', 'set_pen_bg_opacity',
@@ -6109,6 +6181,7 @@
 
             // ── 테마 적용 ────────────────────────────────────────────
             applyTheme(document.getElementById('set_theme').value);
+            if (typeof syncSmartGuidesButton === 'function') syncSmartGuidesButton();
 
             // 백엔드에 설정 저장
             if (window.pyBackend) {
@@ -6541,6 +6614,7 @@
                                     }
                                 } catch (e) { }
                             }
+                            if (pyBackend.frontend_ready) pyBackend.frontend_ready();
                         });
                     }
                 });
@@ -6616,6 +6690,7 @@
 
         window.receiveCapturedImage = function (base64Data) {
             if (base64Data) {
+                if (typeof cancelRecentLoad === 'function') cancelRecentLoad();
                 isHistoryAction = true;
                 if (hasActiveCanvas) {
                     pushCurrentToRecent(); // 이전 작업 보존
@@ -7235,6 +7310,7 @@
         document.querySelectorAll('.btn-tool.group-edit').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (!hasActiveCanvas) return;
+                if (typeof clearHoverPreviewState === 'function') clearHoverPreviewState();
                 if (multiClickDrawing) finalizeMultiClickDrawing();
 
                 if (btn.classList.contains('active')) {
@@ -10394,6 +10470,228 @@
                 canvas.requestRenderAll(); saveHistory(); deactivateActiveTool();
             }
         });
+
+        // ==========================================
+        // 상단 8개 편집 도구 호버 시 서브툴바 미리보기 & 내부 조작 시 자동 활성화
+        // ==========================================
+        const HOVER_TOOL_MAP = {
+            btn_tool_text:   { tool: 'text',   panelId: 'panel_text' },
+            btn_tool_pen:    { tool: 'pen',    panelId: 'panel_pen' },
+            btn_tool_shape:  { tool: 'shape',  panelId: 'panel_shape' },
+            btn_tool_emoji:  { tool: 'emoji',  panelId: 'panel_emoji' },
+            btn_tool_image:  { tool: 'image',  panelId: 'panel_image' },
+            btn_tool_mosaic: { tool: 'mosaic', panelId: 'panel_mosaic' },
+            btn_tool_eraser: { tool: 'eraser', panelId: 'panel_eraser' },
+            btn_tool_crop:   { tool: 'crop',   panelId: 'panel_crop' }
+        };
+        const PANEL_TO_TOOL_META = {};
+        Object.entries(HOVER_TOOL_MAP).forEach(([btnId, meta]) => {
+            PANEL_TO_TOOL_META[meta.panelId] = { btnId, tool: meta.tool, panelId: meta.panelId };
+        });
+
+        let hoverPreviewTimer = null;
+        let hoverPreviewActive = false;
+        let hoverPreviewTool = null;
+        let hoverSavedState = null;
+
+        function clearHoverPreviewState() {
+            if (hoverPreviewTimer) { clearTimeout(hoverPreviewTimer); hoverPreviewTimer = null; }
+            hoverPreviewActive = false;
+            hoverPreviewTool = null;
+            hoverSavedState = null;
+        }
+
+        function restoreHoverPreview() {
+            if (!hoverPreviewActive || !hoverSavedState) return;
+            const sub = document.getElementById('sub_toolbar');
+            if (!sub) { clearHoverPreviewState(); return; }
+            const saved = hoverSavedState;
+            clearHoverPreviewState();
+            sub.style.display = saved.subDisplay;
+            if (saved.subLeft) sub.style.left = saved.subLeft;
+            if (saved.subTop) sub.style.top = saved.subTop;
+            document.querySelectorAll('.sub-panel').forEach(p => {
+                p.classList.toggle('active', saved.activePanelIds.includes(p.id));
+            });
+        }
+
+        function scheduleHoverRestore() {
+            if (!hoverPreviewActive) return;
+            if (hoverPreviewTimer) clearTimeout(hoverPreviewTimer);
+            hoverPreviewTimer = setTimeout(() => {
+                hoverPreviewTimer = null;
+                if (!hoverPreviewActive) return;
+                const palette = document.getElementById('color_palette');
+                const paletteOpen = palette && palette.style.display && palette.style.display !== 'none';
+                const sub = document.getElementById('sub_toolbar');
+                const activeEl = document.activeElement;
+                const focusedInSub = sub && activeEl && sub.contains(activeEl) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
+                if (paletteOpen || focusedInSub) return;
+                restoreHoverPreview();
+            }, 220);
+        }
+
+        function cancelHoverRestore() {
+            if (hoverPreviewTimer) { clearTimeout(hoverPreviewTimer); hoverPreviewTimer = null; }
+        }
+
+        function openToolSubPanelPreview(btn) {
+            if (!hasActiveCanvas || btn.classList.contains('disabled')) return;
+            if (isDrawing || multiClickDrawing) return;
+            const meta = HOVER_TOOL_MAP[btn.id];
+            if (!meta) return;
+
+            cancelHoverRestore();
+            const sub = document.getElementById('sub_toolbar');
+            const targetPanel = document.getElementById(meta.panelId);
+            if (!sub || !targetPanel) return;
+
+            // 이미 정식으로 활성화된 도구 위를 다시 지나가는 경우: 호버 미리보기 중이었다면 원래 상태로 복귀
+            if (activeTool === meta.tool && !hoverPreviewActive && targetPanel.classList.contains('active') && sub.style.display === 'block') {
+                return;
+            }
+            if (!hoverPreviewActive) {
+                hoverSavedState = {
+                    subDisplay: sub.style.display || 'none',
+                    subLeft: sub.style.left || '',
+                    subTop: sub.style.top || '',
+                    activePanelIds: Array.from(document.querySelectorAll('.sub-panel.active')).map(p => p.id)
+                };
+            }
+            hoverPreviewActive = true;
+            hoverPreviewTool = meta.tool;
+
+            sub.style.display = 'block';
+            document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+            targetPanel.classList.add('active');
+            if (meta.tool === 'shape') {
+                const optBox = document.getElementById('shape_options_container');
+                if (optBox && optBox.childElementCount === 0 && typeof updateShapeOptions === 'function') {
+                    updateShapeOptions();
+                }
+            }
+            updateSubToolbarPosition(btn);
+            requestAnimationFrame(() => updateSubToolbarPosition(btn));
+        }
+
+        function activateToolFromSubPanel(panelId) {
+            const meta = PANEL_TO_TOOL_META[panelId];
+            if (!meta || !hasActiveCanvas) return;
+            const btn = document.getElementById(meta.btnId);
+            if (!btn || btn.classList.contains('disabled')) return;
+
+            const wasHoverPreview = hoverPreviewActive && hoverPreviewTool === meta.tool;
+            // 호버 미리보기가 아닌 상태에서 캔버스에 기존 개체가 선택되어 있다면 속성 편집을 방해하지 않음
+            if (!wasHoverPreview && canvas && canvas.getActiveObject()) return;
+
+            clearHoverPreviewState();
+            if (activeTool === meta.tool && btn.classList.contains('active')) return;
+
+            if (multiClickDrawing) finalizeMultiClickDrawing();
+            if (canvas && canvas.getActiveObject()) {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+            }
+            if (activeTool === 'crop' && meta.tool !== 'crop' && typeof hideCropOverlay === 'function') {
+                hideCropOverlay();
+            }
+
+            document.querySelectorAll('.btn-tool.group-edit').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeTool = meta.tool;
+            canvas.isDrawingMode = false;
+            document.getElementById('capture_overlay').style.display = 'none';
+            if (meta.tool !== 'emoji') {
+                document.getElementById('emoji_popup').style.display = 'none';
+            }
+
+            const sub = document.getElementById('sub_toolbar');
+            if (sub) sub.style.display = 'block';
+            document.querySelectorAll('.sub-panel').forEach(p => p.classList.toggle('active', p.id === meta.panelId));
+
+            if (meta.tool === 'shape') {
+                const typeInput = document.getElementById('shape_type');
+                const currentType = (typeInput && typeInput.value) || lastUsedShapeType || 'rect';
+                if (typeInput) typeInput.value = currentType;
+                const shapeGroup = document.getElementById('shape_type_group');
+                if (shapeGroup && !shapeGroup.querySelector('button.active')) {
+                    const matchBtn = shapeGroup.querySelector(`button[data-val="${currentType}"]`);
+                    if (matchBtn) matchBtn.classList.add('active');
+                }
+            } else if (meta.tool === 'pen') {
+                if (typeof updatePenBrush === 'function') updatePenBrush();
+            } else if (meta.tool === 'emoji') {
+                document.getElementById('emoji_popup').style.display = 'block';
+            } else if (meta.tool === 'image') {
+                if (pendingImageData) {
+                    preloadPendingImage();
+                    updateImagePanelUI(true);
+                } else {
+                    updateImagePanelUI(false);
+                }
+            } else if (meta.tool === 'mosaic') {
+                if (document.getElementById('mosaic_type')?.value === 'freehand') {
+                    canvas.isDrawingMode = true;
+                    if (!canvas.freeDrawingBrush || canvas.freeDrawingBrush.type !== 'pencil') {
+                        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                    }
+                    canvas.freeDrawingBrush.color = 'rgba(128, 128, 128, 0.5)';
+                    canvas.freeDrawingBrush.width = parseInt(document.getElementById('mosaic_weight')?.value) || 30;
+                }
+            } else if (meta.tool === 'crop') {
+                if (typeof initCropOverlay === 'function') initCropOverlay();
+            }
+
+            if (typeof updateObjectSelectability === 'function') updateObjectSelectability();
+            if (typeof updateGlobalCursor === 'function') updateGlobalCursor();
+            updateSubToolbarPosition(btn);
+        }
+
+        function activateShapeToolFromSubPanel() {
+            activateToolFromSubPanel('panel_shape');
+        }
+
+        (function bindToolbarHoverAndSubPanelActivation() {
+            Object.keys(HOVER_TOOL_MAP).forEach(btnId => {
+                const btn = document.getElementById(btnId);
+                if (!btn) return;
+                btn.addEventListener('mouseenter', () => openToolSubPanelPreview(btn));
+                btn.addEventListener('mouseleave', () => scheduleHoverRestore());
+            });
+
+            const sub = document.getElementById('sub_toolbar');
+            if (sub) {
+                sub.addEventListener('mouseenter', cancelHoverRestore);
+                sub.addEventListener('mouseleave', scheduleHoverRestore);
+
+                const findPanelId = (target) => {
+                    const panel = target && target.closest ? target.closest('.sub-panel') : null;
+                    return panel && PANEL_TO_TOOL_META[panel.id] ? panel.id : null;
+                };
+
+                sub.addEventListener('click', (e) => {
+                    const panelId = findPanelId(e.target);
+                    if (!panelId) return;
+                    if (e.target.closest('button, input, label, select, .color-btn, #emoji_preview')) {
+                        activateToolFromSubPanel(panelId);
+                    }
+                });
+                sub.addEventListener('change', (e) => {
+                    const panelId = findPanelId(e.target);
+                    if (panelId) activateToolFromSubPanel(panelId);
+                });
+                sub.addEventListener('input', (e) => {
+                    const panelId = findPanelId(e.target);
+                    if (panelId) activateToolFromSubPanel(panelId);
+                });
+            }
+
+            const palette = document.getElementById('color_palette');
+            if (palette) {
+                palette.addEventListener('mouseenter', cancelHoverRestore);
+                palette.addEventListener('mouseleave', scheduleHoverRestore);
+            }
+        })();
 
         // 커스텀 버튼 그룹 이벤트 바인딩
         document.querySelectorAll('.custom-select-group').forEach(group => {
