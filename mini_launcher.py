@@ -162,6 +162,7 @@ class MiniLauncherWindow(QMainWindow):
     settings_requested = pyqtSignal()
     guide_requested = pyqtSignal()
     update_check_requested = pyqtSignal()
+    cancel_capture_requested = pyqtSignal()
     quit_requested = pyqtSignal()
 
     def __init__(self, icon: QIcon | None = None, theme_mode: str = "system", parent=None):
@@ -373,6 +374,13 @@ class MiniLauncherWindow(QMainWindow):
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancel_capture_requested.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def closeEvent(self, event):
         if not self._allow_close:

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "download_page": "https://capcraft-zeta.vercel.app/",
-  "installer_url": "https://github.com/myflair77/Capcraft/releases/download/v1.2.2/Capcraft_Setup_v1.2.2.exe",
-  "sha256": "d3d9a6dfffc3b5d702c7a20cd9bbae2afd31e24219f49bf15d2285842cc11eca",
+  "installer_url": "https://github.com/myflair77/Capcraft/releases/download/v1.2.3/Capcraft_Setup_v1.2.3.exe",
+  "sha256": "b47cab1d1f4607a1d0b15b11a020f76062099bfab72b40aff2febeada22b551a",
   "size": "610 MB",
-  "notes": "앱 내 원클릭 업데이트('지금 업데이트' 버튼), 미니 실행창(단일 인스턴스), 캡처 직후 자동 복사, 편집창 비율 자동 맞춤·좌우 폭맞춤, 상단 툴바 호버 미리보기 및 자석 토글 버튼 지원"
+  "notes": "실행 즉시 캡처 대기 진입(십자 가이드라인 즉시 표시), 캡처 대기 중 미니 실행창 모드 즉시 전환, 미니 실행창 포커스 상태에서도 ESC로 캡처 대기 해제"
 }

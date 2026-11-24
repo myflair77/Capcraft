@@ -203,6 +203,7 @@ class AppController(QObject):
             self.launcher.settings_requested.connect(lambda: self.show_editor(open_modal="settings"))
             self.launcher.guide_requested.connect(lambda: self.show_editor(open_modal="guide"))
             self.launcher.update_check_requested.connect(self._check_updates)
+            self.launcher.cancel_capture_requested.connect(self.cancel_active_capture)
             self.launcher.quit_requested.connect(self.quit_app)
 
         if self.single_instance is not None:
@@ -234,7 +235,22 @@ class AppController(QObject):
 
         QTimer.singleShot(120, lambda: fit_editor_zoom_to_window(self.view, on_done=_mark_done))
 
+    def _request_overlay_switch(self, action, payload=None):
+        engine = self.backend.engine if self.backend is not None else None
+        overlay = getattr(engine, "active_overlay", None)
+        if overlay is not None and overlay.isVisible():
+            overlay.switch_request = (action, payload)
+            overlay.close()
+            return True
+        return False
+
+    def cancel_active_capture(self):
+        if self.is_capturing:
+            self._request_overlay_switch("cancel", None)
+
     def show_editor(self, open_modal=None):
+        if self.is_capturing and self._request_overlay_switch("editor", open_modal):
+            return
         if self.launcher is not None and self.launcher.isVisible():
             self.launcher.hide()
         if self.main_window is not None:
@@ -288,7 +304,7 @@ class AppController(QObject):
             )
 
     def start_capture_from_launcher(self, mode):
-        if self.is_capturing or self.backend is None:
+        if self.backend is None:
             return
         settings = read_settings_dict(self.settings_path)
         quality = settings.get("set_cap_quality") or "normal"
@@ -300,6 +316,9 @@ class AppController(QObject):
             except (TypeError, ValueError):
                 w, h = 800, 600
             resolved_mode = f"size_{w}_{h}"
+        if self.is_capturing:
+            self._request_overlay_switch("mode", resolved_mode)
+            return
         self.backend.start_capture(resolved_mode, quality)
 
     def sync_launcher_mode(self, mode):
@@ -314,10 +333,15 @@ class AppController(QObject):
 
     def on_second_instance_activated(self, _message=""):
         if self.is_capturing:
+            if self.launcher is not None:
+                self.launcher.show_positioned()
             return
-        self.show_launcher()
+        mode = self.launcher.selected_mode if self.launcher is not None else "manual"
+        self.start_capture_from_launcher(mode)
 
     def quit_app(self):
+        if self.is_capturing and self._request_overlay_switch("quit", None):
+            return
         if self.main_window is not None:
             self.main_window._force_close = True
             self.main_window.close()
@@ -421,64 +445,109 @@ class Backend(QObject):
         self._capturing = True
         if self.controller is not None:
             self.controller.is_capturing = True
-            self.controller.sync_launcher_mode(mode)
 
+        post_action = None
         try:
-            # ★ 창을 완전히 숨긴 뒤 이벤트 큐 소진 후 스크린샷 촬영
+            cur_mode = mode
             main_win = self.view.window() if self.view is not None else None
             launcher_win = self.controller.launcher if self.controller is not None else None
-            had_visible_window = False
-            if main_win is not None and main_win.isVisible():
-                main_win.hide()
-                had_visible_window = True
-            if launcher_win is not None and launcher_win.isVisible():
-                launcher_win.hide()
-                had_visible_window = True
+            cached_snapshot = None
 
-            if had_visible_window:
-                QApplication.processEvents()   # 숨김 이벤트 즉시 처리
-                time.sleep(0.35)               # 창 애니메이션·컴포지터 반영 대기
-                QApplication.processEvents()   # 한 번 더 플러시
-
-            try:
-                image_base64 = self.engine.run_capture(mode, quality_mode)
-            except Exception as e:
-                print(f"Capture failed: {e}")
-                image_base64 = None
-
-            if image_base64:
-                settings = read_settings_dict(
-                    self.controller.settings_path if self.controller is not None else SETTINGS_FILE
-                )
-                auto_copy_enabled = settings.get("set_auto_copy", True)
-                auto_copied = False
-                if auto_copy_enabled:
-                    auto_copied = self._copy_captured_image_to_clipboard(image_base64)
-
+            while True:
                 if self.controller is not None:
-                    self.controller.show_editor()
-                    self.controller.deliver_captured_image(image_base64, auto_copied=auto_copied)
-                elif main_win is not None:
-                    main_win.show()
-                    main_win.raise_()
-                    main_win.activateWindow()
-                    self.view.page().runJavaScript(f"window.receiveCapturedImage({json.dumps(image_base64)})")
-                    if auto_copied:
-                        self.view.page().runJavaScript(
-                            "if(typeof showToast === 'function') showToast('캡처 이미지가 클립보드에 복사되었습니다.');"
+                    self.controller.sync_launcher_mode(cur_mode)
+
+                # 첫 진입 시에만 창을 숨기고 배경 스냅샷 촬영; 모드 전환 시에는 스냅샷 재사용으로 지연 제거
+                if cached_snapshot is None:
+                    had_visible_window = False
+                    if main_win is not None and main_win.isVisible():
+                        main_win.hide()
+                        had_visible_window = True
+                    if launcher_win is not None and launcher_win.isVisible():
+                        launcher_win.hide()
+                        had_visible_window = True
+
+                    if had_visible_window:
+                        QApplication.processEvents()   # 숨김 이벤트 즉시 처리
+                        time.sleep(0.35)               # 창 애니메이션·컴포지터 반영 대기
+                        QApplication.processEvents()   # 한 번 더 플러시
+
+                try:
+                    try:
+                        image_base64 = self.engine.run_capture(
+                            cur_mode,
+                            quality_mode,
+                            toolbar_widget=launcher_win,
+                            preloaded_screen_data=cached_snapshot,
                         )
-            else:
-                if self.controller is not None:
-                    # 알캡처 동일 로직: 편집창/실행창 어디서 시작했든 ESC 취소 시 미니 실행창으로 전환
-                    self.controller.show_launcher()
-                elif main_win is not None:
-                    main_win.show()
-                    main_win.raise_()
-                    main_win.activateWindow()
+                    except TypeError:
+                        image_base64 = self.engine.run_capture(cur_mode, quality_mode)
+                except Exception as e:
+                    print(f"Capture failed: {e}")
+                    image_base64 = None
+
+                switch_req = getattr(self.engine, "last_switch_request", None)
+                if switch_req is not None:
+                    action, payload = switch_req
+                    if action == "mode" and payload:
+                        cur_mode = payload
+                        cached_snapshot = getattr(self.engine, "last_screen_snapshot", None)
+                        continue
+                    if action == "cancel":
+                        post_action = ("cancelled", None)
+                        break
+                    post_action = (action, payload)
+                    break
+
+                if image_base64:
+                    settings = read_settings_dict(
+                        self.controller.settings_path if self.controller is not None else SETTINGS_FILE
+                    )
+                    auto_copy_enabled = settings.get("set_auto_copy", True)
+                    auto_copied = False
+                    if auto_copy_enabled:
+                        auto_copied = self._copy_captured_image_to_clipboard(image_base64)
+                    post_action = ("captured", (image_base64, auto_copied))
+                else:
+                    post_action = ("cancelled", None)
+                break
         finally:
             self._capturing = False
             if self.controller is not None:
                 self.controller.is_capturing = False
+
+        if post_action is None:
+            return
+        action, payload = post_action
+        main_win = self.view.window() if self.view is not None else None
+        if action == "captured":
+            image_base64, auto_copied = payload
+            if self.controller is not None:
+                self.controller.show_editor()
+                self.controller.deliver_captured_image(image_base64, auto_copied=auto_copied)
+            elif main_win is not None:
+                main_win.show()
+                main_win.raise_()
+                main_win.activateWindow()
+                self.view.page().runJavaScript(f"window.receiveCapturedImage({json.dumps(image_base64)})")
+                if auto_copied:
+                    self.view.page().runJavaScript(
+                        "if(typeof showToast === 'function') showToast('캡처 이미지가 클립보드에 복사되었습니다.');"
+                    )
+        elif action == "editor":
+            if self.controller is not None:
+                self.controller.show_editor(open_modal=payload)
+        elif action == "quit":
+            if self.controller is not None:
+                QTimer.singleShot(0, self.controller.quit_app)
+        else:
+            if self.controller is not None:
+                # 알캡처 동일 로직: ESC 취소 시 미니 실행창만 남김
+                self.controller.show_launcher()
+            elif main_win is not None:
+                main_win.show()
+                main_win.raise_()
+                main_win.activateWindow()
 
     @pyqtSlot(str)
     def copy_to_clipboard(self, base64_data):
@@ -851,8 +920,9 @@ def main():
         position_window_on_active_screen(main_window, ratio=0.7)
         main_window.show()
         view.loadFinished.connect(lambda _ok: QTimer.singleShot(80, lambda: fit_editor_zoom_to_window(view)))
-    elif launcher is not None:
-        launcher.show_positioned()
+    elif controller is not None:
+        # 알캡처 동일 로직: 실행 즉시 직접지정 캡처 대기상태(가로·세로 가이드라인) + 상단 모드 전환 실행창 표시
+        QTimer.singleShot(50, lambda: controller.start_capture_from_launcher("manual"))
     QTimer.singleShot(5000, backend.updates.check)
     
     sys.exit(app.exec())

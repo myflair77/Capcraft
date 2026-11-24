@@ -45,12 +45,14 @@ def bgra_array_to_qimage(img_arr):
 
 
 class CaptureOverlay(QWidget):
-    def __init__(self, mode, quality_mode='normal'):
+    def __init__(self, mode, quality_mode='normal', toolbar_widget=None, preloaded_screen_data=None):
         super().__init__()
         self.mode = mode
         self.quality_mode = quality_mode
         self.result_img = None
         self.result_qimage = None
+        self.toolbar_widget = toolbar_widget
+        self.switch_request = None
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -65,68 +67,79 @@ class CaptureOverlay(QWidget):
             self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         # ── 스크린 데이터 수집 ──────────────────────────────────────────────
-        app = QApplication.instance()
-        screens = app.screens()
+        if preloaded_screen_data is not None:
+            self.v_left, self.v_top, self.v_width, self.v_height, self.screen_data = preloaded_screen_data
+            self.setGeometry(self.v_left, self.v_top, self.v_width, self.v_height)
+        else:
 
-        # 전체 가상 데스크톱 (논리 픽셀)
-        v_left   = min(s.geometry().left()   for s in screens)
-        v_top    = min(s.geometry().top()    for s in screens)
-        v_right  = max(s.geometry().right()  for s in screens)
-        v_bottom = max(s.geometry().bottom() for s in screens)
+            app = QApplication.instance()
+            screens = app.screens()
 
-        self.v_left   = v_left
-        self.v_top    = v_top
-        self.v_width  = v_right  - v_left + 1
-        self.v_height = v_bottom - v_top + 1
+            # 전체 가상 데스크톱 (논리 픽셀)
+            v_left   = min(s.geometry().left()   for s in screens)
+            v_top    = min(s.geometry().top()    for s in screens)
+            v_right  = max(s.geometry().right()  for s in screens)
+            v_bottom = max(s.geometry().bottom() for s in screens)
 
-        self.setGeometry(v_left, v_top, self.v_width, self.v_height)
+            self.v_left   = v_left
+            self.v_top    = v_top
+            self.v_width  = v_right  - v_left + 1
+            self.v_height = v_bottom - v_top + 1
 
-        self.screen_data = []
+            self.setGeometry(v_left, v_top, self.v_width, self.v_height)
 
-        native_monitors = {}
-        for handle, _, _ in win32api.EnumDisplayMonitors():
-            info = win32api.GetMonitorInfo(handle)
-            native_monitors[info['Device']] = info['Monitor']
+            self.screen_data = []
 
-        with mss.mss() as sct:
-            for screen in screens:
-                lr  = screen.geometry()   # Qt 논리 좌표: 물리 픽셀과는 dpr만큼 차이가 남
-                dpr = screen.devicePixelRatio()
+            native_monitors = {}
+            for handle, _, _ in win32api.EnumDisplayMonitors():
+                info = win32api.GetMonitorInfo(handle)
+                native_monitors[info['Device']] = info['Monitor']
 
-                bounds = native_monitors.get(screen.name())
-                if bounds:
-                    left, top, right, bottom = bounds
-                    p_mon = dict(left=left, top=top, width=right-left, height=bottom-top)
-                else:
-                    p_mon = dict(left=lr.x(), top=lr.y(),
-                                 width=round(lr.width()*dpr), height=round(lr.height()*dpr))
+            with mss.mss() as sct:
+                for screen in screens:
+                    lr  = screen.geometry()   # Qt 논리 좌표: 물리 픽셀과는 dpr만큼 차이가 남
+                    dpr = screen.devicePixelRatio()
 
-                try:
-                    sct_img = sct.grab(p_mon)
-                    img_arr = np.array(sct_img)  # BGRA
+                    bounds = native_monitors.get(screen.name())
+                    if bounds:
+                        left, top, right, bottom = bounds
+                        p_mon = dict(left=left, top=top, width=right-left, height=bottom-top)
+                    else:
+                        p_mon = dict(left=lr.x(), top=lr.y(),
+                                     width=round(lr.width()*dpr), height=round(lr.height()*dpr))
+
+                    try:
+                        sct_img = sct.grab(p_mon)
+                        img_arr = np.array(sct_img)  # BGRA
                     
-                    h, w, c = img_arr.shape
-                    img_arr_copy = img_arr.copy()
-                    qimg = QImage(img_arr_copy.data, w, h, w * c, QImage.Format.Format_ARGB32)
-                    display_pixmap = QPixmap.fromImage(qimg)
-                    display_pixmap.setDevicePixelRatio(dpr)
-                except Exception:
-                    p_mon   = None
-                    img_arr = None
-                    display_pixmap = QPixmap(int(lr.width() * dpr), int(lr.height() * dpr))
-                    display_pixmap.fill(Qt.GlobalColor.black)
-                    display_pixmap.setDevicePixelRatio(dpr)
+                        h, w, c = img_arr.shape
+                        img_arr_copy = img_arr.copy()
+                        qimg = QImage(img_arr_copy.data, w, h, w * c, QImage.Format.Format_ARGB32)
+                        display_pixmap = QPixmap.fromImage(qimg)
+                        display_pixmap.setDevicePixelRatio(dpr)
+                    except Exception:
+                        p_mon   = None
+                        img_arr = None
+                        display_pixmap = QPixmap(int(lr.width() * dpr), int(lr.height() * dpr))
+                        display_pixmap.fill(Qt.GlobalColor.black)
+                        display_pixmap.setDevicePixelRatio(dpr)
 
-                self.screen_data.append({
-                    'logical_rect':  lr,
-                    'dpr':           dpr,
-                    'physical_rect': p_mon,
-                    'pixmap':        display_pixmap,
-                    'img_arr':       img_arr,
-                })
+                    self.screen_data.append({
+                        'logical_rect':  lr,
+                        'dpr':           dpr,
+                        'physical_rect': p_mon,
+                        'pixmap':        display_pixmap,
+                        'img_arr':       img_arr,
+                    })
+
 
         self.start_pos            = None
-        self.current_pos          = None
+        try:
+            px0, py0 = win32api.GetCursorPos()
+            lx0, ly0 = self.physical_to_logical(px0, py0)
+            self.current_pos = QPoint(int(lx0), int(ly0))
+        except Exception:
+            self.current_pos = None
         self.drag_start_pos       = None
         self.is_dragging          = False
         self.poly_points          = []
@@ -180,6 +193,16 @@ class CaptureOverlay(QWidget):
                 return glx - self.v_left, gly - self.v_top
         return px - self.v_left, py - self.v_top
 
+    def _cursor_over_toolbar(self, px, py):
+        tb = self.toolbar_widget
+        if tb is None or not tb.isVisible():
+            return False
+        try:
+            l, t, r, b = win32gui.GetWindowRect(int(tb.winId()))
+            return l <= px <= r and t <= py <= b
+        except Exception:
+            return False
+
     # ─── 폴링 ───────────────────────────────────────────────────────────────
     def poll_mouse(self):
         if win32api.GetAsyncKeyState(win32con.VK_ESCAPE) < 0:
@@ -190,6 +213,9 @@ class CaptureOverlay(QWidget):
         except:
             return
 
+        if self._cursor_over_toolbar(px, py):
+            self.lbutton_down = False
+            return
         lx, ly = self.physical_to_logical(px, py)
         self.current_pos = QPoint(int(lx), int(ly))
 
@@ -397,6 +423,8 @@ class CaptureOverlay(QWidget):
             if (event.pos() - self.drag_start_pos).manhattanLength() > 5:
                 self.is_dragging = True
                 self.start_pos = self.drag_start_pos
+                if self.toolbar_widget is not None and self.toolbar_widget.isVisible():
+                    self.toolbar_widget.hide()
         self.update()
 
     def keyPressEvent(self, event):
@@ -558,26 +586,48 @@ class CaptureEngine:
     def __init__(self):
         pass
 
-    def run_capture(self, mode, quality_mode='normal'):
+    def run_capture(self, mode, quality_mode='normal', toolbar_widget=None, preloaded_screen_data=None):
         self.last_captured_qimage = None
-        overlay = CaptureOverlay(mode, quality_mode)
+        self.last_switch_request = None
+        overlay = CaptureOverlay(mode, quality_mode, toolbar_widget=toolbar_widget, preloaded_screen_data=preloaded_screen_data)
+        self.active_overlay = overlay
+        self.last_screen_snapshot = (
+            overlay.v_left,
+            overlay.v_top,
+            overlay.v_width,
+            overlay.v_height,
+            overlay.screen_data,
+        )
         overlay.show()
         overlay.raise_()
         overlay.activateWindow()
+        if toolbar_widget is not None:
+            toolbar_widget.show_positioned()
 
         try:
             while overlay.isVisible():
+                if win32api.GetAsyncKeyState(win32con.VK_ESCAPE) < 0:
+                    overlay.close()
+                    break
                 QApplication.processEvents()
                 time.sleep(0.01)
             result = overlay.result_img
-            self.last_captured_qimage = overlay.result_qimage
+            self.last_captured_qimage = getattr(overlay, 'result_qimage', None)
+            switch_req = getattr(overlay, 'switch_request', None)
+            self.last_switch_request = switch_req if isinstance(switch_req, tuple) else None
         finally:
+            self.active_overlay = None
             if hasattr(overlay, 'timer'):
                 overlay.timer.stop()
             overlay.close()
             overlay.deleteLater()
 
+        if self.last_switch_request is not None:
+            return None
+
         if mode == 'scroll' and isinstance(result, QPoint):
+            if toolbar_widget is not None and toolbar_widget.isVisible():
+                toolbar_widget.hide()
             time.sleep(0.3) # 오버레이가 완전히 닫힐 때까지 대기
             return self.run_scroll_capture(result, quality_mode)
 
