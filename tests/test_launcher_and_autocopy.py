@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from capture_engine import bgra_array_to_qimage
-from main import AppController, Backend, EditorMainWindow
+from main import AppController, Backend, EditorMainWindow, compute_optimal_editor_zoom
 from mini_launcher import MiniLauncherWindow
 from single_instance import SingleInstanceBridge
 
@@ -35,8 +35,11 @@ class FakePage:
     def __init__(self):
         self.scripts = []
 
-    def runJavaScript(self, script):
+    def runJavaScript(self, script, *args):
         self.scripts.append(script)
+        cb = args[-1] if args and callable(args[-1]) else None
+        if cb is not None:
+            cb(None)
 
 
 class FakeView:
@@ -187,6 +190,21 @@ class TestLauncherAndAutoCopy(unittest.TestCase):
             editor.close()
             launcher._allow_close = True
             launcher.close()
+
+    def test_compute_optimal_editor_zoom_across_monitor_sizes(self):
+        # Wide QHD monitor at 100% DPI: zooms up so toolbar + sidebar fill cleanly.
+        z_wide = compute_optimal_editor_zoom(1792, 1060, 1020, 170, current_zoom=1.0)
+        self.assertGreater(z_wide, 1.3)
+        self.assertLessEqual(z_wide, 1.75)
+
+        # Already matched monitor (~1220 CSS px): stays near 1.0.
+        z_ideal = compute_optimal_editor_zoom(1218, 860, 1020, 170, current_zoom=1.0)
+        self.assertAlmostEqual(z_ideal, 1.0, places=2)
+
+        # Compact laptop screen: zooms down slightly so toolbar never clips.
+        z_small = compute_optimal_editor_zoom(960, 640, 1020, 170, current_zoom=1.0)
+        self.assertLess(z_small, 0.85)
+        self.assertGreaterEqual(z_small, 0.65)
 
     def test_auto_copy_disabled_does_not_overwrite_clipboard(self):
         with tempfile.TemporaryDirectory() as tmp:

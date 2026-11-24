@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "download_page": "https://capcraft-zeta.vercel.app/",
-  "notes": "화면 표시 안정화, 최근 이미지 전환 개선, 스마트 정렬 및 업데이트 알림 지원"
+  "notes": "미니 실행창(단일 인스턴스), 캡처 직후 자동 복사, 편집창 비율 자동 맞춤·좌우 폭맞춤, 상단 툴바 호버 미리보기 및 자석 토글 버튼 지원"
 }

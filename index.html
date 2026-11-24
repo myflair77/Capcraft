@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Capcraft v1.2</title>
+    <title>Capcraft v1.2.1</title>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script defer src="vendor/emoji-picker.js"></script>
     <style>
@@ -1915,7 +1915,7 @@
                 <circle cx="12" cy="13" r="4"></circle>
             </svg>
         </div>
-        <div class="program-name">Capcraft v1.2</div>
+        <div class="program-name">Capcraft v1.2.1</div>
         <div class="dev-name" style="margin-bottom: 10px;">개발: JBH</div>
 
         <button class="btn-nav" onclick="openGuide()">사용법</button>
@@ -4564,7 +4564,7 @@
             }
         });
 
-        function commitLoadToCanvas(img, w, h, bgColor) {
+        function commitLoadToCanvas(img, w, h, bgColor, fitMode = 'zoom') {
             cancelRecentLoad();
             prepareCanvasDisplay();
             canvas.setWidth(w);
@@ -4575,7 +4575,8 @@
                 hasActiveCanvas = true;
                 syncFabricContainerSize();
                 enableTools();
-                applyFitZoom();
+                if (fitMode === 'width' && typeof applyFitWidth === 'function') applyFitWidth();
+                else applyFitZoom();
                 applyCanvasClipping();
                 isHistoryAction = false;
                 canvas.renderAll();
@@ -6701,7 +6702,7 @@
 
                 fabric.Image.fromURL("data:image/webp;base64," + base64Data, (img) => {
                     img.set({ originX: 'left', originY: 'top', left: 0, top: 0, scaleX: 1, scaleY: 1 });
-                    commitLoadToCanvas(img, img.width, img.height, null);
+                    commitLoadToCanvas(img, img.width, img.height, null, 'width');
 
                     setTimeout(() => {
                         checkAndTriggerAutoSave();

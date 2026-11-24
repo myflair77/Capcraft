@@ -14,7 +14,7 @@ call npm run vendor
 if errorlevel 1 exit /b 1
 .venv\Scripts\python.exe -m unittest discover -s tests
 if errorlevel 1 exit /b 1
-.venv\Scripts\python.exe -m PyInstaller --noconfirm --distpath dist-dev --workpath build\v1.2 Capcraft_v1.2.spec
+.venv\Scripts\python.exe -m PyInstaller --noconfirm --distpath dist-dev --workpath build\v1.2.1 Capcraft_v1.2.spec
 if errorlevel 1 exit /b 1
-echo v1.2 development build: dist-dev\Capcraft v1.2
+echo v1.2.1 development build: dist-dev\Capcraft v1.2.1
 echo Existing releases in dist are preserved.

@@ -62,6 +62,106 @@ def read_settings_dict(path=None):
         return {}
 
 
+def compute_optimal_editor_zoom(viewport_w, viewport_h, toolbar_right, sidebar_w, current_zoom=1.0):
+    """Compute a WebEngine zoom factor so the toolbar + sidebar fit cleanly across any DPI/monitor."""
+    if not viewport_w or not viewport_h or not toolbar_right:
+        return current_zoom
+    required_w = float(toolbar_right) + float(sidebar_w or 170) + 28.0
+    if required_w <= 0:
+        return current_zoom
+    width_zoom = float(current_zoom) * (float(viewport_w) / required_w)
+    # Keep at least ~580 CSS px vertically so the canvas and recent list stay comfortable.
+    max_height_zoom = float(current_zoom) * (float(viewport_h) / 580.0)
+    target = min(width_zoom, max_height_zoom)
+    return round(max(0.65, min(2.2, target)), 3)
+
+
+def fit_editor_zoom_to_window(view, on_done=None, attempt=0, verify_pass=True):
+    """Measure live toolbar/sidebar CSS width and adjust QWebEngineView zoom factor once visible."""
+    if view is None:
+        return
+    js = """(() => {
+        const tb = document.getElementById('toolbar');
+        const sb = document.getElementById('sidebar');
+        if (!tb) return null;
+        const groups = tb.querySelectorAll('.tool-group');
+        const last = groups.length ? groups[groups.length - 1] : null;
+        const tbRight = last ? (last.offsetLeft + last.offsetWidth) : tb.scrollWidth;
+        const sbW = sb ? sb.offsetWidth : 170;
+        return { vw: window.innerWidth, vh: window.innerHeight, dpr: window.devicePixelRatio, tbRight, sbW };
+    })()"""
+
+    def _apply(metrics):
+        if not isinstance(metrics, dict):
+            if attempt < 20:
+                QTimer.singleShot(100, lambda: fit_editor_zoom_to_window(view, on_done=on_done, attempt=attempt + 1, verify_pass=verify_pass))
+            return
+        vw = metrics.get("vw", 0)
+        vh = metrics.get("vh", 0)
+        tb_right = metrics.get("tbRight", 0)
+        sb_w = metrics.get("sbW", 170)
+        if vw < 300 or vh < 200 or tb_right < 100:
+            if attempt < 20:
+                QTimer.singleShot(100, lambda: fit_editor_zoom_to_window(view, on_done=on_done, attempt=attempt + 1, verify_pass=verify_pass))
+            return
+        cur = view.zoomFactor()
+        target = compute_optimal_editor_zoom(vw, vh, tb_right, sb_w, current_zoom=cur)
+        if abs(target - cur) >= 0.02:
+            view.setZoomFactor(target)
+        QTimer.singleShot(
+            140,
+            lambda: view.page().runJavaScript(
+                "requestAnimationFrame(() => {"
+                " if (typeof updateWorkspaceInset === 'function') updateWorkspaceInset();"
+                " if (typeof applyFitWidth === 'function') applyFitWidth();"
+                " else if (typeof applyFitZoom === 'function') applyFitZoom();"
+                "});"
+            ),
+        )
+        if verify_pass:
+            # Re-check once after Chromium finishes any post-show DPI/surface update.
+            QTimer.singleShot(
+                450,
+                lambda: fit_editor_zoom_to_window(view, on_done=on_done, attempt=0, verify_pass=False),
+            )
+        elif callable(on_done):
+            on_done()
+
+    view.page().runJavaScript(js, 0, _apply)
+
+
+def position_window_on_active_screen(window, ratio=0.7):
+    """Size and center the editor window on the monitor where the cursor currently is."""
+    app = QApplication.instance()
+    if app is None or window is None:
+        return
+    screen = None
+    if sys.platform == "win32":
+        try:
+            import win32api
+            px, py = win32api.GetCursorPos()
+            for s in app.screens():
+                if s.geometry().contains(px, py):
+                    screen = s
+                    break
+        except Exception:
+            pass
+    if screen is None:
+        screen = app.primaryScreen()
+    if screen is not None:
+        sg = screen.availableGeometry()
+        width = max(960, int(sg.width() * ratio))
+        height = max(640, int(sg.height() * ratio))
+        width = min(width, sg.width())
+        height = min(height, sg.height())
+        window.resize(width, height)
+        x = int((sg.width() - width) / 2) + sg.x()
+        y = int((sg.height() - height) / 2) + sg.y()
+        window.move(x, y)
+    else:
+        window.resize(1200, 800)
+
+
 class EditorMainWindow(QMainWindow):
     """Main editor window that collapses back to the mini launcher on close."""
 
@@ -92,6 +192,8 @@ class AppController(QObject):
         self.backend = None
         self.is_capturing = False
         self.frontend_ready = False
+        self._editor_positioned = False
+        self._zoom_optimized = False
         self._pending_capture = None
         self._pending_modal = None
 
@@ -119,13 +221,31 @@ class AppController(QObject):
         if self.launcher is not None:
             self.launcher.show_positioned()
 
+    def _schedule_zoom_optimization(self):
+        if self._zoom_optimized or self.view is None:
+            return
+        if getattr(self, "_zoom_pending", False):
+            return
+        self._zoom_pending = True
+
+        def _mark_done():
+            self._zoom_optimized = True
+            self._zoom_pending = False
+
+        QTimer.singleShot(120, lambda: fit_editor_zoom_to_window(self.view, on_done=_mark_done))
+
     def show_editor(self, open_modal=None):
         if self.launcher is not None and self.launcher.isVisible():
             self.launcher.hide()
         if self.main_window is not None:
+            if not self._editor_positioned:
+                position_window_on_active_screen(self.main_window, ratio=0.7)
+                self._editor_positioned = True
             self.main_window.showNormal()
             self.main_window.raise_()
             self.main_window.activateWindow()
+        if self.frontend_ready and not self._zoom_optimized:
+            self._schedule_zoom_optimization()
         if open_modal:
             if self.frontend_ready:
                 self._open_frontend_modal(open_modal)
@@ -142,6 +262,8 @@ class AppController(QObject):
 
     def on_frontend_ready(self):
         self.frontend_ready = True
+        if self.main_window is not None and self.main_window.isVisible() and not self._zoom_optimized:
+            self._schedule_zoom_optimization()
         if self._pending_capture is not None:
             image_base64, auto_copied = self._pending_capture
             self._pending_capture = None
@@ -722,7 +844,9 @@ def main():
     view.page().windowCloseRequested.connect(main_window.close)
     view.setZoomFactor(zoom_factor)
     if direct_editor:
+        position_window_on_active_screen(main_window, ratio=0.7)
         main_window.show()
+        view.loadFinished.connect(lambda _ok: QTimer.singleShot(80, lambda: fit_editor_zoom_to_window(view)))
     elif launcher is not None:
         launcher.show_positioned()
     QTimer.singleShot(5000, backend.updates.check)
