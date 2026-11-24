@@ -345,7 +345,11 @@ class Backend(QObject):
         self.ocr_service = OCRService(self)
         self.ocr_service.finished.connect(self.ocr_finished.emit)
         self.ocr_windows = {}
-        self.updates = UpdateService(view.window(), DATA_DIR)
+        self.updates = UpdateService(
+            view.window(),
+            DATA_DIR,
+            on_quit_for_update=controller.quit_app if controller is not None else None,
+        )
 
     @pyqtSlot()
     def check_updates(self):

@@ -254,7 +254,7 @@ class MiniLauncherWindow(QMainWindow):
         self.action_settings.triggered.connect(self.settings_requested.emit)
         self.action_guide = self.popup_menu.addAction("사용 안내")
         self.action_guide.triggered.connect(self.guide_requested.emit)
-        self.action_update = self.popup_menu.addAction("업데이트 확인")
+        self.action_update = self.popup_menu.addAction("지금 업데이트")
         self.action_update.triggered.connect(self.update_check_requested.emit)
         self.popup_menu.addSeparator()
         self.action_quit = self.popup_menu.addAction("종료")

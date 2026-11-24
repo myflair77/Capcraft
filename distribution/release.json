@@ -1,8 +1,8 @@
 {
   "ready": true,
-  "version": "1.2.1",
-  "display_version": "1.2.1",
-  "installer_url": "https://github.com/myflair77/Capcraft/releases/download/v1.2.1/Capcraft_Setup_v1.2.1.exe",
+  "version": "1.2.2",
+  "display_version": "1.2.2",
+  "installer_url": "https://github.com/myflair77/Capcraft/releases/download/v1.2.2/Capcraft_Setup_v1.2.2.exe",
   "size": "610 MB",
-  "sha256": "08fcdb7e2c5955189ae76b515edc1b6f59d1e523dc94bc2a035cdbca44efb112"
+  "sha256": "d3d9a6dfffc3b5d702c7a20cd9bbae2afd31e24219f49bf15d2285842cc11eca"
 }

@@ -63,5 +63,111 @@ class UpdatesTest(unittest.TestCase):
         self.service.finished(Reply(dict(self.manifest,version='1.2')), True)
         self.assertIn('최신', self.service.dialog.text())
 
+    def test_manifest_supports_optional_direct_update_fields(self):
+        good_sha = 'a' * 64
+        full = dict(
+            self.manifest,
+            installer_url='https://github.com/myflair77/Capcraft/releases/download/v1.3.0/Capcraft_Setup_v1.3.0.exe',
+            sha256=good_sha,
+            size='610 MB',
+        )
+        parsed = parse_manifest(json.dumps(full))
+        self.assertEqual(parsed['sha256'], good_sha)
+        self.assertEqual(parsed['installer_url'], full['installer_url'])
+        with self.assertRaises(ValueError):
+            parse_manifest(json.dumps(dict(full, sha256='not-a-sha')))
+        with self.assertRaises(ValueError):
+            parse_manifest(json.dumps(dict(full, installer_url='http://insecure.example/a.exe')))
+
+    def test_direct_update_verifies_sha256_and_launches_installer(self):
+        import hashlib
+        payload = b'fake-installer-binary-content'
+        expected_sha = hashlib.sha256(payload).hexdigest()
+        quit_called = []
+        svc = UpdateService(self.window, self.temp.name, on_quit_for_update=lambda: quit_called.append(True))
+        manifest = dict(
+            self.manifest,
+            installer_url='https://github.com/myflair77/Capcraft/releases/download/v1.3.0/Capcraft_Setup_v1.3.0.exe',
+            sha256=expected_sha,
+            size='1 MB',
+        )
+
+        class FakeSignal:
+            def connect(self, fn): pass
+
+        class FakeDownloadReply:
+            def __init__(self, content):
+                self._buf = content
+                self.readyRead = FakeSignal()
+                self.downloadProgress = FakeSignal()
+                self.finished = FakeSignal()
+            def error(self): return QNetworkReply.NetworkError.NoError
+            def readAll(self):
+                data, self._buf = self._buf, b''
+                return QByteArray(data)
+            def abort(self): pass
+            def deleteLater(self): pass
+
+        fake_reply = FakeDownloadReply(payload)
+        with patch.object(svc.manager, 'get', return_value=fake_reply), \
+             patch('update_service.launch_installer', return_value=True) as launched:
+            # Auto check shows notice dialog with '지금 업데이트' button.
+            svc.finished(Reply(manifest), False)
+            update_btn = next(b for b in svc.dialog.buttons() if '지금 업데이트' in b.text())
+            update_btn.click()
+            svc._on_download_finished(fake_reply, manifest)
+            launched.assert_called_once()
+            self.assertEqual(quit_called, [True])
+
+        # Manual '지금 업데이트' button starts direct update immediately without extra dialog.
+        quit_called.clear()
+        fake_reply2 = FakeDownloadReply(payload)
+        with patch.object(svc.manager, 'get', return_value=fake_reply2), \
+             patch('update_service.launch_installer', return_value=True) as launched2:
+            svc.finished(Reply(manifest), True)
+            self.assertIsNone(svc.dialog)
+            self.assertIsNotNone(svc.download_reply)
+            svc._on_download_finished(fake_reply2, manifest)
+            launched2.assert_called_once()
+            self.assertEqual(quit_called, [True])
+
+    def test_direct_update_rejects_sha256_mismatch(self):
+        payload = b'tampered-installer-binary'
+        wrong_sha = '0' * 64
+        svc = UpdateService(self.window, self.temp.name)
+        manifest = dict(
+            self.manifest,
+            installer_url='https://github.com/myflair77/Capcraft/releases/download/v1.3.0/Capcraft_Setup_v1.3.0.exe',
+            sha256=wrong_sha,
+        )
+
+        class FakeSignal:
+            def connect(self, fn): pass
+
+        class FakeDownloadReply:
+            def __init__(self, content):
+                self._buf = content
+                self.readyRead = FakeSignal()
+                self.downloadProgress = FakeSignal()
+                self.finished = FakeSignal()
+            def error(self): return QNetworkReply.NetworkError.NoError
+            def readAll(self):
+                data, self._buf = self._buf, b''
+                return QByteArray(data)
+            def abort(self): pass
+            def deleteLater(self): pass
+
+        fake_reply = FakeDownloadReply(payload)
+        with patch.object(svc.manager, 'get', return_value=fake_reply), \
+             patch('update_service.launch_installer', return_value=True) as launched:
+            svc.start_direct_update(manifest)
+            part_path = svc._download_part_path
+            svc._on_download_finished(fake_reply, manifest)
+            launched.assert_not_called()
+            self.assertFalse(part_path.exists())
+            self.assertIsNotNone(svc.dialog)
+            self.assertIn('SHA-256', svc.dialog.text())
+            svc.dialog.close()
+
 
 if __name__ == '__main__': unittest.main()
